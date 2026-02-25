@@ -10,7 +10,7 @@ const ALLOWED_ROLES: Role[] = [Role.HR_TEAM, Role.SYSTEM_ADMIN];
 const READ_ROLES: Role[] = [Role.HR_TEAM, Role.CEO, Role.SYSTEM_ADMIN];
 
 // GET /api/grade-criteria
-export async function GET(_req: NextRequest) {
+export async function GET() {
   const session = await getServerSession(authOptions);
   if (!session) {
     return NextResponse.json({ error: "로그인이 필요합니다." }, { status: 401 });

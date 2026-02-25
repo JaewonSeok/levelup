@@ -155,14 +155,6 @@ function buildQuery(
 // 서브 컴포넌트
 // ─────────────────────────────────────────
 
-function EmploymentTypeBadge({ type }: { type: string | null }) {
-  if (!type) return <span className="text-muted-foreground text-sm">-</span>;
-  return (
-    <Badge variant={type === "REGULAR" ? "default" : "secondary"} className="text-xs">
-      {EMPLOYMENT_MAP[type] ?? type}
-    </Badge>
-  );
-}
 
 function IsActiveRadio({
   name,
