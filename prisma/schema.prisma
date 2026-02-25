@@ -55,7 +55,7 @@ model User {
   emailVerified  DateTime?
   image          String?
   password       String?   // bcrypt 해시
-  employeeNumber String?   @unique // 사번 (본부장 계정 초기 비밀번호)
+  residentIdLast7 String?  // 주민번호 뒷 7자리 (본부장 계정 초기 비밀번호)
 
   // ── 인사 기본정보 ──────────────────────
   role           Role           @default(TEAM_MEMBER)

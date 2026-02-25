@@ -27,7 +27,7 @@ export async function PUT(
     name?: string;
     emailPrefix?: string;
     department?: string;
-    employeeNumber?: string;
+    residentIdLast7?: string;
   };
   try {
     body = await req.json();
@@ -35,11 +35,18 @@ export async function PUT(
     return NextResponse.json({ error: "요청 파싱 실패" }, { status: 400 });
   }
 
+  if (body.residentIdLast7 && !/^\d{7}$/.test(body.residentIdLast7)) {
+    return NextResponse.json(
+      { error: "주민번호 뒷 7자리는 정확히 7자리 숫자여야 합니다." },
+      { status: 400 }
+    );
+  }
+
   const updateData: {
     name?: string;
     email?: string;
     department?: string;
-    employeeNumber?: string;
+    residentIdLast7?: string;
     password?: string;
   } = {};
 
@@ -57,15 +64,9 @@ export async function PUT(
     }
   }
 
-  if (body.employeeNumber && body.employeeNumber !== target.employeeNumber) {
-    const empExists = await prisma.user.findUnique({
-      where: { employeeNumber: body.employeeNumber },
-    });
-    if (empExists) {
-      return NextResponse.json({ error: "이미 사용 중인 사번입니다." }, { status: 409 });
-    }
-    updateData.employeeNumber = body.employeeNumber;
-    updateData.password = await bcrypt.hash(body.employeeNumber, 10);
+  if (body.residentIdLast7) {
+    updateData.residentIdLast7 = body.residentIdLast7;
+    updateData.password = await bcrypt.hash(body.residentIdLast7, 10);
   }
 
   const account = await prisma.user.update({
@@ -75,7 +76,7 @@ export async function PUT(
       id: true,
       name: true,
       email: true,
-      employeeNumber: true,
+      residentIdLast7: true,
       department: true,
       createdAt: true,
     },

@@ -21,7 +21,7 @@ export async function GET() {
       id: true,
       name: true,
       email: true,
-      employeeNumber: true,
+      residentIdLast7: true,
       department: true,
       createdAt: true,
     },
@@ -45,7 +45,7 @@ export async function POST(req: NextRequest) {
     name: string;
     emailPrefix: string;
     department: string;
-    employeeNumber: string;
+    residentIdLast7: string;
   };
   try {
     body = await req.json();
@@ -53,34 +53,36 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "요청 파싱 실패" }, { status: 400 });
   }
 
-  const { name, emailPrefix, department, employeeNumber } = body;
-  if (!name || !emailPrefix || !department || !employeeNumber) {
+  const { name, emailPrefix, department, residentIdLast7 } = body;
+  if (!name || !emailPrefix || !department || !residentIdLast7) {
     return NextResponse.json(
-      { error: "필수 항목이 없습니다. (이름, 이메일, 본부, 사번)" },
+      { error: "필수 항목이 없습니다. (이름, 이메일, 본부, 주민번호 뒷 7자리)" },
+      { status: 400 }
+    );
+  }
+
+  if (!/^\d{7}$/.test(residentIdLast7)) {
+    return NextResponse.json(
+      { error: "주민번호 뒷 7자리는 정확히 7자리 숫자여야 합니다." },
       { status: 400 }
     );
   }
 
   const email = `${emailPrefix}@rsupport.com`;
 
-  const existing = await prisma.user.findFirst({
-    where: { OR: [{ email }, { employeeNumber }] },
-  });
+  const existing = await prisma.user.findUnique({ where: { email } });
   if (existing) {
-    if (existing.email === email) {
-      return NextResponse.json({ error: "이미 사용 중인 이메일입니다." }, { status: 409 });
-    }
-    return NextResponse.json({ error: "이미 사용 중인 사번입니다." }, { status: 409 });
+    return NextResponse.json({ error: "이미 사용 중인 이메일입니다." }, { status: 409 });
   }
 
-  const hashedPassword = await bcrypt.hash(employeeNumber, 10);
+  const hashedPassword = await bcrypt.hash(residentIdLast7, 10);
 
   const account = await prisma.user.create({
     data: {
       name,
       email,
       password: hashedPassword,
-      employeeNumber,
+      residentIdLast7,
       department,
       team: "",
       role: Role.DEPT_HEAD,
@@ -89,7 +91,7 @@ export async function POST(req: NextRequest) {
       id: true,
       name: true,
       email: true,
-      employeeNumber: true,
+      residentIdLast7: true,
       department: true,
       createdAt: true,
     },

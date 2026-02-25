@@ -117,40 +117,48 @@ export async function GET(req: NextRequest) {
     role: true,
   } as const;
 
-  const [total, employees, metaDepts, metaTeams] = await Promise.all([
-    prisma.user.count({ where }),
-    prisma.user.findMany({
-      where,
-      select: selectFields,
-      orderBy: [{ department: "asc" }, { team: "asc" }, { name: "asc" }],
-      skip: (page - 1) * pageSize,
-      take: pageSize,
-    }),
-    prisma.user.findMany({
-      where: rbacWhere,
-      distinct: ["department"],
-      select: { department: true },
-      orderBy: { department: "asc" },
-    }),
-    prisma.user.findMany({
-      where: rbacWhere,
-      distinct: ["team"],
-      select: { team: true },
-      orderBy: { team: "asc" },
-    }),
-  ]);
+  try {
+    const [total, employees, metaDepts, metaTeams] = await Promise.all([
+      prisma.user.count({ where }),
+      prisma.user.findMany({
+        where,
+        select: selectFields,
+        orderBy: [{ department: "asc" }, { team: "asc" }, { name: "asc" }],
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+      prisma.user.findMany({
+        where: rbacWhere,
+        distinct: ["department"],
+        select: { department: true },
+        orderBy: { department: "asc" },
+      }),
+      prisma.user.findMany({
+        where: rbacWhere,
+        distinct: ["team"],
+        select: { team: true },
+        orderBy: { team: "asc" },
+      }),
+    ]);
 
-  return NextResponse.json({
-    employees,
-    total,
-    page,
-    pageSize,
-    totalPages: Math.ceil(total / pageSize),
-    meta: {
-      departments: metaDepts.map((d) => d.department).filter(Boolean),
-      teams: metaTeams.map((t) => t.team).filter(Boolean),
-    },
-  });
+    return NextResponse.json({
+      employees,
+      total,
+      page,
+      pageSize,
+      totalPages: Math.ceil(total / pageSize),
+      meta: {
+        departments: metaDepts.map((d) => d.department).filter(Boolean),
+        teams: metaTeams.map((t) => t.team).filter(Boolean),
+      },
+    });
+  } catch (error) {
+    console.error("[GET /api/employees] error:", error);
+    return NextResponse.json(
+      { error: "서버 오류가 발생했습니다.", detail: error instanceof Error ? error.message : String(error) },
+      { status: 500 }
+    );
+  }
 }
 
 // ── POST /api/employees (SYSTEM_ADMIN only) ──────────────────────

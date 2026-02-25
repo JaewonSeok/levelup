@@ -437,8 +437,9 @@ export default function LevelManagementPage() {
       try {
         const res = await fetch(`/api/employees?${buildQuery(params, currentPage)}`);
         if (!res.ok) {
-          const body = await res.json();
-          throw new Error(body.error ?? "데이터 조회 실패");
+          let body: { error?: string; detail?: string } = {};
+          try { body = await res.json(); } catch { /* empty body */ }
+          throw new Error(body.error ?? `데이터 조회 실패 (${res.status})`);
         }
         const data: EmployeeResponse = await res.json();
         setEmployees(data.employees);

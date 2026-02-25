@@ -45,7 +45,7 @@ interface Account {
   id: string;
   name: string;
   email: string;
-  employeeNumber: string | null;
+  residentIdLast7: string | null;
   department: string;
   createdAt: string;
 }
@@ -54,14 +54,14 @@ interface FormState {
   name: string;
   emailPrefix: string;
   department: string;
-  employeeNumber: string;
+  residentIdLast7: string;
 }
 
 const EMPTY_FORM: FormState = {
   name: "",
   emailPrefix: "",
   department: "",
-  employeeNumber: "",
+  residentIdLast7: "",
 };
 
 // ── Component ─────────────────────────────────────────────────────────
@@ -124,21 +124,30 @@ export default function AccountsPage() {
       name: account.name,
       emailPrefix: account.email.replace("@rsupport.com", ""),
       department: account.department,
-      employeeNumber: account.employeeNumber ?? "",
+      residentIdLast7: "",
     });
     setModalOpen(true);
   }
 
   // ── 저장 (추가/수정) ───────────────────────────────────────────────
   async function handleSubmit() {
-    if (!form.name || !form.emailPrefix || !form.department || !form.employeeNumber) {
-      toast.error("모든 항목을 입력해 주세요.");
+    const isEdit = !!editTarget;
+
+    if (!form.name || !form.emailPrefix || !form.department) {
+      toast.error("이름, 이메일, 본부를 입력해 주세요.");
+      return;
+    }
+    if (!isEdit && !form.residentIdLast7) {
+      toast.error("주민번호 뒷 7자리를 입력해 주세요.");
+      return;
+    }
+    if (form.residentIdLast7 && !/^\d{7}$/.test(form.residentIdLast7)) {
+      toast.error("주민번호 뒷 7자리는 정확히 7자리 숫자여야 합니다.");
       return;
     }
 
     setSubmitting(true);
     try {
-      const isEdit = !!editTarget;
       const url = isEdit ? `/api/accounts/${editTarget!.id}` : "/api/accounts";
       const method = isEdit ? "PUT" : "POST";
 
@@ -213,7 +222,7 @@ export default function AccountsPage() {
               <TableHead>본부명</TableHead>
               <TableHead>이름</TableHead>
               <TableHead>이메일</TableHead>
-              <TableHead>사번</TableHead>
+              <TableHead>비밀번호 설정</TableHead>
               <TableHead className="text-center">등록일</TableHead>
               <TableHead className="w-28 text-center">관리</TableHead>
             </TableRow>
@@ -238,7 +247,9 @@ export default function AccountsPage() {
                   <TableCell className="text-sm">{acc.department}</TableCell>
                   <TableCell className="text-sm">{acc.name}</TableCell>
                   <TableCell className="text-sm">{acc.email}</TableCell>
-                  <TableCell className="text-sm">{acc.employeeNumber ?? "-"}</TableCell>
+                  <TableCell className="text-sm tracking-widest text-gray-500">
+                    {acc.residentIdLast7 ? "●●●●●●●" : "-"}
+                  </TableCell>
                   <TableCell className="text-center text-sm">
                     {new Date(acc.createdAt).toLocaleDateString("ko-KR")}
                   </TableCell>
@@ -323,17 +334,23 @@ export default function AccountsPage() {
               </div>
             </div>
 
-            {/* 사번 */}
+            {/* 주민번호 뒷 7자리 */}
             <div className="space-y-1.5">
-              <Label>사번</Label>
+              <Label>초기 비밀번호 (주민번호 뒷 7자리)</Label>
               <Input
-                value={form.employeeNumber}
-                onChange={(e) => setForm((f) => ({ ...f, employeeNumber: e.target.value }))}
-                placeholder="예: EMP001"
+                type="password"
+                value={form.residentIdLast7}
+                onChange={(e) => {
+                  const val = e.target.value.replace(/\D/g, "").slice(0, 7);
+                  setForm((f) => ({ ...f, residentIdLast7: val }));
+                }}
+                placeholder="0000000"
+                maxLength={7}
               />
               <p className="text-xs text-muted-foreground">
-                사번이 초기 로그인 비밀번호로 설정됩니다.
-                {editTarget && " 변경 시 비밀번호도 함께 재설정됩니다."}
+                {editTarget
+                  ? "입력 시 비밀번호가 새 주민번호 뒷 7자리로 재설정됩니다. 변경하지 않으려면 비워두세요."
+                  : "주민번호 뒷 7자리가 초기 로그인 비밀번호로 설정됩니다. (7자리 숫자)"}
               </p>
             </div>
           </div>
