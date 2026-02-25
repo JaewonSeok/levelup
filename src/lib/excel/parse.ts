@@ -15,7 +15,6 @@ const COLUMN_ALIASES: Record<string, string> = {
   소속팀: "team",
   이름: "name",
   성명: "name",
-  고용형태: "employmentType",
   직책: "position",
   현재직급: "level",
   "현재직급(레벨)": "level",
@@ -42,7 +41,6 @@ const COLUMN_ALIASES: Record<string, string> = {
 // ─────────────────────────────────────────
 
 export type ParsedLevel = "L1" | "L2" | "L3" | "L4" | "L5";
-export type ParsedEmploymentType = "REGULAR" | "CONTRACT";
 
 export interface ParsedEmployee {
   sheet: string;          // 시트명
@@ -50,7 +48,6 @@ export interface ParsedEmployee {
   department: string;
   team: string;
   name: string;
-  employmentType: ParsedEmploymentType | null;
   position: string;
   level: ParsedLevel | null;
   hireDate: Date | null;
@@ -81,13 +78,6 @@ const VALID_GRADES_2025 = new Set(["S", "O", "E", "G", "N", "U"]);
 function parseLevel(raw: unknown): ParsedLevel | null {
   const s = String(raw ?? "").trim().toUpperCase();
   return VALID_LEVELS.has(s) ? (s as ParsedLevel) : null;
-}
-
-function parseEmploymentType(raw: unknown): ParsedEmploymentType | null {
-  const s = String(raw ?? "").trim();
-  if (s === "정규직") return "REGULAR";
-  if (s === "계약직") return "CONTRACT";
-  return null;
 }
 
 function parseDateValue(value: unknown): { date: Date | null; str: string } {
@@ -179,7 +169,7 @@ export function parseExcelFile(buffer: ArrayBuffer): ParsedEmployee[] {
 
     // 필수 컬럼 누락 체크
     const foundFields = new Set(Object.values(fieldMap));
-    const requiredFields = ["department", "team", "name", "employmentType", "level", "hireDate", "yearsOfService"];
+    const requiredFields = ["department", "team", "name", "level", "hireDate", "yearsOfService"];
     const missingFields = requiredFields.filter((f) => !foundFields.has(f));
     if (missingFields.length > 0) {
       // 필수 컬럼이 하나도 없으면 이 시트는 건너뜀 (안내 시트 등)
@@ -207,13 +197,6 @@ export function parseExcelFile(buffer: ArrayBuffer): ParsedEmployee[] {
       if (!department) errors.push("본부 필수");
       if (!team) errors.push("팀 필수");
       if (!name) errors.push("이름 필수");
-
-      const employmentType = parseEmploymentType(mapped.employmentType);
-      if (!mapped.employmentType) {
-        errors.push("고용형태 필수");
-      } else if (!employmentType) {
-        errors.push(`고용형태 오류 (정규직/계약직): "${mapped.employmentType}"`);
-      }
 
       const level = parseLevel(mapped.level);
       if (!mapped.level) {
@@ -283,7 +266,6 @@ export function parseExcelFile(buffer: ArrayBuffer): ParsedEmployee[] {
         department,
         team,
         name,
-        employmentType,
         position,
         level,
         hireDate,

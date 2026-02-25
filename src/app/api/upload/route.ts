@@ -115,7 +115,7 @@ export async function POST(req: NextRequest) {
           team: row.team,
           level: row.level as Level,
           position: row.position || null,
-          employmentType: row.employmentType as EmploymentType,
+          employmentType: "REGULAR" as EmploymentType,
           hireDate,
           yearsOfService: row.yearsOfService,
           competencyLevel: row.competencyLevel || null,

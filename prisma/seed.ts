@@ -129,23 +129,19 @@ const EMPLOYEES: EmpRow[] = [
 async function main() {
   console.log("🌱 Seeding database...");
 
-  // 1. 기존 데이터 삭제 (의존성 역순)
+  // 1. 기존 데이터 삭제 ($transaction으로 같은 커넥션 보장, SET LOCAL로 timeout 해제)
   console.log("  Deleting existing data...");
-  await prisma.opinion.deleteMany();
-  await prisma.review.deleteMany();
-  await prisma.confirmation.deleteMany();
-  await prisma.candidate.deleteMany();
-  await prisma.submission.deleteMany();
-  await prisma.credit.deleteMany();
-  await prisma.point.deleteMany();
-  await prisma.performanceGrade.deleteMany();
-  await prisma.uploadHistory.deleteMany();
-  await prisma.session.deleteMany();
-  await prisma.account.deleteMany();
-  // 본부장 계정은 보존 (role이 DEPT_HEAD인 레코드는 삭제하지 않음)
-  await prisma.user.deleteMany({
-    where: { role: { not: Role.DEPT_HEAD } },
-  });
+  await prisma.$transaction(async (tx) => {
+    await tx.$executeRawUnsafe(`SET LOCAL statement_timeout = 0`);
+    await tx.$executeRawUnsafe(
+      `TRUNCATE TABLE opinions, reviews, confirmations, candidates, submissions,
+       credits, points, performance_grades, upload_histories, sessions, accounts
+       RESTART IDENTITY CASCADE`
+    );
+    await tx.$executeRawUnsafe(
+      `DELETE FROM users WHERE role != 'DEPT_HEAD'`
+    );
+  }, { timeout: 300000 });
   // GradeCriteria / LevelCriteria는 삭제하지 않음 (기준 설정값 보존)
   console.log("  ✓ Existing data deleted");
 

@@ -40,7 +40,6 @@ export interface ExcelEmployeeRow {
   본부: string;
   팀: string;
   이름: string;
-  고용형태: string;
   직책?: string;
   "현재 직급(레벨)": string; // "L1" ~ "L5"
   입사일자: string | number;

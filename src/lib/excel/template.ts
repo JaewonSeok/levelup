@@ -17,7 +17,6 @@ export function generateUploadTemplate(): Buffer {
     "레벨",
     "입사일자",
     "연차",
-    "고용형태",
     "포인트",
     "학점",
     ...gradeYears.map((y) => `${y}평가등급`),
@@ -31,7 +30,6 @@ export function generateUploadTemplate(): Buffer {
     "L3",
     "2022-03-01",
     5,
-    "정규직",
     12.5,
     8.0,
     "A", "B", "S", "A",
@@ -44,7 +42,6 @@ export function generateUploadTemplate(): Buffer {
     "L4",
     "2021-08-15",
     7,
-    "정규직",
     20.0,
     15.0,
     "S", "A", "S", "A",
@@ -61,7 +58,6 @@ export function generateUploadTemplate(): Buffer {
     { wch: 8 },  // 레벨
     { wch: 14 }, // 입사일자
     { wch: 6 },  // 연차
-    { wch: 10 }, // 고용형태
     { wch: 8 },  // 포인트
     { wch: 8 },  // 학점
     ...gradeYears.map(() => ({ wch: 12 })), // 20xx평가등급
@@ -79,7 +75,6 @@ export function generateUploadTemplate(): Buffer {
     ["레벨", "필수", "L1 / L2 / L3 / L4 / L5", "L3"],
     ["입사일자", "필수", "YYYY-MM-DD (예: 2022-03-01)", "2022-03-01"],
     ["연차", "필수", "현재 레벨 체류 연수 (0 이상 정수)", "5"],
-    ["고용형태", "필수", "정규직 또는 계약직", "정규직"],
     ["포인트", "선택", "해당 연도 포인트 점수 (소수 가능)", "12.5"],
     ["학점", "선택", "해당 연도 학점 점수 (소수 가능)", "8.0"],
     ...gradeYears.map((y) => [
