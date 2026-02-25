@@ -35,7 +35,6 @@ export async function GET(req: NextRequest) {
 
   const candidateWhere: Prisma.CandidateWhereInput = {
     year,
-    isReviewTarget: true,
     ...(userConditions.length > 0 ? { user: { AND: userConditions } } : {}),
   };
 

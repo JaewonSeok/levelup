@@ -51,9 +51,7 @@ interface CandidateRow {
   creditCumulative: number;
   pointMet: boolean;
   creditMet: boolean;
-  isReviewTarget: boolean;
   source: string;
-  savedAt: string | null;
   grades: GradeMap;
 }
 
@@ -68,12 +66,6 @@ interface Query {
   position: string;
   hireDateFrom: string;
   hireDateTo: string;
-}
-
-interface RowState {
-  isReviewTarget: boolean;
-  isDirty: boolean;
-  savedAt: string | null;
 }
 
 // ── Constants ──────────────────────────────────────────────────
@@ -144,10 +136,6 @@ export default function CandidatesPage() {
   });
   const [loading, setLoading] = useState(false);
 
-  // Local row states (checkbox + dirty tracking)
-  const [rowStates, setRowStates] = useState<Map<string, RowState>>(new Map());
-  const [savingIds, setSavingIds] = useState<Set<string>>(new Set());
-
   // Admin: add candidate modal
   const [addModalOpen, setAddModalOpen] = useState(false);
   const [addForm, setAddForm] = useState({
@@ -201,15 +189,6 @@ export default function CandidatesPage() {
         setTotalPages(data.totalPages ?? 0);
         setMeta(data.meta ?? { departments: [], teams: [] });
 
-        const states = new Map<string, RowState>();
-        for (const emp of data.employees ?? []) {
-          states.set(emp.candidateId, {
-            isReviewTarget: emp.isReviewTarget,
-            isDirty: false,
-            savedAt: emp.savedAt,
-          });
-        }
-        setRowStates(states);
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -240,53 +219,6 @@ export default function CandidatesPage() {
   const handleYearChange = (y: number) => {
     setQuery((prev) => ({ ...prev, year: y }));
     setPage(1);
-  };
-
-  // ── Row state handlers ─────────────────────────────────────
-
-  const handleCheckChange = (candidateId: string, checked: boolean) => {
-    setRowStates((prev) => {
-      const next = new Map(prev);
-      const cur = next.get(candidateId) ?? {
-        isReviewTarget: false,
-        isDirty: false,
-        savedAt: null,
-      };
-      next.set(candidateId, { ...cur, isReviewTarget: checked, isDirty: true });
-      return next;
-    });
-  };
-
-  const handleSave = async (candidateId: string) => {
-    const state = rowStates.get(candidateId);
-    if (!state) return;
-
-    setSavingIds((prev) => new Set(prev).add(candidateId));
-    try {
-      const res = await fetch(`/api/candidates/${candidateId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ isReviewTarget: state.isReviewTarget }),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setRowStates((prev) => {
-          const next = new Map(prev);
-          next.set(candidateId, {
-            isReviewTarget: state.isReviewTarget,
-            isDirty: false,
-            savedAt: data.savedAt,
-          });
-          return next;
-        });
-      }
-    } finally {
-      setSavingIds((prev) => {
-        const next = new Set(prev);
-        next.delete(candidateId);
-        return next;
-      });
-    }
   };
 
   // ── Admin handlers ─────────────────────────────────────────
@@ -568,32 +500,24 @@ export default function CandidatesPage() {
               {GRADE_YEARS.map((y) => (
                 <th key={y} className="border px-2 py-2 font-medium text-xs text-gray-600">{y}</th>
               ))}
-              <th className="border px-2 py-2 font-medium">심사대상</th>
-              <th className="border px-2 py-2 font-medium">저장</th>
               {isAdmin && <th className="border px-2 py-2 font-medium w-10">삭제</th>}
             </tr>
           </thead>
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={isAdmin ? 14 + GRADE_YEARS.length : 13 + GRADE_YEARS.length} className="text-center py-10 text-muted-foreground">
+                <td colSpan={isAdmin ? 12 + GRADE_YEARS.length : 11 + GRADE_YEARS.length} className="text-center py-10 text-muted-foreground">
                   불러오는 중...
                 </td>
               </tr>
             ) : rows.length === 0 ? (
               <tr>
-                <td colSpan={isAdmin ? 14 + GRADE_YEARS.length : 13 + GRADE_YEARS.length} className="text-center py-10 text-muted-foreground">
+                <td colSpan={isAdmin ? 12 + GRADE_YEARS.length : 11 + GRADE_YEARS.length} className="text-center py-10 text-muted-foreground">
                   충족 조건을 만족하는 직원이 없습니다.
                 </td>
               </tr>
             ) : (
               rows.map((row, idx) => {
-                const state = rowStates.get(row.candidateId) ?? {
-                  isReviewTarget: row.isReviewTarget,
-                  isDirty: false,
-                  savedAt: row.savedAt,
-                };
-                const isSaving = savingIds.has(row.candidateId);
                 const rowNum = (page - 1) * pageSize + idx + 1;
 
                 return (
@@ -669,38 +593,6 @@ export default function CandidatesPage() {
                         <GradeBadge grade={row.grades?.[y] ?? null} />
                       </td>
                     ))}
-
-                    {/* 심사대상 */}
-                    <td className="border px-2 py-1.5">
-                      <input
-                        type="checkbox"
-                        checked={state.isReviewTarget}
-                        onChange={(e) =>
-                          handleCheckChange(row.candidateId, e.target.checked)
-                        }
-                        className="w-4 h-4 cursor-pointer"
-                      />
-                    </td>
-
-                    {/* 저장 */}
-                    <td className="border px-2 py-1.5">
-                      {state.isDirty ? (
-                        <Button
-                          size="sm"
-                          className="h-6 text-xs px-2"
-                          onClick={() => handleSave(row.candidateId)}
-                          disabled={isSaving}
-                        >
-                          {isSaving ? "..." : "저장"}
-                        </Button>
-                      ) : state.savedAt ? (
-                        <span className="text-blue-600 text-xs font-medium">
-                          저장됨
-                        </span>
-                      ) : (
-                        <span className="text-gray-400 text-xs">-</span>
-                      )}
-                    </td>
 
                     {/* 삭제 (admin) */}
                     {isAdmin && (
