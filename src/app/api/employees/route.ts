@@ -100,29 +100,29 @@ export async function GET(req: NextRequest) {
       : rbacWhere;
 
   // ── 쿼리 ──────────────────────────────────────────────────
-  const selectFields = {
-    id: true,
-    name: true,
-    department: true,
-    team: true,
-    level: true,
-    position: true,
-    employmentType: true,
-    hireDate: true,
-    resignDate: true,
-    competencyLevel: true,
-    yearsOfService: true,
-    levelUpYear: true,
-    isActive: true,
-    role: true,
-  } as const;
-
   try {
-    const [total, employees, metaDepts, metaTeams] = await Promise.all([
+    const [total, rawEmployees, metaDepts, metaTeams] = await Promise.all([
       prisma.user.count({ where }),
       prisma.user.findMany({
         where,
-        select: selectFields,
+        select: {
+          id: true,
+          name: true,
+          department: true,
+          team: true,
+          level: true,
+          position: true,
+          employmentType: true,
+          hireDate: true,
+          resignDate: true,
+          competencyLevel: true,
+          yearsOfService: true,
+          levelUpYear: true,
+          isActive: true,
+          role: true,
+          performanceGrades: { select: { year: true, grade: true } },
+          credits: { select: { cumulative: true }, orderBy: { year: "desc" }, take: 1 },
+        },
         orderBy: [{ department: "asc" }, { team: "asc" }, { name: "asc" }],
         skip: (page - 1) * pageSize,
         take: pageSize,
@@ -140,6 +140,17 @@ export async function GET(req: NextRequest) {
         orderBy: { team: "asc" },
       }),
     ]);
+
+    // 평가등급 맵 + 학점 누적값 변환
+    const employees = rawEmployees.map((emp) => {
+      const { performanceGrades, credits, ...rest } = emp;
+      const grades: Record<string, string> = {};
+      for (const g of performanceGrades) {
+        grades[String(g.year)] = g.grade;
+      }
+      const creditTotal = credits[0]?.cumulative ?? null;
+      return { ...rest, grades, creditTotal };
+    });
 
     return NextResponse.json({
       employees,

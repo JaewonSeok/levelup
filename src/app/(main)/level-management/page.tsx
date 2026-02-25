@@ -52,6 +52,8 @@ interface Employee {
   levelUpYear: number | null;
   isActive: boolean;
   role: string;
+  grades: Record<string, string>;
+  creditTotal: number | null;
 }
 
 interface EmployeeResponse {
@@ -97,6 +99,18 @@ interface EmployeeFormData {
 const LEVELS = ["L1", "L2", "L3", "L4", "L5"];
 const POSITIONS = ["팀원", "팀장", "실장", "본부장"];
 const PAGE_SIZE = 20;
+const GRADE_YEARS = [2021, 2022, 2023, 2024, 2025];
+const GRADE_COLORS: Record<string, string> = {
+  S: "bg-amber-100 text-[#b8860b]",
+  A: "bg-green-100 text-green-700",
+  B: "bg-gray-100 text-gray-600",
+  C: "bg-orange-100 text-orange-700",
+  O: "bg-blue-100 text-blue-700",
+  E: "bg-green-100 text-green-700",
+  G: "bg-gray-100 text-gray-600",
+  N: "bg-orange-100 text-orange-700",
+  U: "bg-red-100 text-red-700",
+};
 
 const DEFAULT_FORM: EmployeeFormData = {
   name: "",
@@ -110,6 +124,20 @@ const DEFAULT_FORM: EmployeeFormData = {
   levelUpYear: "",
   isActive: true,
 };
+
+// ─────────────────────────────────────────
+// 서브 컴포넌트 — 등급 배지
+// ─────────────────────────────────────────
+
+function GradeBadge({ grade }: { grade?: string }) {
+  if (!grade) return <span className="text-gray-300 text-xs">-</span>;
+  const cls = GRADE_COLORS[grade] ?? "bg-gray-100 text-gray-600";
+  return (
+    <span className={`inline-flex items-center justify-center rounded px-1.5 py-0.5 text-xs font-semibold ${cls}`}>
+      {grade}
+    </span>
+  );
+}
 
 // ─────────────────────────────────────────
 // 헬퍼
@@ -718,28 +746,45 @@ export default function LevelManagementPage() {
         <span className="font-semibold text-foreground">{total.toLocaleString()}</span>명
       </div>
 
-      {/* ── 결과 테이블 ──────────────────────────────────── */}
-      <div className="border rounded-md overflow-auto">
+      {/* ── 결과 테이블 (가로 스크롤 / No.·본부·팀·이름 좌측 고정) ── */}
+      <div className="border rounded-md">
         <Table>
           <TableHeader>
             <TableRow className="bg-muted/40 hover:bg-muted/40">
-              <TableHead className="w-12 text-center text-xs">No.</TableHead>
-              <TableHead className="text-xs">본부</TableHead>
-              <TableHead className="text-xs">팀</TableHead>
-              <TableHead className="text-xs">이름</TableHead>
-              <TableHead className="text-xs">직책</TableHead>
-              <TableHead className="text-xs">레벨</TableHead>
-              <TableHead className="text-xs">입사일자</TableHead>
-              <TableHead className="text-center text-xs">연차</TableHead>
-              <TableHead className="text-xs">역량레벨</TableHead>
-              {isAdmin && <TableHead className="text-center text-xs">관리</TableHead>}
+              {/* ── 고정 컬럼 ── */}
+              <TableHead
+                style={{ position: "sticky", left: 0, zIndex: 20, minWidth: 44, width: 44 }}
+                className="text-center text-xs bg-gray-50"
+              >No.</TableHead>
+              <TableHead
+                style={{ position: "sticky", left: 44, zIndex: 20, minWidth: 110, width: 110 }}
+                className="text-xs bg-gray-50"
+              >본부</TableHead>
+              <TableHead
+                style={{ position: "sticky", left: 154, zIndex: 20, minWidth: 90, width: 90 }}
+                className="text-xs bg-gray-50"
+              >팀</TableHead>
+              <TableHead
+                style={{ position: "sticky", left: 244, zIndex: 20, minWidth: 76, width: 76, boxShadow: "2px 0 4px rgba(0,0,0,0.07)" }}
+                className="text-xs bg-gray-50"
+              >이름</TableHead>
+              {/* ── 일반 컬럼 ── */}
+              <TableHead className="text-xs whitespace-nowrap">직책</TableHead>
+              <TableHead className="text-xs whitespace-nowrap">레벨</TableHead>
+              <TableHead className="text-xs whitespace-nowrap">입사일자</TableHead>
+              <TableHead className="text-center text-xs whitespace-nowrap">연차</TableHead>
+              {GRADE_YEARS.map((y) => (
+                <TableHead key={y} className="text-center text-xs whitespace-nowrap">{y}등급</TableHead>
+              ))}
+              <TableHead className="text-center text-xs whitespace-nowrap">학점</TableHead>
+              {isAdmin && <TableHead className="text-center text-xs whitespace-nowrap">관리</TableHead>}
             </TableRow>
           </TableHeader>
           <TableBody>
             {loading ? (
               <TableRow>
                 <TableCell
-                  colSpan={isAdmin ? 10 : 9}
+                  colSpan={isAdmin ? 15 : 14}
                   className="text-center py-16 text-muted-foreground text-sm"
                 >
                   로딩 중...
@@ -748,69 +793,98 @@ export default function LevelManagementPage() {
             ) : employees.length === 0 ? (
               <TableRow>
                 <TableCell
-                  colSpan={isAdmin ? 10 : 9}
+                  colSpan={isAdmin ? 15 : 14}
                   className="text-center py-16 text-muted-foreground text-sm"
                 >
                   검색 결과가 없습니다.
                 </TableCell>
               </TableRow>
             ) : (
-              employees.map((emp, idx) => (
-                <TableRow key={emp.id} className="hover:bg-muted/30">
-                  <TableCell className="text-center text-xs text-muted-foreground">
-                    {(page - 1) * PAGE_SIZE + idx + 1}
-                  </TableCell>
-                  <TableCell className="text-sm">{emp.department || "-"}</TableCell>
-                  <TableCell className="text-sm">{emp.team || "-"}</TableCell>
-                  <TableCell>
-                    <EmployeeTooltip
-                      name={emp.name}
-                      department={emp.department}
-                      team={emp.team}
-                      level={emp.level}
-                      competencyLevel={emp.competencyLevel}
-                      hireDate={emp.hireDate}
-                      yearsOfService={emp.yearsOfService}
+              employees.map((emp, idx) => {
+                const hireYear = emp.hireDate ? new Date(emp.hireDate).getFullYear() : 0;
+                return (
+                  <TableRow key={emp.id} className="hover:bg-muted/30">
+                    {/* ── 고정 컬럼 ── */}
+                    <TableCell
+                      style={{ position: "sticky", left: 0, zIndex: 10, minWidth: 44, width: 44, backgroundColor: "white" }}
+                      className="text-center text-xs text-muted-foreground"
                     >
-                      <button
-                        className="text-blue-600 hover:underline font-medium text-sm"
-                        onClick={() => setSelectedEmployee(emp)}
-                      >
-                        {emp.name}
-                      </button>
-                    </EmployeeTooltip>
-                  </TableCell>
-                  <TableCell className="text-sm">{emp.position || "-"}</TableCell>
-                  <TableCell className="text-sm font-medium">{emp.level || "-"}</TableCell>
-                  <TableCell className="text-sm">{formatDate(emp.hireDate)}</TableCell>
-                  <TableCell className="text-center text-sm">
-                    {emp.yearsOfService ?? "-"}
-                  </TableCell>
-                  <TableCell className="text-sm font-medium">
-                    {emp.competencyLevel || "-"}
-                  </TableCell>
-                  {isAdmin && (
-                    <TableCell className="text-center">
-                      <div className="flex items-center justify-center gap-1">
-                        <button
-                          className="p-1 hover:bg-blue-50 rounded text-blue-600"
-                          title="수정"
-                          onClick={() => setEditTarget(emp)}
-                        >
-                          <Pencil className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          className="p-1 hover:bg-red-50 rounded text-red-600"
-                          title="비활성화"
-                          onClick={() => setDeleteTarget(emp)}
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
+                      {(page - 1) * PAGE_SIZE + idx + 1}
                     </TableCell>
-                  )}
-                </TableRow>
-              ))
+                    <TableCell
+                      style={{ position: "sticky", left: 44, zIndex: 10, minWidth: 110, width: 110, backgroundColor: "white" }}
+                      className="text-sm"
+                    >
+                      {emp.department || "-"}
+                    </TableCell>
+                    <TableCell
+                      style={{ position: "sticky", left: 154, zIndex: 10, minWidth: 90, width: 90, backgroundColor: "white" }}
+                      className="text-sm"
+                    >
+                      {emp.team || "-"}
+                    </TableCell>
+                    <TableCell
+                      style={{ position: "sticky", left: 244, zIndex: 10, minWidth: 76, width: 76, backgroundColor: "white", boxShadow: "2px 0 4px rgba(0,0,0,0.07)" }}
+                    >
+                      <EmployeeTooltip
+                        name={emp.name}
+                        department={emp.department}
+                        team={emp.team}
+                        level={emp.level}
+                        competencyLevel={emp.competencyLevel}
+                        hireDate={emp.hireDate}
+                        yearsOfService={emp.yearsOfService}
+                      >
+                        <button
+                          className="text-blue-600 hover:underline font-medium text-sm whitespace-nowrap"
+                          onClick={() => setSelectedEmployee(emp)}
+                        >
+                          {emp.name}
+                        </button>
+                      </EmployeeTooltip>
+                    </TableCell>
+                    {/* ── 일반 컬럼 ── */}
+                    <TableCell className="text-sm whitespace-nowrap">{emp.position || "-"}</TableCell>
+                    <TableCell className="text-sm font-medium">{emp.level || "-"}</TableCell>
+                    <TableCell className="text-sm whitespace-nowrap">{formatDate(emp.hireDate)}</TableCell>
+                    <TableCell className="text-center text-sm">{emp.yearsOfService ?? "-"}</TableCell>
+                    {/* ── 평가등급 컬럼 ── */}
+                    {GRADE_YEARS.map((year) => (
+                      <TableCell key={year} className="text-center p-2">
+                        {hireYear > 0 && year < hireYear ? (
+                          <span className="text-gray-300 text-xs">-</span>
+                        ) : (
+                          <GradeBadge grade={emp.grades?.[String(year)]} />
+                        )}
+                      </TableCell>
+                    ))}
+                    {/* ── 학점 컬럼 ── */}
+                    <TableCell className="text-center text-sm">
+                      {emp.creditTotal != null ? emp.creditTotal.toFixed(1) : "-"}
+                    </TableCell>
+                    {isAdmin && (
+                      <TableCell className="text-center">
+                        <div className="flex items-center justify-center gap-1">
+                          <button
+                            className="p-1 hover:bg-blue-50 rounded text-blue-600"
+                            title="수정"
+                            onClick={() => setEditTarget(emp)}
+                          >
+                            <Pencil className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            className="p-1 hover:bg-red-50 rounded text-red-600"
+                            title="비활성화"
+                            onClick={() => setDeleteTarget(emp)}
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </TableCell>
+                    )}
+                  </TableRow>
+                );
+              })
             )}
           </TableBody>
         </Table>

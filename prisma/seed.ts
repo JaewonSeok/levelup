@@ -95,14 +95,6 @@ const EMPLOYEES: EmpRow[] = [
   { name: "추다은", dept: "국내영업총괄본부", team: "영업지원팀", level: Level.L1, hireDate: "2023-03-20", yrs: 3,  grades: [null,null,null,"B","N"],  points: 2,  credits: 6  },
 ];
 
-const DEPT_HEADS = [
-  { name: "김경영", dept: "경영지원본부",      email: "kimky@rsupport.com",   pw: "1234567" },
-  { name: "이연구", dept: "연구개발본부",      email: "leeyg@rsupport.com",   pw: "2345678" },
-  { name: "박품질", dept: "품질경영본부",      email: "parkpj@rsupport.com",  pw: "3456789" },
-  { name: "최마케", dept: "마케팅본부",        email: "choimk@rsupport.com",  pw: "4567890" },
-  { name: "정글로", dept: "글로벌기술지원본부", email: "junggr@rsupport.com", pw: "5678901" },
-  { name: "강영업", dept: "국내영업총괄본부",   email: "kangyb@rsupport.com",  pw: "6789012" },
-];
 
 // ── Main ──────────────────────────────────────────────────────────────
 
@@ -122,14 +114,19 @@ async function main() {
   await prisma.uploadHistory.deleteMany();
   await prisma.session.deleteMany();
   await prisma.account.deleteMany();
-  await prisma.user.deleteMany();
+  // 본부장 계정은 보존 (role이 DEPT_HEAD인 레코드는 삭제하지 않음)
+  await prisma.user.deleteMany({
+    where: { role: { not: Role.DEPT_HEAD } },
+  });
   await prisma.gradeCriteria.deleteMany();
   console.log("  ✓ Existing data deleted");
 
-  // 2. Admin 계정
+  // 2. Admin 계정 (이미 있으면 유지, 없으면 생성)
   const adminPw = await bcrypt.hash("admin1234", 10);
-  await prisma.user.create({
-    data: {
+  await prisma.user.upsert({
+    where: { email: "admin@rsupport.com" },
+    update: {},
+    create: {
       name: "관리자",
       email: "admin@rsupport.com",
       password: adminPw,
@@ -138,26 +135,9 @@ async function main() {
       role: Role.SYSTEM_ADMIN,
     },
   });
-  console.log("  ✓ Admin created (admin@rsupport.com / admin1234)");
+  console.log("  ✓ Admin upserted (admin@rsupport.com / admin1234)");
 
-  // 3. 본부장 계정
-  for (const dh of DEPT_HEADS) {
-    const hashed = await bcrypt.hash(dh.pw, 10);
-    await prisma.user.create({
-      data: {
-        name: dh.name,
-        email: dh.email,
-        password: hashed,
-        residentIdLast7: dh.pw,
-        department: dh.dept,
-        team: "",
-        role: Role.DEPT_HEAD,
-      },
-    });
-  }
-  console.log(`  ✓ ${DEPT_HEADS.length} dept heads created`);
-
-  // 4. 직원 + 포인트/학점/등급
+  // 3. 직원 + 포인트/학점/등급
   let empCount = 0;
   for (const emp of EMPLOYEES) {
     const competencyLevel = `${emp.level}-${String(emp.yrs).padStart(2, "0")}`;
@@ -245,12 +225,8 @@ async function main() {
 
   console.log("\n✅ Seed complete!");
   console.log("   Admin    : admin@rsupport.com / admin1234");
-  console.log("   본부장   : kimky@rsupport.com  / 1234567  (경영지원본부)");
-  console.log("            : leeyg@rsupport.com  / 2345678  (연구개발본부)");
-  console.log("            : parkpj@rsupport.com / 3456789  (품질경영본부)");
-  console.log("            : choimk@rsupport.com / 4567890  (마케팅본부)");
-  console.log("            : junggr@rsupport.com / 5678901  (글로벌기술지원본부)");
-  console.log("            : kangyb@rsupport.com / 6789012  (국내영업총괄본부)");
+  console.log("   본부장 계정은 seed에서 생성하지 않습니다.");
+  console.log("   본부장 계정은 웹페이지 '본부장 계정 관리' 메뉴에서 수동 등록하세요.");
 }
 
 main()

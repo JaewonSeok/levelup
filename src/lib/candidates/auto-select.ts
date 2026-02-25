@@ -58,7 +58,7 @@ export async function autoSelectCandidates(
     const pointMet = pointCumulative >= criteria.requiredPoints;
     const creditMet = creditCumulative >= criteria.requiredCredits;
 
-    if (!pointMet && !creditMet) continue;
+    if (!pointMet || !creditMet) continue;
 
     total++;
 
