@@ -310,7 +310,7 @@ export default function LoginPage() {
             textAlign: "center",
           }}>
             <p style={{ color: "#b0b5be", fontSize: 12.5 }}>
-              계정 문의는 IT 관리자에게 연락하세요.
+              계정 문의는 인사팀 관리자에게 연락하세요.
             </p>
           </div>
         </div>
