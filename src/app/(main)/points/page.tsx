@@ -546,7 +546,7 @@ export default function PointsPage() {
                 </TableHead>
               ))}
               <TableHead className="text-center text-xs font-bold">포인트</TableHead>
-              <TableHead className="text-center text-xs font-bold">학점</TableHead>
+              <TableHead className="text-center text-xs font-bold">충족</TableHead>
               <TableHead className="text-center text-xs">편집</TableHead>
             </TableRow>
           </TableHeader>
@@ -604,8 +604,10 @@ export default function PointsPage() {
                   <TableCell className="text-center text-sm font-bold">
                     {emp.cumulative.toFixed(1)}
                   </TableCell>
-                  <TableCell className="text-center text-sm font-bold">
-                    {emp.creditCumulative.toFixed(1)}
+                  <TableCell className="text-center">
+                    <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${emp.isMet ? "bg-green-100 text-green-700" : "bg-red-100 text-red-600"}`}>
+                      {emp.isMet ? "충족" : "미충족"}
+                    </span>
                   </TableCell>
                   <TableCell className="text-center">
                     <Button

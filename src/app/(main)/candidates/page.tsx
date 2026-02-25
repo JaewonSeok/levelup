@@ -103,7 +103,7 @@ function GradeBadge({ grade }: { grade: string | null }) {
 
 const defaultQuery: Query = {
   year: CURRENT_YEAR,
-  meetType: "all",
+  meetType: "both",
   department: "",
   team: "",
   keyword: "",
@@ -128,7 +128,7 @@ export default function CandidatesPage() {
     department: "",
     team: "",
     keyword: "",
-    meetType: "all" as MeetType,
+    meetType: "both" as MeetType,
     position: "",
     hireDateFrom: "",
     hireDateTo: "",
