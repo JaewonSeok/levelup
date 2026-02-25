@@ -212,10 +212,12 @@ async function main() {
       gradePointScores.push({ year, score });
     }
     const pointTotal = Math.round(gradePointScores.reduce((s, ys) => s + ys.score, 0) * 10) / 10;
+    const pointCriteria = DEFAULT_LEVEL_CRITERIA.find((c) => c.level === emp.level);
+    const pointIsMet = pointCriteria ? pointTotal >= pointCriteria.requiredPoints : false;
     if (gradePointScores.length > 0) {
       await prisma.point.createMany({
         data: gradePointScores.map(({ year, score }) => ({
-          userId: user.id, year, score, cumulative: pointTotal, isMet: false,
+          userId: user.id, year, score, cumulative: pointTotal, isMet: pointIsMet,
         })),
       });
     }
@@ -223,15 +225,18 @@ async function main() {
     // Credit records
     const creditPerYear = distributeValues(emp.grades, emp.credits);
     let creditCumulative = 0;
-    const creditRecords: { userId: string; year: number; score: number; cumulative: number }[] = [];
+    const creditRecords: { userId: string; year: number; score: number; cumulative: number; isMet: boolean }[] = [];
     for (let i = 0; i < YEARS.length; i++) {
       if (emp.grades[i] !== null) {
         creditCumulative = Math.round((creditCumulative + creditPerYear[i]) * 10) / 10;
-        creditRecords.push({ userId: user.id, year: YEARS[i], score: creditPerYear[i], cumulative: creditCumulative });
+        creditRecords.push({ userId: user.id, year: YEARS[i], score: creditPerYear[i], cumulative: creditCumulative, isMet: false });
       }
     }
     if (creditRecords.length > 0) {
       creditRecords[creditRecords.length - 1].cumulative = emp.credits;
+      const creditCriteria = DEFAULT_LEVEL_CRITERIA.find((c) => c.level === emp.level);
+      const creditIsMet = creditCriteria ? emp.credits >= creditCriteria.requiredCredits : false;
+      creditRecords[creditRecords.length - 1].isMet = creditIsMet;
       await prisma.credit.createMany({ data: creditRecords });
     }
 

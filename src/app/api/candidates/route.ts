@@ -34,6 +34,11 @@ export async function GET(req: NextRequest) {
   const page = Math.max(1, Number(searchParams.get("page") ?? "1"));
   const pageSize = Math.min(100, Math.max(1, Number(searchParams.get("pageSize") ?? "20")));
 
+  // ── LevelCriteria 로드 (충족여부 직접 계산) ─────────────────
+  const currentYear = getCurrentYear();
+  const criteriaList = await prisma.levelCriteria.findMany({ where: { year: currentYear } });
+  const criteriaMap = new Map(criteriaList.map((c) => [c.level as string, c]));
+
   // ── 필터 조건 구성 ──────────────────────────────────────────
   const conditions: Prisma.UserWhereInput[] = [
     { role: { not: Role.DEPT_HEAD } },
@@ -53,40 +58,19 @@ export async function GET(req: NextRequest) {
     conditions.push({ hireDate: hireDateFilter });
   }
 
-  // 충족 조건 필터
-  if (meetType === "point") {
-    conditions.push({
-      OR: [
-        { points: { some: { isMet: true } } },
-        { candidates: { some: { year } } },
-      ],
-    });
-  } else if (meetType === "credit") {
-    conditions.push({
-      OR: [
-        { credits: { some: { isMet: true } } },
-        { candidates: { some: { year } } },
-      ],
-    });
-  } else if (meetType === "both") {
-    conditions.push({ points: { some: { isMet: true } } });
-    conditions.push({ credits: { some: { isMet: true } } });
-  } else {
-    // all: 포인트/학점 충족 또는 수동 추가된 대상자
-    conditions.push({
-      OR: [
-        { points: { some: { isMet: true } } },
-        { credits: { some: { isMet: true } } },
-        { candidates: { some: { year } } },
-      ],
-    });
-  }
+  // 포인트/학점 레코드 있거나 해당 연도 대상자인 사용자 — meetType 필터는 JS에서 처리
+  conditions.push({
+    OR: [
+      { points: { some: {} } },
+      { credits: { some: {} } },
+      { candidates: { some: { year } } },
+    ],
+  });
 
   const where: Prisma.UserWhereInput = conditions.length > 0 ? { AND: conditions } : {};
 
-  // ── 쿼리 ──────────────────────────────────────────────────
-  const [total, users, metaDepts, metaTeams] = await Promise.all([
-    prisma.user.count({ where }),
+  // ── 전체 조회 (meetType 필터는 JS에서 처리) ─────────────────
+  const [users, metaDepts, metaTeams] = await Promise.all([
     prisma.user.findMany({
       where,
       select: {
@@ -106,8 +90,6 @@ export async function GET(req: NextRequest) {
         candidates: { where: { year } },
       },
       orderBy: [{ department: "asc" }, { team: "asc" }, { name: "asc" }],
-      skip: (page - 1) * pageSize,
-      take: pageSize,
     }),
     prisma.user.findMany({
       distinct: ["department"],
@@ -133,31 +115,41 @@ export async function GET(req: NextRequest) {
     gradeMap.get(g.userId)![g.year] = g.grade;
   }
 
-  // ── 직원별 데이터 가공 + Candidate 레코드 자동 생성 ──────
-  const employeesData = await Promise.all(
+  // ── 직원별 데이터 가공 + Candidate 레코드 생성/업데이트 ──────
+  // 수동 추가(기존 Candidate 보유) 여부를 별도 Set으로 관리
+  const hasExistingCandidateSet = new Set<string>();
+
+  const allEmployeesData = await Promise.all(
     users.map(async (user) => {
       const latestPoint = user.points[user.points.length - 1];
       const latestCredit = user.credits[user.credits.length - 1];
       const pointCumulative = latestPoint?.cumulative ?? 0;
       const creditCumulative = latestCredit?.cumulative ?? 0;
-      const pointMet = user.points.some((p) => p.isMet);
-      const creditMet = user.credits.some((c) => c.isMet);
 
-      // 기존 Candidate 레코드 or 자동 생성
+      // ★ isMet 필드 대신 cumulative vs LevelCriteria로 직접 계산
+      const criteria = user.level ? criteriaMap.get(user.level) : null;
+      const pointMet = criteria != null ? pointCumulative >= criteria.requiredPoints : false;
+      const creditMet = criteria != null ? creditCumulative >= criteria.requiredCredits : false;
+
+      // 기존 Candidate 레코드 업데이트 or 신규 생성 (충족 시에만)
       const existingCandidate = user.candidates[0];
+      if (existingCandidate) hasExistingCandidateSet.add(user.id);
+
       const candidate = existingCandidate
         ? await prisma.candidate.update({
             where: { id: existingCandidate.id },
             data: { pointMet, creditMet },
           })
-        : await prisma.candidate.create({
-            data: { userId: user.id, year, pointMet, creditMet, source: "manual" },
-          });
+        : (pointMet || creditMet)
+          ? await prisma.candidate.create({
+              data: { userId: user.id, year, pointMet, creditMet, source: "auto" },
+            })
+          : null;
 
       const userGrades = gradeMap.get(user.id) ?? {};
 
       return {
-        candidateId: candidate.id,
+        candidateId: candidate?.id ?? null,
         userId: user.id,
         name: user.name,
         department: user.department,
@@ -172,9 +164,9 @@ export async function GET(req: NextRequest) {
         creditCumulative,
         pointMet,
         creditMet,
-        isReviewTarget: candidate.isReviewTarget,
-        source: candidate.source,
-        savedAt: candidate.savedAt?.toISOString() ?? null,
+        isReviewTarget: candidate?.isReviewTarget ?? false,
+        source: candidate?.source ?? "auto",
+        savedAt: candidate?.savedAt?.toISOString() ?? null,
         grades: {
           2021: userGrades[2021] ?? null,
           2022: userGrades[2022] ?? null,
@@ -186,8 +178,21 @@ export async function GET(req: NextRequest) {
     })
   );
 
+  // ── meetType 필터 (JS에서 처리) ──────────────────────────────
+  const filteredEmployees = allEmployeesData.filter((emp) => {
+    if (meetType === "point") return emp.pointMet || hasExistingCandidateSet.has(emp.userId);
+    if (meetType === "credit") return emp.creditMet || hasExistingCandidateSet.has(emp.userId);
+    if (meetType === "both") return emp.pointMet && emp.creditMet;
+    return true; // "all"
+  });
+
+  // ── 페이지네이션 ─────────────────────────────────────────────
+  const total = filteredEmployees.length;
+  const pagedEmployees = filteredEmployees
+    .slice((page - 1) * pageSize, page * pageSize);
+
   return NextResponse.json({
-    employees: employeesData,
+    employees: pagedEmployees,
     total,
     page,
     pageSize,
@@ -198,6 +203,7 @@ export async function GET(req: NextRequest) {
     },
   });
 }
+
 
 // ── POST /api/candidates (SYSTEM_ADMIN only) ─────────────────────
 // Body (form-based):
