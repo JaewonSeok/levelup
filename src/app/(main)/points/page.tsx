@@ -128,7 +128,7 @@ interface EditState {
 // 상수
 // ─────────────────────────────────────────
 
-const EMPLOYMENT_MAP: Record<string, string> = { REGULAR: "정규직", CONTRACT: "계약직" };
+
 const PAGE_SIZE = 20;
 const GRADE_YEARS = [2021, 2022, 2023, 2024, 2025] as const;
 const LEVELS = ["L1", "L2", "L3", "L4", "L5"] as const;
@@ -650,11 +650,7 @@ export default function PointsPage() {
           {editState && (
             <div className="space-y-4">
               <div className="text-xs text-muted-foreground">
-                {editState.employee.department} › {editState.employee.team} ·{" "}
-                {editState.employee.employmentType
-                  ? EMPLOYMENT_MAP[editState.employee.employmentType]
-                  : ""}{" "}
-                · 입사{" "}
+                {editState.employee.department} › {editState.employee.team} · 입사{" "}
                 {editState.employee.hireDate
                   ? new Date(editState.employee.hireDate).getFullYear()
                   : "-"}

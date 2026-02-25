@@ -39,7 +39,6 @@ const PREVIEW_COLS = [
   { key: "department", label: "본부" },
   { key: "team", label: "팀" },
   { key: "name", label: "이름" },
-  { key: "employmentType", label: "고용형태" },
   { key: "position", label: "직책" },
   { key: "level", label: "현재레벨" },
   { key: "hireDateStr", label: "입사일자" },
@@ -53,13 +52,6 @@ const PREVIEW_COLS = [
 // ─────────────────────────────────────────
 
 function displayValue(row: ParsedEmployee, key: string): string {
-  if (key === "employmentType") {
-    return row.employmentType === "REGULAR"
-      ? "정규직"
-      : row.employmentType === "CONTRACT"
-        ? "계약직"
-        : "";
-  }
   const val = (row as unknown as Record<string, unknown>)[key];
   if (val == null || val === "") return "";
   return String(val);
