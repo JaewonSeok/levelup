@@ -55,18 +55,29 @@ export async function GET(req: NextRequest) {
 
   // 충족 조건 필터
   if (meetType === "point") {
-    conditions.push({ points: { some: { isMet: true } } });
+    conditions.push({
+      OR: [
+        { points: { some: { isMet: true } } },
+        { candidates: { some: { year } } },
+      ],
+    });
   } else if (meetType === "credit") {
-    conditions.push({ credits: { some: { isMet: true } } });
+    conditions.push({
+      OR: [
+        { credits: { some: { isMet: true } } },
+        { candidates: { some: { year } } },
+      ],
+    });
   } else if (meetType === "both") {
     conditions.push({ points: { some: { isMet: true } } });
     conditions.push({ credits: { some: { isMet: true } } });
   } else {
-    // all: 포인트 또는 학점 중 하나라도 충족
+    // all: 포인트/학점 충족 또는 수동 추가된 대상자
     conditions.push({
       OR: [
         { points: { some: { isMet: true } } },
         { credits: { some: { isMet: true } } },
+        { candidates: { some: { year } } },
       ],
     });
   }
@@ -222,26 +233,22 @@ export async function POST(req: NextRequest) {
 
   // ── 폼 기반 추가 (직원 정보 직접 입력) ──────────────────────
   if (!body.userId && body.name) {
-    const { name, department, team, level, employmentType, hireDate, yearsOfService, pointCumulative, creditCumulative } = body as {
+    const { name, department, team, level, hireDate, yearsOfService, pointCumulative, creditCumulative } = body as {
       name: string;
       department: string;
       team: string;
       level: string;
-      employmentType: string;
       hireDate: string;
       yearsOfService?: number;
       pointCumulative?: number;
       creditCumulative?: number;
     };
 
-    if (!name || !department || !team || !level || !employmentType || !hireDate) {
+    if (!name || !department || !team || !level || !hireDate) {
       return NextResponse.json({ error: "필수 항목이 누락되었습니다." }, { status: 400 });
     }
     if (!Object.values(Level).includes(level as Level)) {
       return NextResponse.json({ error: "유효하지 않은 레벨입니다." }, { status: 400 });
-    }
-    if (!Object.values(EmploymentType).includes(employmentType as EmploymentType)) {
-      return NextResponse.json({ error: "유효하지 않은 고용형태입니다." }, { status: 400 });
     }
 
     const hireDateParsed = new Date(hireDate);
@@ -263,7 +270,6 @@ export async function POST(req: NextRequest) {
           department,
           team,
           level: level as Level,
-          employmentType: employmentType as EmploymentType,
           hireDate: hireDateParsed,
           yearsOfService: yearsOfService ?? null,
           isActive: true,

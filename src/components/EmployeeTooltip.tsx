@@ -2,11 +2,6 @@
 
 import { useState } from "react";
 
-const EMPLOYMENT_LABEL: Record<string, string> = {
-  REGULAR: "정규직",
-  CONTRACT: "계약직",
-};
-
 interface EmployeeTooltipProps {
   children: React.ReactNode;
   name: string;
@@ -16,7 +11,6 @@ interface EmployeeTooltipProps {
   competencyLevel?: string | null;
   hireDate?: string | null;
   yearsOfService?: number | null;
-  employmentType?: string | null;
   pointCumulative?: number | null;
   creditCumulative?: number | null;
 }
@@ -30,7 +24,6 @@ export function EmployeeTooltip({
   competencyLevel,
   hireDate,
   yearsOfService,
-  employmentType,
   pointCumulative,
   creditCumulative,
 }: EmployeeTooltipProps) {
@@ -81,9 +74,6 @@ export function EmployeeTooltip({
             )}
             {yearsOfService != null && (
               <Row label="연차" value={`${yearsOfService}년`} />
-            )}
-            {employmentType && (
-              <Row label="고용형태" value={EMPLOYMENT_LABEL[employmentType] ?? employmentType} />
             )}
             {pointCumulative != null && (
               <Row label="포인트" value={pointCumulative.toFixed(1)} />

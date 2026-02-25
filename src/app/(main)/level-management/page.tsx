@@ -73,7 +73,6 @@ interface AdvancedSearch {
   isActive: string;
   position: string;
   level: string;
-  employmentType: string;
   hireDateFrom: string;
   hireDateTo: string;
 }
@@ -84,7 +83,6 @@ interface EmployeeFormData {
   team: string;
   level: string;
   position: string;
-  employmentType: string;
   hireDate: string;
   competencyLevel: string;
   yearsOfService: string;
@@ -96,11 +94,6 @@ interface EmployeeFormData {
 // 상수
 // ─────────────────────────────────────────
 
-const EMPLOYMENT_MAP: Record<string, string> = {
-  REGULAR: "정규직",
-  CONTRACT: "계약직",
-};
-
 const LEVELS = ["L1", "L2", "L3", "L4", "L5"];
 const POSITIONS = ["팀원", "팀장", "실장", "본부장"];
 const PAGE_SIZE = 20;
@@ -111,7 +104,6 @@ const DEFAULT_FORM: EmployeeFormData = {
   team: "",
   level: "",
   position: "",
-  employmentType: "",
   hireDate: "",
   competencyLevel: "",
   yearsOfService: "",
@@ -252,7 +244,6 @@ function EmployeeFormModal({
           team: form.team,
           level: form.level || null,
           position: form.position || null,
-          employmentType: form.employmentType || null,
           hireDate: form.hireDate || null,
           competencyLevel: form.competencyLevel || null,
           yearsOfService: form.yearsOfService !== "" ? Number(form.yearsOfService) : null,
@@ -374,17 +365,6 @@ function EmployeeFormModal({
                 </Select>
               </div>
               <div>
-                <label className="text-xs text-muted-foreground block mb-1">고용형태</label>
-                <Select value={form.employmentType || "__none__"} onValueChange={(v) => set("employmentType", v === "__none__" ? "" : v)}>
-                  <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="선택" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__none__">-</SelectItem>
-                    <SelectItem value="REGULAR">정규직</SelectItem>
-                    <SelectItem value="CONTRACT">계약직</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
                 <label className="text-xs text-muted-foreground block mb-1">입사일자</label>
                 <Input className="h-8" type="date" value={form.hireDate} onChange={(e) => set("hireDate", e.target.value)} />
               </div>
@@ -445,7 +425,6 @@ export default function LevelManagementPage() {
     isActive: "Y",
     position: "",
     level: "",
-    employmentType: "",
     hireDateFrom: "",
     hireDateTo: "",
   });
@@ -511,7 +490,6 @@ export default function LevelManagementPage() {
       isActive: advanced.isActive,
       position: advanced.position,
       level: advanced.level,
-      employmentType: advanced.employmentType,
       hireDateFrom: advanced.hireDateFrom,
       hireDateTo: advanced.hireDateTo,
     };
@@ -560,7 +538,6 @@ export default function LevelManagementPage() {
       team: emp.team ?? "",
       level: emp.level ?? "",
       position: emp.position ?? "",
-      employmentType: emp.employmentType ?? "",
       hireDate: emp.hireDate ? formatDate(emp.hireDate) : "",
       competencyLevel: emp.competencyLevel ?? "",
       yearsOfService: emp.yearsOfService != null ? String(emp.yearsOfService) : "",
@@ -794,7 +771,6 @@ export default function LevelManagementPage() {
                       competencyLevel={emp.competencyLevel}
                       hireDate={emp.hireDate}
                       yearsOfService={emp.yearsOfService}
-                      employmentType={emp.employmentType}
                     >
                       <button
                         className="text-blue-600 hover:underline font-medium text-sm"
@@ -933,14 +909,6 @@ export default function LevelManagementPage() {
                 <div>
                   <p className="text-xs text-muted-foreground mb-0.5">직책</p>
                   <p>{selectedEmployee.position ?? "-"}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground mb-0.5">고용형태</p>
-                  <p>
-                    {selectedEmployee.employmentType
-                      ? EMPLOYMENT_MAP[selectedEmployee.employmentType]
-                      : "-"}
-                  </p>
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground mb-0.5">입사일자</p>

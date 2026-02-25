@@ -148,25 +148,6 @@ export function SearchAreas({
           </div>
 
           <div className="flex items-center gap-2">
-            <span className="text-sm font-medium whitespace-nowrap">고용형태</span>
-            <Select
-              value={advanced.employmentType || "__all__"}
-              onValueChange={(v) =>
-                onAdvancedChange({ employmentType: v === "__all__" ? "" : v })
-              }
-            >
-              <SelectTrigger className="w-24 bg-white h-8 text-sm">
-                <SelectValue placeholder="전체" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__all__">전체</SelectItem>
-                <SelectItem value="REGULAR">정규직</SelectItem>
-                <SelectItem value="CONTRACT">계약직</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="flex items-center gap-2">
             <span className="text-sm font-medium whitespace-nowrap">레벨</span>
             <Select
               value={advanced.level || "__all__"}

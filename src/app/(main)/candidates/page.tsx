@@ -66,7 +66,6 @@ interface Query {
   team: string;
   keyword: string;
   position: string;
-  employmentType: string;
   hireDateFrom: string;
   hireDateTo: string;
 }
@@ -109,7 +108,6 @@ const defaultQuery: Query = {
   team: "",
   keyword: "",
   position: "",
-  employmentType: "",
   hireDateFrom: "",
   hireDateTo: "",
 };
@@ -132,7 +130,6 @@ export default function CandidatesPage() {
     keyword: "",
     meetType: "all" as MeetType,
     position: "",
-    employmentType: "",
     hireDateFrom: "",
     hireDateTo: "",
   });
@@ -160,7 +157,6 @@ export default function CandidatesPage() {
     level: "",
     yearsOfService: "",
     hireDate: "",
-    employmentType: "",
     pointCumulative: "",
     creditCumulative: "",
   });
@@ -189,7 +185,6 @@ export default function CandidatesPage() {
           team: query.team,
           keyword: query.keyword,
           position: query.position,
-          employmentType: query.employmentType,
           hireDateFrom: query.hireDateFrom,
           hireDateTo: query.hireDateTo,
           page: String(page),
@@ -236,7 +231,6 @@ export default function CandidatesPage() {
       team: advDraft.team,
       keyword: advDraft.keyword,
       position: advDraft.position,
-      employmentType: advDraft.employmentType,
       hireDateFrom: advDraft.hireDateFrom,
       hireDateTo: advDraft.hireDateTo,
     });
@@ -298,8 +292,8 @@ export default function CandidatesPage() {
   // ── Admin handlers ─────────────────────────────────────────
 
   const handleAddCandidate = async () => {
-    const { department, team, name, level, yearsOfService, hireDate, employmentType } = addForm;
-    if (!department || !team || !name || !level || !hireDate || !employmentType) {
+    const { department, team, name, level, yearsOfService, hireDate } = addForm;
+    if (!department || !team || !name || !level || !hireDate) {
       toast.error("필수 항목을 모두 입력해주세요.");
       return;
     }
@@ -314,7 +308,6 @@ export default function CandidatesPage() {
           department: department.trim(),
           team: team.trim(),
           level,
-          employmentType,
           hireDate,
           yearsOfService: yearsOfService ? Number(yearsOfService) : undefined,
           pointCumulative: addForm.pointCumulative ? Number(addForm.pointCumulative) : undefined,
@@ -325,7 +318,7 @@ export default function CandidatesPage() {
       if (!res.ok) throw new Error(data.error ?? "추가 실패");
       toast.success("대상자가 추가되었습니다.");
       setAddModalOpen(false);
-      setAddForm({ department: "", team: "", name: "", level: "", yearsOfService: "", hireDate: "", employmentType: "", pointCumulative: "", creditCumulative: "" });
+      setAddForm({ department: "", team: "", name: "", level: "", yearsOfService: "", hireDate: "", pointCumulative: "", creditCumulative: "" });
       setQuery((q) => ({ ...q }));
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "추가 중 오류가 발생했습니다.");
@@ -500,27 +493,6 @@ export default function CandidatesPage() {
             </Select>
           </div>
 
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-medium whitespace-nowrap">고용형태</span>
-            <Select
-              value={advDraft.employmentType || "__all__"}
-              onValueChange={(v) =>
-                setAdvDraft((prev) => ({
-                  ...prev,
-                  employmentType: v === "__all__" ? "" : v,
-                }))
-              }
-            >
-              <SelectTrigger className="w-24 bg-white h-8 text-sm">
-                <SelectValue placeholder="전체" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__all__">전체</SelectItem>
-                <SelectItem value="REGULAR">정규직</SelectItem>
-                <SelectItem value="CONTRACT">계약직</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
         </div>
 
         <div className="flex flex-wrap gap-3 items-end">
@@ -639,7 +611,6 @@ export default function CandidatesPage() {
                           competencyLevel={row.competencyLevel}
                           hireDate={row.hireDate}
                           yearsOfService={row.yearsOfService}
-                          employmentType={row.employmentType}
                           pointCumulative={row.pointCumulative}
                           creditCumulative={row.creditCumulative}
                         >
@@ -813,20 +784,6 @@ export default function CandidatesPage() {
               <label className="text-xs font-medium text-gray-700">입사일 <span className="text-red-500">*</span></label>
               <input type="date" className="w-full h-8 border rounded px-2 text-sm bg-white" value={addForm.hireDate} onChange={(e) => setAddForm((f) => ({ ...f, hireDate: e.target.value }))} />
             </div>
-            {/* 고용형태 */}
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-gray-700">고용형태 <span className="text-red-500">*</span></label>
-              <Select value={addForm.employmentType || "__none__"} onValueChange={(v) => setAddForm((f) => ({ ...f, employmentType: v === "__none__" ? "" : v }))}>
-                <SelectTrigger className="h-8 text-sm">
-                  <SelectValue placeholder="선택" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__none__">선택</SelectItem>
-                  <SelectItem value="REGULAR">정규직</SelectItem>
-                  <SelectItem value="CONTRACT">계약직</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
             {/* 포인트 */}
             <div className="space-y-1">
               <label className="text-xs font-medium text-gray-700">포인트 누적 (선택)</label>
@@ -853,7 +810,7 @@ export default function CandidatesPage() {
           <DialogHeader>
             <DialogTitle>대상자 자동 선정</DialogTitle>
             <DialogDescription>
-              {query.year}년 기준 설정을 기반으로 포인트·학점 모두 충족한 직원을
+              {query.year}년 기준 설정을 기반으로 포인트 또는 학점을 충족한 직원을
               대상자로 자동 선정합니다.
               <br />
               기존 대상자는 덮어쓰지 않습니다.

@@ -586,7 +586,6 @@ export default function PointsPage() {
                       competencyLevel={emp.competencyLevel}
                       hireDate={emp.hireDate}
                       yearsOfService={emp.yearsOfService}
-                      employmentType={emp.employmentType}
                       pointCumulative={emp.cumulative}
                       creditCumulative={emp.creditCumulative}
                     >

@@ -563,7 +563,6 @@ export default function CreditsPage() {
                       competencyLevel={emp.competencyLevel}
                       hireDate={emp.hireDate}
                       yearsOfService={emp.yearsOfService}
-                      employmentType={emp.employmentType}
                       creditCumulative={emp.cumulative}
                     >
                       {emp.name}
