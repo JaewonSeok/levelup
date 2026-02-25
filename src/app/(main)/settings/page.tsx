@@ -64,12 +64,12 @@ type EditValues = Record<
 const CURRENT_YEAR = new Date().getFullYear();
 const ALL_LEVELS = ["L1", "L2", "L3", "L4", "L5"];
 const GRADES_2022_2024 = ["S", "A", "B", "C"] as const;
-const GRADES_2025 = ["O", "E", "G", "N", "U"] as const;
+const GRADES_2025 = ["S", "O", "E", "G", "N", "U"] as const;
 
 // Default grade points map
 const DEFAULT_GRADE_POINTS: Record<string, Record<string, string>> = {
   "2022-2024": { S: "", A: "", B: "", C: "" },
-  "2025": { O: "", E: "", G: "", N: "", U: "" },
+  "2025": { S: "", O: "", E: "", G: "", N: "", U: "" },
 };
 
 // ── Component ─────────────────────────────────────────────────────
@@ -362,7 +362,7 @@ export default function SettingsPage() {
           </div>
           {/* 2025 등급 */}
           <div className="bg-white rounded-lg border p-4">
-            <h3 className="text-sm font-medium mb-3 text-gray-700">2025년 등급 (O/E/G/N/U)</h3>
+            <h3 className="text-sm font-medium mb-3 text-gray-700">2025년~ 등급 (S/O/E/G/N/U)</h3>
             <div className="space-y-2">
               {GRADES_2025.map((grade) => (
                 <div key={grade} className="flex items-center gap-3">

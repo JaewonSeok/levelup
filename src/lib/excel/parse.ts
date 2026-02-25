@@ -75,6 +75,8 @@ export interface ParsedEmployee {
 // ─────────────────────────────────────────
 
 const VALID_LEVELS = new Set<string>(["L1", "L2", "L3", "L4", "L5"]);
+const VALID_GRADES_2022_2024 = new Set(["S", "A", "B", "C"]);
+const VALID_GRADES_2025 = new Set(["S", "O", "E", "G", "N", "U"]);
 
 function parseLevel(raw: unknown): ParsedLevel | null {
   const s = String(raw ?? "").trim().toUpperCase();
@@ -258,12 +260,22 @@ export function parseExcelFile(buffer: ArrayBuffer): ParsedEmployee[] {
       const pointScore = parseNumberOrNull(mapped.pointScore);
       const creditScore = parseNumberOrNull(mapped.creditScore);
 
-      // 연도별 평가등급 (선택)
-      const grade2021 = mapped.grade2021 ? String(mapped.grade2021).trim() || null : null;
-      const grade2022 = mapped.grade2022 ? String(mapped.grade2022).trim() || null : null;
-      const grade2023 = mapped.grade2023 ? String(mapped.grade2023).trim() || null : null;
-      const grade2024 = mapped.grade2024 ? String(mapped.grade2024).trim() || null : null;
-      const grade2025 = mapped.grade2025 ? String(mapped.grade2025).trim() || null : null;
+      // 연도별 평가등급 (선택) — 유효성 검증 포함
+      const parseGradeField = (raw: unknown, validSet: Set<string>, label: string): string | null => {
+        if (raw == null || raw === "") return null;
+        const s = String(raw).trim().toUpperCase();
+        if (!s) return null;
+        if (!validSet.has(s)) {
+          errors.push(`${label} 평가등급 오류 (${Array.from(validSet).join("/")}): "${s}"`);
+          return null;
+        }
+        return s;
+      };
+      const grade2021 = parseGradeField(mapped.grade2021, VALID_GRADES_2022_2024, "2021년");
+      const grade2022 = parseGradeField(mapped.grade2022, VALID_GRADES_2022_2024, "2022년");
+      const grade2023 = parseGradeField(mapped.grade2023, VALID_GRADES_2022_2024, "2023년");
+      const grade2024 = parseGradeField(mapped.grade2024, VALID_GRADES_2022_2024, "2024년");
+      const grade2025 = parseGradeField(mapped.grade2025, VALID_GRADES_2025, "2025년");
 
       results.push({
         sheet: sheetName,

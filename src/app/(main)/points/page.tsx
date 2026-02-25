@@ -82,12 +82,13 @@ interface EmployeePoint {
 // ─────────────────────────────────────────
 
 const GRADE_COLORS: Record<string, string> = {
-  // 2021~2024 등급
-  S: "bg-blue-100 text-blue-700",
+  // S: 공통 (금색)
+  S: "bg-amber-100 text-[#b8860b]",
+  // 2022~2024 등급
   A: "bg-green-100 text-green-700",
   B: "bg-gray-100 text-gray-600",
   C: "bg-orange-100 text-orange-700",
-  // 2025 등급
+  // 2025~ 등급
   O: "bg-blue-100 text-blue-700",
   E: "bg-green-100 text-green-700",
   G: "bg-gray-100 text-gray-600",
@@ -132,7 +133,7 @@ const PAGE_SIZE = 20;
 const GRADE_YEARS = [2021, 2022, 2023, 2024, 2025] as const;
 const LEVELS = ["L1", "L2", "L3", "L4", "L5"] as const;
 const GRADES_2022_2024 = ["S", "A", "B", "C"] as const;
-const GRADES_2025 = ["O", "E", "G", "N", "U"] as const;
+const GRADES_2025 = ["S", "O", "E", "G", "N", "U"] as const;
 
 interface AddEmployeeForm {
   name: string;
@@ -870,7 +871,7 @@ export default function PointsPage() {
               </div>
             </div>
             <div className="border-t pt-3">
-              <p className="text-xs text-muted-foreground mb-2">평가등급 (2022~2024: S/A/B/C, 2025: O/E/G/N/U)</p>
+              <p className="text-xs text-muted-foreground mb-2">평가등급 (2022~2024: S/A/B/C, 2025: S/O/E/G/N/U)</p>
               <div className="grid grid-cols-4 gap-2">
                 {([2022, 2023, 2024] as const).map((yr) => {
                   const key = `grade${yr}` as keyof AddEmployeeForm;

@@ -61,7 +61,9 @@
       "Bash(cmd.exe /c \"taskkill /F /PID 223548\")",
       "Bash(powershell -Command:*)",
       "Bash(cd C:\\\\Users\\\\RSUPPORT\\\\Desktop\\\\2026 레벨업:*)",
-      "Bash(cmd:*)"
+      "Bash(cmd:*)",
+      "Bash(tasklist | findstr node 2>&1)",
+      "WebFetch(domain:levelup-2026.vercel.app)"
     ]
   }
 }

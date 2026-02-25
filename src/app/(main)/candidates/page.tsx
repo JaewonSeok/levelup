@@ -88,11 +88,15 @@ const GRADE_YEARS = [2021, 2022, 2023, 2024, 2025] as const;
 function GradeBadge({ grade }: { grade: string | null }) {
   if (!grade) return <span className="text-gray-300 text-xs">-</span>;
   const colors: Record<string, string> = {
-    S: "bg-green-100 text-green-700",
-    A: "bg-blue-100 text-blue-700",
-    B: "bg-amber-100 text-amber-700",
+    S: "bg-amber-100 text-[#b8860b]",
+    A: "bg-green-100 text-green-700",
+    B: "bg-gray-100 text-gray-600",
     C: "bg-orange-100 text-orange-700",
-    D: "bg-red-100 text-red-700",
+    O: "bg-blue-100 text-blue-700",
+    E: "bg-green-100 text-green-700",
+    G: "bg-gray-100 text-gray-600",
+    N: "bg-orange-100 text-orange-700",
+    U: "bg-red-100 text-red-700",
   };
   const cls = colors[grade.toUpperCase()] ?? "bg-gray-100 text-gray-600";
   return <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${cls}`}>{grade}</span>;

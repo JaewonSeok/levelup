@@ -123,6 +123,7 @@ async function main() {
   await prisma.session.deleteMany();
   await prisma.account.deleteMany();
   await prisma.user.deleteMany();
+  await prisma.gradeCriteria.deleteMany();
   console.log("  ✓ Existing data deleted");
 
   // 2. Admin 계정
@@ -224,6 +225,23 @@ async function main() {
     empCount++;
   }
   console.log(`  ✓ ${empCount} employees created (with points, credits, grades)`);
+
+  // 5. GradeCriteria 기본값 (UI에서 포인트 입력 전 0으로 초기화)
+  await prisma.gradeCriteria.createMany({
+    data: [
+      { grade: "S", yearRange: "2022-2024", points: 0 },
+      { grade: "A", yearRange: "2022-2024", points: 0 },
+      { grade: "B", yearRange: "2022-2024", points: 0 },
+      { grade: "C", yearRange: "2022-2024", points: 0 },
+      { grade: "S", yearRange: "2025", points: 0 },
+      { grade: "O", yearRange: "2025", points: 0 },
+      { grade: "E", yearRange: "2025", points: 0 },
+      { grade: "G", yearRange: "2025", points: 0 },
+      { grade: "N", yearRange: "2025", points: 0 },
+      { grade: "U", yearRange: "2025", points: 0 },
+    ],
+  });
+  console.log("  ✓ GradeCriteria initialized (2022-2024: S/A/B/C, 2025: S/O/E/G/N/U)");
 
   console.log("\n✅ Seed complete!");
   console.log("   Admin    : admin@rsupport.com / admin1234");
