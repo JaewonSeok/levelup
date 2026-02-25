@@ -18,7 +18,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { CheckCircle2, AlertTriangle, Send, Undo2, ChevronDown, ChevronUp } from "lucide-react";
+import { CheckCircle2, AlertTriangle, Send, ChevronDown, ChevronUp } from "lucide-react";
 import { OpinionModal } from "@/components/review/OpinionModal";
 import { toast } from "sonner";
 
@@ -359,20 +359,9 @@ export default function ReviewPage() {
 
       {/* ── 제출 완료 배너 (본부장) ──────────────────────────── */}
       {isDeptHead && isSubmitted && (
-        <div className="flex items-center justify-between bg-green-50 border border-green-300 rounded-md px-4 py-2.5 mb-4">
-          <div className="flex items-center gap-2 text-green-700 text-sm font-medium">
-            <CheckCircle2 className="w-4 h-4" />
-            최종 제출 완료 — 더 이상 수정할 수 없습니다.
-          </div>
-          <Button
-            size="sm"
-            variant="outline"
-            className="h-7 text-xs border-green-400 text-green-700 hover:bg-green-100"
-            onClick={() => setConfirmCancelOpen(true)}
-          >
-            <Undo2 className="w-3.5 h-3.5 mr-1" />
-            제출 취소
-          </Button>
+        <div className="flex items-center gap-2 bg-green-50 border border-green-300 rounded-md px-4 py-2.5 mb-4 text-green-700 text-sm font-medium">
+          <CheckCircle2 className="w-4 h-4" />
+          최종 제출 완료 — 더 이상 수정할 수 없습니다.
         </div>
       )}
 

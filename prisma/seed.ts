@@ -31,6 +31,34 @@ function distributeValues(grades: (string | null)[], total: number): number[] {
   return result;
 }
 
+// ── 등급별 포인트 기준 (GradeCriteria 기본값) ─────────────────────────
+// recalculate.ts와 동일한 로직으로 seed Point 데이터 생성에 사용
+const GRADE_POINTS: Record<string, Record<string, number>> = {
+  "2022-2024": { S: 4, A: 3, B: 2, C: 1 },
+  "2025": { S: 4, O: 3, E: 2.5, G: 2, N: 1.5, U: 1 },
+};
+
+const DEFAULT_GRADE_CRITERIA = [
+  { grade: "S", yearRange: "2022-2024", points: 4 },
+  { grade: "A", yearRange: "2022-2024", points: 3 },
+  { grade: "B", yearRange: "2022-2024", points: 2 },
+  { grade: "C", yearRange: "2022-2024", points: 1 },
+  { grade: "S", yearRange: "2025", points: 4 },
+  { grade: "O", yearRange: "2025", points: 3 },
+  { grade: "E", yearRange: "2025", points: 2.5 },
+  { grade: "G", yearRange: "2025", points: 2 },
+  { grade: "N", yearRange: "2025", points: 1.5 },
+  { grade: "U", yearRange: "2025", points: 1 },
+];
+
+const DEFAULT_LEVEL_CRITERIA = [
+  { level: Level.L1, year: 2026, requiredPoints: 4,  requiredCredits: 8,  minTenure: 2 },
+  { level: Level.L2, year: 2026, requiredPoints: 4,  requiredCredits: 20, minTenure: 3 },
+  { level: Level.L3, year: 2026, requiredPoints: 11, requiredCredits: 15, minTenure: 4 },
+  { level: Level.L4, year: 2026, requiredPoints: 15, requiredCredits: 25, minTenure: 5 },
+  { level: Level.L5, year: 2026, requiredPoints: 20, requiredCredits: 30, minTenure: 6 },
+];
+
 // ── 데이터 정의 ───────────────────────────────────────────────────────
 
 const YEARS = [2021, 2022, 2023, 2024, 2025];
@@ -118,7 +146,7 @@ async function main() {
   await prisma.user.deleteMany({
     where: { role: { not: Role.DEPT_HEAD } },
   });
-  await prisma.gradeCriteria.deleteMany();
+  // GradeCriteria / LevelCriteria는 삭제하지 않음 (기준 설정값 보존)
   console.log("  ✓ Existing data deleted");
 
   // 2. Admin 계정 (이미 있으면 유지, 없으면 생성)
@@ -172,19 +200,24 @@ async function main() {
       });
     }
 
-    // Point records
-    const pointPerYear = distributeValues(emp.grades, emp.points);
-    let pointCumulative = 0;
-    const pointRecords: { userId: string; year: number; score: number; cumulative: number }[] = [];
+    // Point records — 등급 × 기준 포인트 계산 (recalculate.ts와 동일한 로직)
+    // 2022~2025년만 포함 (2021 제외, recalculate.ts 기준)
+    const gradePointScores: { year: number; score: number }[] = [];
     for (let i = 0; i < YEARS.length; i++) {
-      if (emp.grades[i] !== null) {
-        pointCumulative = Math.round((pointCumulative + pointPerYear[i]) * 10) / 10;
-        pointRecords.push({ userId: user.id, year: YEARS[i], score: pointPerYear[i], cumulative: pointCumulative });
-      }
+      const grade = emp.grades[i];
+      const year = YEARS[i];
+      if (!grade || year < 2022) continue;
+      const yearRange = year <= 2024 ? "2022-2024" : "2025";
+      const score = GRADE_POINTS[yearRange]?.[grade] ?? 0;
+      gradePointScores.push({ year, score });
     }
-    if (pointRecords.length > 0) {
-      pointRecords[pointRecords.length - 1].cumulative = emp.points;
-      await prisma.point.createMany({ data: pointRecords });
+    const pointTotal = Math.round(gradePointScores.reduce((s, ys) => s + ys.score, 0) * 10) / 10;
+    if (gradePointScores.length > 0) {
+      await prisma.point.createMany({
+        data: gradePointScores.map(({ year, score }) => ({
+          userId: user.id, year, score, cumulative: pointTotal, isMet: false,
+        })),
+      });
     }
 
     // Credit records
@@ -206,22 +239,25 @@ async function main() {
   }
   console.log(`  ✓ ${empCount} employees created (with points, credits, grades)`);
 
-  // 5. GradeCriteria 기본값 (UI에서 포인트 입력 전 0으로 초기화)
-  await prisma.gradeCriteria.createMany({
-    data: [
-      { grade: "S", yearRange: "2022-2024", points: 0 },
-      { grade: "A", yearRange: "2022-2024", points: 0 },
-      { grade: "B", yearRange: "2022-2024", points: 0 },
-      { grade: "C", yearRange: "2022-2024", points: 0 },
-      { grade: "S", yearRange: "2025", points: 0 },
-      { grade: "O", yearRange: "2025", points: 0 },
-      { grade: "E", yearRange: "2025", points: 0 },
-      { grade: "G", yearRange: "2025", points: 0 },
-      { grade: "N", yearRange: "2025", points: 0 },
-      { grade: "U", yearRange: "2025", points: 0 },
-    ],
-  });
-  console.log("  ✓ GradeCriteria initialized (2022-2024: S/A/B/C, 2025: S/O/E/G/N/U)");
+  // 4. GradeCriteria upsert (기존 값이 있으면 update, 없으면 기본값으로 create)
+  for (const gc of DEFAULT_GRADE_CRITERIA) {
+    await prisma.gradeCriteria.upsert({
+      where: { grade_yearRange: { grade: gc.grade, yearRange: gc.yearRange } },
+      update: { points: gc.points },
+      create: gc,
+    });
+  }
+  console.log("  ✓ GradeCriteria upserted (2022-2024: S=4/A=3/B=2/C=1, 2025: S=4/O=3/E=2.5/G=2/N=1.5/U=1)");
+
+  // 5. LevelCriteria 기본값 (기존 값이 있으면 변경하지 않음)
+  for (const lc of DEFAULT_LEVEL_CRITERIA) {
+    await prisma.levelCriteria.upsert({
+      where: { level_year: { level: lc.level, year: lc.year } },
+      update: {},
+      create: lc,
+    });
+  }
+  console.log("  ✓ LevelCriteria defaults ensured for 2026 (기존 값 유지)");
 
   console.log("\n✅ Seed complete!");
   console.log("   Admin    : admin@rsupport.com / admin1234");
