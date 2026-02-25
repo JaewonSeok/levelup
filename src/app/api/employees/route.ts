@@ -1,0 +1,246 @@
+import { NextRequest, NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
+import { Role, Level, EmploymentType, Prisma } from "@prisma/client";
+import bcrypt from "bcryptjs";
+
+export async function GET(req: NextRequest) {
+  const session = await getServerSession(authOptions);
+  if (!session) {
+    return NextResponse.json({ error: "로그인이 필요합니다." }, { status: 401 });
+  }
+
+  const { searchParams } = new URL(req.url);
+  const department = searchParams.get("department") ?? "";
+  const team = searchParams.get("team") ?? "";
+  const keyword = searchParams.get("keyword") ?? "";
+  const level = searchParams.get("level") ?? "";
+  const position = searchParams.get("position") ?? "";
+  const employmentType = searchParams.get("employmentType") ?? "";
+  const isActiveParam = searchParams.get("isActive") ?? "all";
+  const hireDateFrom = searchParams.get("hireDateFrom") ?? "";
+  const hireDateTo = searchParams.get("hireDateTo") ?? "";
+  const levelUpYear = searchParams.get("levelUpYear") ?? "";
+  const page = Math.max(1, Number(searchParams.get("page") ?? "1"));
+  const pageSize = Math.min(100, Math.max(1, Number(searchParams.get("pageSize") ?? "20")));
+
+  // ── RBAC 스코프 ────────────────────────────────────────────
+  const { role, id: userId, department: userDept, team: userTeam } = session.user;
+
+  let rbacWhere: Prisma.UserWhereInput = {};
+  if (role === Role.TEAM_MEMBER) {
+    rbacWhere = { id: userId };
+  } else if (role === Role.TEAM_LEADER) {
+    rbacWhere = {
+      OR: [
+        { id: userId },
+        {
+          department: userDept ?? "",
+          team: userTeam ?? "",
+          role: Role.TEAM_MEMBER,
+        },
+      ],
+    };
+  } else if (role === Role.SECTION_CHIEF) {
+    rbacWhere = {
+      department: userDept ?? "",
+      role: { in: [Role.TEAM_MEMBER, Role.TEAM_LEADER, Role.SECTION_CHIEF] },
+    };
+  } else if (role === Role.DEPT_HEAD) {
+    rbacWhere = { department: userDept ?? "" };
+  }
+  // HR_TEAM, CEO, SYSTEM_ADMIN: 전체 조회 (rbacWhere = {})
+
+  // ── 검색 필터 ──────────────────────────────────────────────
+  const filterConditions: Prisma.UserWhereInput[] = [
+    { role: { not: Role.DEPT_HEAD } },
+  ];
+
+  if (department) {
+    filterConditions.push({ department: { contains: department, mode: "insensitive" } });
+  }
+  if (team) {
+    filterConditions.push({ team: { contains: team, mode: "insensitive" } });
+  }
+  if (keyword) {
+    filterConditions.push({
+      OR: [
+        { name: { contains: keyword, mode: "insensitive" } },
+        { department: { contains: keyword, mode: "insensitive" } },
+        { team: { contains: keyword, mode: "insensitive" } },
+      ],
+    });
+  }
+  if (level && Object.values(Level).includes(level as Level)) {
+    filterConditions.push({ level: level as Level });
+  }
+  if (position) {
+    filterConditions.push({ position: { contains: position, mode: "insensitive" } });
+  }
+  if (employmentType && Object.values(EmploymentType).includes(employmentType as EmploymentType)) {
+    filterConditions.push({ employmentType: employmentType as EmploymentType });
+  }
+  if (isActiveParam === "Y") filterConditions.push({ isActive: true });
+  if (isActiveParam === "N") filterConditions.push({ isActive: false });
+  if (hireDateFrom || hireDateTo) {
+    const hireDateFilter: { gte?: Date; lte?: Date } = {};
+    if (hireDateFrom) hireDateFilter.gte = new Date(hireDateFrom);
+    if (hireDateTo) hireDateFilter.lte = new Date(hireDateTo);
+    filterConditions.push({ hireDate: hireDateFilter });
+  }
+  if (levelUpYear) {
+    const yearNum = Number(levelUpYear);
+    if (!isNaN(yearNum)) filterConditions.push({ levelUpYear: yearNum });
+  }
+
+  const where: Prisma.UserWhereInput =
+    filterConditions.length > 0
+      ? { AND: [rbacWhere, ...filterConditions] }
+      : rbacWhere;
+
+  // ── 쿼리 ──────────────────────────────────────────────────
+  const selectFields = {
+    id: true,
+    name: true,
+    department: true,
+    team: true,
+    level: true,
+    position: true,
+    employmentType: true,
+    hireDate: true,
+    resignDate: true,
+    competencyLevel: true,
+    yearsOfService: true,
+    levelUpYear: true,
+    isActive: true,
+    role: true,
+  } as const;
+
+  const [total, employees, metaDepts, metaTeams] = await Promise.all([
+    prisma.user.count({ where }),
+    prisma.user.findMany({
+      where,
+      select: selectFields,
+      orderBy: [{ department: "asc" }, { team: "asc" }, { name: "asc" }],
+      skip: (page - 1) * pageSize,
+      take: pageSize,
+    }),
+    prisma.user.findMany({
+      where: rbacWhere,
+      distinct: ["department"],
+      select: { department: true },
+      orderBy: { department: "asc" },
+    }),
+    prisma.user.findMany({
+      where: rbacWhere,
+      distinct: ["team"],
+      select: { team: true },
+      orderBy: { team: "asc" },
+    }),
+  ]);
+
+  return NextResponse.json({
+    employees,
+    total,
+    page,
+    pageSize,
+    totalPages: Math.ceil(total / pageSize),
+    meta: {
+      departments: metaDepts.map((d) => d.department).filter(Boolean),
+      teams: metaTeams.map((t) => t.team).filter(Boolean),
+    },
+  });
+}
+
+// ── POST /api/employees (SYSTEM_ADMIN only) ──────────────────────
+// Body: { name, email, password?, department, team, level?, position?,
+//         employmentType?, hireDate?, competencyLevel?, yearsOfService?, levelUpYear? }
+export async function POST(req: NextRequest) {
+  const session = await getServerSession(authOptions);
+  if (!session) {
+    return NextResponse.json({ error: "로그인이 필요합니다." }, { status: 401 });
+  }
+  if (session.user.role !== Role.SYSTEM_ADMIN) {
+    return NextResponse.json(
+      { error: "시스템 관리자만 직원을 추가할 수 있습니다." },
+      { status: 403 }
+    );
+  }
+
+  let body: {
+    name: string;
+    email: string;
+    password?: string;
+    department: string;
+    team: string;
+    level?: string | null;
+    position?: string | null;
+    employmentType?: string | null;
+    hireDate?: string | null;
+    competencyLevel?: string | null;
+    yearsOfService?: number | null;
+    levelUpYear?: number | null;
+  };
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: "요청 파싱 실패" }, { status: 400 });
+  }
+
+  if (!body.name || !body.email || !body.department || !body.team) {
+    return NextResponse.json(
+      { error: "필수 항목이 없습니다. (이름, 이메일, 본부, 팀)" },
+      { status: 400 }
+    );
+  }
+
+  const existingUser = await prisma.user.findUnique({ where: { email: body.email } });
+  if (existingUser) {
+    return NextResponse.json({ error: "이미 사용 중인 이메일입니다." }, { status: 409 });
+  }
+
+  const hashedPassword = await bcrypt.hash(body.password || "password123", 12);
+
+  const user = await prisma.user.create({
+    data: {
+      name: body.name,
+      email: body.email,
+      password: hashedPassword,
+      department: body.department,
+      team: body.team,
+      level:
+        body.level && Object.values(Level).includes(body.level as Level)
+          ? (body.level as Level)
+          : null,
+      position: body.position ?? null,
+      employmentType:
+        body.employmentType &&
+        Object.values(EmploymentType).includes(body.employmentType as EmploymentType)
+          ? (body.employmentType as EmploymentType)
+          : null,
+      hireDate: body.hireDate ? new Date(body.hireDate) : null,
+      competencyLevel: body.competencyLevel ?? null,
+      yearsOfService: body.yearsOfService ?? null,
+      levelUpYear: body.levelUpYear ?? null,
+    },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      department: true,
+      team: true,
+      level: true,
+      position: true,
+      employmentType: true,
+      hireDate: true,
+      competencyLevel: true,
+      yearsOfService: true,
+      levelUpYear: true,
+      isActive: true,
+      role: true,
+    },
+  });
+
+  return NextResponse.json({ success: true, employee: user }, { status: 201 });
+}

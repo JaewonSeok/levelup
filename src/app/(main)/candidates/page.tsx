@@ -1,0 +1,808 @@
+"use client";
+
+import { useState, useEffect } from "react";
+import { useSession } from "next-auth/react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Badge } from "@/components/ui/badge";
+import { Pagination } from "@/components/management/Pagination";
+import { Trash2 } from "lucide-react";
+import { toast } from "sonner";
+
+// ── Types ──────────────────────────────────────────────────────
+
+interface GradeMap {
+  2021: string | null;
+  2022: string | null;
+  2023: string | null;
+  2024: string | null;
+  2025: string | null;
+}
+
+interface CandidateRow {
+  candidateId: string;
+  userId: string;
+  name: string;
+  department: string;
+  team: string;
+  level: string | null;
+  position: string | null;
+  employmentType: string | null;
+  hireDate: string | null;
+  yearsOfService: number | null;
+  competencyLevel: string | null;
+  pointCumulative: number;
+  creditCumulative: number;
+  pointMet: boolean;
+  creditMet: boolean;
+  isReviewTarget: boolean;
+  savedAt: string | null;
+  grades: GradeMap;
+}
+
+type MeetType = "all" | "point" | "credit" | "both";
+
+interface Query {
+  year: number;
+  meetType: MeetType;
+  department: string;
+  team: string;
+  keyword: string;
+  position: string;
+  employmentType: string;
+  hireDateFrom: string;
+  hireDateTo: string;
+}
+
+interface RowState {
+  isReviewTarget: boolean;
+  isDirty: boolean;
+  savedAt: string | null;
+}
+
+// ── Constants ──────────────────────────────────────────────────
+
+const CURRENT_YEAR = new Date().getFullYear();
+const YEARS = Array.from({ length: 5 }, (_, i) => CURRENT_YEAR - i);
+const GRADE_YEARS = [2021, 2022, 2023, 2024, 2025] as const;
+
+// ── Grade badge ────────────────────────────────────────────────
+
+function GradeBadge({ grade }: { grade: string | null }) {
+  if (!grade) return <span className="text-gray-300 text-xs">-</span>;
+  const colors: Record<string, string> = {
+    S: "bg-green-100 text-green-700",
+    A: "bg-blue-100 text-blue-700",
+    B: "bg-amber-100 text-amber-700",
+    C: "bg-orange-100 text-orange-700",
+    D: "bg-red-100 text-red-700",
+  };
+  const cls = colors[grade.toUpperCase()] ?? "bg-gray-100 text-gray-600";
+  return <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${cls}`}>{grade}</span>;
+}
+
+const defaultQuery: Query = {
+  year: CURRENT_YEAR,
+  meetType: "all",
+  department: "",
+  team: "",
+  keyword: "",
+  position: "",
+  employmentType: "",
+  hireDateFrom: "",
+  hireDateTo: "",
+};
+
+// ── Component ──────────────────────────────────────────────────
+
+export default function CandidatesPage() {
+  const { data: session } = useSession();
+  const isAdmin = session?.user?.role === "SYSTEM_ADMIN";
+
+  // Applied query (triggers fetch on change)
+  const [query, setQuery] = useState<Query>(defaultQuery);
+  const [page, setPage] = useState(1);
+  const pageSize = 20;
+
+  // Draft state for the search form
+  const [advDraft, setAdvDraft] = useState({
+    department: "",
+    team: "",
+    keyword: "",
+    meetType: "all" as MeetType,
+    position: "",
+    employmentType: "",
+    hireDateFrom: "",
+    hireDateTo: "",
+  });
+
+  // Server data
+  const [rows, setRows] = useState<CandidateRow[]>([]);
+  const [total, setTotal] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
+  const [meta, setMeta] = useState<{ departments: string[]; teams: string[] }>({
+    departments: [],
+    teams: [],
+  });
+  const [loading, setLoading] = useState(false);
+
+  // Local row states (checkbox + dirty tracking)
+  const [rowStates, setRowStates] = useState<Map<string, RowState>>(new Map());
+  const [savingIds, setSavingIds] = useState<Set<string>>(new Set());
+
+  // Admin: add candidate modal
+  const [addModalOpen, setAddModalOpen] = useState(false);
+  const [searchKeyword, setSearchKeyword] = useState("");
+  const [searchResults, setSearchResults] = useState<{ id: string; name: string; department: string; team: string }[]>([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [addingUserId, setAddingUserId] = useState<string | null>(null);
+
+  // Admin: delete candidate
+  const [deleteTarget, setDeleteTarget] = useState<{ candidateId: string; name: string } | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
+  // ── Fetch ──────────────────────────────────────────────────
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function doFetch() {
+      setLoading(true);
+      try {
+        const sp = new URLSearchParams({
+          year: String(query.year),
+          meetType: query.meetType,
+          department: query.department,
+          team: query.team,
+          keyword: query.keyword,
+          position: query.position,
+          employmentType: query.employmentType,
+          hireDateFrom: query.hireDateFrom,
+          hireDateTo: query.hireDateTo,
+          page: String(page),
+          pageSize: String(pageSize),
+        });
+
+        const res = await fetch(`/api/candidates?${sp}`);
+        if (cancelled || !res.ok) return;
+        const data = await res.json();
+        if (cancelled) return;
+
+        setRows(data.employees ?? []);
+        setTotal(data.total ?? 0);
+        setTotalPages(data.totalPages ?? 0);
+        setMeta(data.meta ?? { departments: [], teams: [] });
+
+        const states = new Map<string, RowState>();
+        for (const emp of data.employees ?? []) {
+          states.set(emp.candidateId, {
+            isReviewTarget: emp.isReviewTarget,
+            isDirty: false,
+            savedAt: emp.savedAt,
+          });
+        }
+        setRowStates(states);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+
+    doFetch();
+    return () => {
+      cancelled = true;
+    };
+  }, [query, page]);
+
+  // ── Search handlers ────────────────────────────────────────
+
+  const handleAdvancedSearch = () => {
+    setQuery({
+      year: query.year,
+      meetType: advDraft.meetType,
+      department: advDraft.department,
+      team: advDraft.team,
+      keyword: advDraft.keyword,
+      position: advDraft.position,
+      employmentType: advDraft.employmentType,
+      hireDateFrom: advDraft.hireDateFrom,
+      hireDateTo: advDraft.hireDateTo,
+    });
+    setPage(1);
+  };
+
+  const handleYearChange = (y: number) => {
+    setQuery((prev) => ({ ...prev, year: y }));
+    setPage(1);
+  };
+
+  // ── Row state handlers ─────────────────────────────────────
+
+  const handleCheckChange = (candidateId: string, checked: boolean) => {
+    setRowStates((prev) => {
+      const next = new Map(prev);
+      const cur = next.get(candidateId) ?? {
+        isReviewTarget: false,
+        isDirty: false,
+        savedAt: null,
+      };
+      next.set(candidateId, { ...cur, isReviewTarget: checked, isDirty: true });
+      return next;
+    });
+  };
+
+  const handleSave = async (candidateId: string) => {
+    const state = rowStates.get(candidateId);
+    if (!state) return;
+
+    setSavingIds((prev) => new Set(prev).add(candidateId));
+    try {
+      const res = await fetch(`/api/candidates/${candidateId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isReviewTarget: state.isReviewTarget }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setRowStates((prev) => {
+          const next = new Map(prev);
+          next.set(candidateId, {
+            isReviewTarget: state.isReviewTarget,
+            isDirty: false,
+            savedAt: data.savedAt,
+          });
+          return next;
+        });
+      }
+    } finally {
+      setSavingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(candidateId);
+        return next;
+      });
+    }
+  };
+
+  // ── Admin handlers ─────────────────────────────────────────
+
+  const handleEmployeeSearch = async () => {
+    if (!searchKeyword.trim()) return;
+    setSearchLoading(true);
+    try {
+      const res = await fetch(`/api/employees?keyword=${encodeURIComponent(searchKeyword)}&isActive=Y&pageSize=20`);
+      const data = await res.json();
+      setSearchResults(data.employees ?? []);
+    } catch {
+      setSearchResults([]);
+    } finally {
+      setSearchLoading(false);
+    }
+  };
+
+  const handleAddCandidate = async (userId: string) => {
+    setAddingUserId(userId);
+    try {
+      const res = await fetch("/api/candidates", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId, year: query.year }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "추가 실패");
+      toast.success("대상자가 추가되었습니다.");
+      setAddModalOpen(false);
+      setSearchKeyword("");
+      setSearchResults([]);
+      setQuery((q) => ({ ...q })); // re-fetch
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "추가 중 오류가 발생했습니다.");
+    } finally {
+      setAddingUserId(null);
+    }
+  };
+
+  const handleDeleteCandidate = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/candidates/${deleteTarget.candidateId}`, { method: "DELETE" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "삭제 실패");
+      toast.success("대상자가 삭제되었습니다.");
+      setDeleteTarget(null);
+      setQuery((q) => ({ ...q }));
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "삭제 중 오류가 발생했습니다.");
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const formatDate = (iso: string | null) => {
+    if (!iso) return "-";
+    return iso.slice(0, 10);
+  };
+
+  // ── Render ─────────────────────────────────────────────────
+
+  return (
+    <div className="p-6">
+      <div className="flex items-center justify-between mb-4">
+        <h1 className="text-xl font-bold">레벨업 대상자 관리</h1>
+        {isAdmin && (
+          <Button size="sm" onClick={() => { setAddModalOpen(true); setSearchKeyword(""); setSearchResults([]); }}>
+            + 대상자 추가
+          </Button>
+        )}
+      </div>
+
+      {/* Year selector */}
+      <div className="flex items-center gap-3 mb-4">
+        <span className="text-sm font-medium">심사 연도</span>
+        <Select
+          value={String(query.year)}
+          onValueChange={(v) => handleYearChange(Number(v))}
+        >
+          <SelectTrigger className="w-28 h-8 text-sm">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {YEARS.map((y) => (
+              <SelectItem key={y} value={String(y)}>
+                {y}년
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <span className="text-sm text-muted-foreground">
+          총 {total}명 · 포인트 또는 학점 충족 직원
+        </span>
+      </div>
+
+      {/* ── 검색 영역: 상세 조회 ────────────────────────── */}
+      <div className="border rounded-md p-4 mb-4 bg-gray-50">
+        <div className="flex flex-wrap gap-3 items-end mb-3">
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-medium whitespace-nowrap">본부</span>
+            <Select
+              value={advDraft.department || "__all__"}
+              onValueChange={(v) =>
+                setAdvDraft((prev) => ({
+                  ...prev,
+                  department: v === "__all__" ? "" : v,
+                  team: "",
+                }))
+              }
+            >
+              <SelectTrigger className="w-36 bg-white h-8 text-sm">
+                <SelectValue placeholder="전체" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__all__">전체</SelectItem>
+                {meta.departments.map((d) => (
+                  <SelectItem key={d} value={d}>
+                    {d}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-medium whitespace-nowrap">팀</span>
+            <Select
+              value={advDraft.team || "__all__"}
+              onValueChange={(v) =>
+                setAdvDraft((prev) => ({
+                  ...prev,
+                  team: v === "__all__" ? "" : v,
+                }))
+              }
+            >
+              <SelectTrigger className="w-32 bg-white h-8 text-sm">
+                <SelectValue placeholder="전체" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__all__">전체</SelectItem>
+                {meta.teams.map((t) => (
+                  <SelectItem key={t} value={t}>
+                    {t}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-medium whitespace-nowrap">직책</span>
+            <Select
+              value={advDraft.position || "__all__"}
+              onValueChange={(v) =>
+                setAdvDraft((prev) => ({
+                  ...prev,
+                  position: v === "__all__" ? "" : v,
+                }))
+              }
+            >
+              <SelectTrigger className="w-24 bg-white h-8 text-sm">
+                <SelectValue placeholder="전체" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__all__">전체</SelectItem>
+                {["팀원", "팀장", "실장", "본부장"].map((p) => (
+                  <SelectItem key={p} value={p}>
+                    {p}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-medium whitespace-nowrap">고용형태</span>
+            <Select
+              value={advDraft.employmentType || "__all__"}
+              onValueChange={(v) =>
+                setAdvDraft((prev) => ({
+                  ...prev,
+                  employmentType: v === "__all__" ? "" : v,
+                }))
+              }
+            >
+              <SelectTrigger className="w-24 bg-white h-8 text-sm">
+                <SelectValue placeholder="전체" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__all__">전체</SelectItem>
+                <SelectItem value="REGULAR">정규직</SelectItem>
+                <SelectItem value="CONTRACT">계약직</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap gap-3 items-end">
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-medium whitespace-nowrap">입사일자</span>
+            <input
+              type="date"
+              className="border rounded px-2 py-1 text-sm bg-white h-8"
+              value={advDraft.hireDateFrom}
+              onChange={(e) =>
+                setAdvDraft((prev) => ({ ...prev, hireDateFrom: e.target.value }))
+              }
+            />
+            <span className="text-sm text-muted-foreground">~</span>
+            <input
+              type="date"
+              className="border rounded px-2 py-1 text-sm bg-white h-8"
+              value={advDraft.hireDateTo}
+              onChange={(e) =>
+                setAdvDraft((prev) => ({ ...prev, hireDateTo: e.target.value }))
+              }
+            />
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-medium whitespace-nowrap">검색어</span>
+            <Input
+              className="w-40 bg-white h-8 text-sm"
+              value={advDraft.keyword}
+              onChange={(e) =>
+                setAdvDraft((prev) => ({ ...prev, keyword: e.target.value }))
+              }
+              onKeyDown={(e) => e.key === "Enter" && handleAdvancedSearch()}
+              placeholder="이름 검색"
+            />
+          </div>
+
+          <MeetTypeRadio
+            name="adv-meetType"
+            value={advDraft.meetType}
+            onChange={(v) =>
+              setAdvDraft((prev) => ({ ...prev, meetType: v as MeetType }))
+            }
+          />
+
+          <Button
+            onClick={handleAdvancedSearch}
+            disabled={loading}
+            size="sm"
+            className="h-8"
+          >
+            검색
+          </Button>
+        </div>
+      </div>
+
+      {/* ── 테이블 ────────────────────────────────────────── */}
+      <div className="overflow-x-auto border rounded-md">
+        <table className="w-full text-sm border-collapse">
+          <thead>
+            <tr className="bg-gray-100 text-center">
+              <th className="border px-2 py-2 font-medium w-10">No.</th>
+              <th className="border px-2 py-2 font-medium">본부</th>
+              <th className="border px-2 py-2 font-medium">팀</th>
+              <th className="border px-2 py-2 font-medium">이름</th>
+              <th className="border px-2 py-2 font-medium">역량레벨</th>
+              <th className="border px-2 py-2 font-medium">연차</th>
+              <th className="border px-2 py-2 font-medium">입사일</th>
+              <th className="border px-2 py-2 font-medium">포인트</th>
+              <th className="border px-2 py-2 font-medium">충족여부</th>
+              <th className="border px-2 py-2 font-medium">학점</th>
+              <th className="border px-2 py-2 font-medium">충족여부</th>
+              {GRADE_YEARS.map((y) => (
+                <th key={y} className="border px-2 py-2 font-medium text-xs text-gray-600">{y}</th>
+              ))}
+              <th className="border px-2 py-2 font-medium">심사대상</th>
+              <th className="border px-2 py-2 font-medium">저장</th>
+              {isAdmin && <th className="border px-2 py-2 font-medium w-10">삭제</th>}
+            </tr>
+          </thead>
+          <tbody>
+            {loading ? (
+              <tr>
+                <td colSpan={isAdmin ? 14 + GRADE_YEARS.length : 13 + GRADE_YEARS.length} className="text-center py-10 text-muted-foreground">
+                  불러오는 중...
+                </td>
+              </tr>
+            ) : rows.length === 0 ? (
+              <tr>
+                <td colSpan={isAdmin ? 14 + GRADE_YEARS.length : 13 + GRADE_YEARS.length} className="text-center py-10 text-muted-foreground">
+                  충족 조건을 만족하는 직원이 없습니다.
+                </td>
+              </tr>
+            ) : (
+              rows.map((row, idx) => {
+                const state = rowStates.get(row.candidateId) ?? {
+                  isReviewTarget: row.isReviewTarget,
+                  isDirty: false,
+                  savedAt: row.savedAt,
+                };
+                const isSaving = savingIds.has(row.candidateId);
+                const rowNum = (page - 1) * pageSize + idx + 1;
+
+                return (
+                  <tr key={row.candidateId} className="text-center hover:bg-gray-50">
+                    <td className="border px-2 py-1.5 text-gray-500">{rowNum}</td>
+                    <td className="border px-2 py-1.5 text-left">{row.department || "-"}</td>
+                    <td className="border px-2 py-1.5 text-left">{row.team || "-"}</td>
+                    <td className="border px-2 py-1.5 font-medium">{row.name}</td>
+                    <td className="border px-2 py-1.5">
+                      {row.competencyLevel ?? row.level ?? "-"}
+                    </td>
+                    <td className="border px-2 py-1.5">
+                      {row.yearsOfService ?? "-"}
+                    </td>
+                    <td className="border px-2 py-1.5">{formatDate(row.hireDate)}</td>
+
+                    {/* 포인트 */}
+                    <td
+                      className={`border px-2 py-1.5 font-mono ${
+                        !row.pointMet ? "text-red-600 font-semibold" : ""
+                      }`}
+                    >
+                      {row.pointCumulative.toFixed(1)}
+                    </td>
+                    <td className="border px-2 py-1.5">
+                      <Badge
+                        variant={row.pointMet ? "default" : "destructive"}
+                        className="text-xs px-1.5 py-0.5"
+                      >
+                        {row.pointMet ? "충족" : "미충족"}
+                      </Badge>
+                    </td>
+
+                    {/* 학점 */}
+                    <td
+                      className={`border px-2 py-1.5 font-mono ${
+                        !row.creditMet ? "text-red-600 font-semibold" : ""
+                      }`}
+                    >
+                      {row.creditCumulative.toFixed(1)}
+                    </td>
+                    <td className="border px-2 py-1.5">
+                      <Badge
+                        variant={row.creditMet ? "default" : "destructive"}
+                        className="text-xs px-1.5 py-0.5"
+                      >
+                        {row.creditMet ? "충족" : "미충족"}
+                      </Badge>
+                    </td>
+
+                    {/* 평가등급 2021~2025 */}
+                    {GRADE_YEARS.map((y) => (
+                      <td key={y} className="border px-2 py-1.5 text-center">
+                        <GradeBadge grade={row.grades?.[y] ?? null} />
+                      </td>
+                    ))}
+
+                    {/* 심사대상 */}
+                    <td className="border px-2 py-1.5">
+                      <input
+                        type="checkbox"
+                        checked={state.isReviewTarget}
+                        onChange={(e) =>
+                          handleCheckChange(row.candidateId, e.target.checked)
+                        }
+                        className="w-4 h-4 cursor-pointer"
+                      />
+                    </td>
+
+                    {/* 저장 */}
+                    <td className="border px-2 py-1.5">
+                      {state.isDirty ? (
+                        <Button
+                          size="sm"
+                          className="h-6 text-xs px-2"
+                          onClick={() => handleSave(row.candidateId)}
+                          disabled={isSaving}
+                        >
+                          {isSaving ? "..." : "저장"}
+                        </Button>
+                      ) : state.savedAt ? (
+                        <span className="text-blue-600 text-xs font-medium">
+                          저장됨
+                        </span>
+                      ) : (
+                        <span className="text-gray-400 text-xs">-</span>
+                      )}
+                    </td>
+
+                    {/* 삭제 (admin) */}
+                    {isAdmin && (
+                      <td className="border px-2 py-1.5 text-center">
+                        <button
+                          className="p-1 hover:bg-red-50 rounded text-red-500"
+                          onClick={() => setDeleteTarget({ candidateId: row.candidateId, name: row.name })}
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </td>
+                    )}
+                  </tr>
+                );
+              })
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      <Pagination
+        page={page}
+        totalPages={totalPages}
+        loading={loading}
+        onPageChange={(p) => setPage(p)}
+      />
+
+      {/* ── 대상자 추가 모달 (admin) ──────────────────────── */}
+      <Dialog open={addModalOpen} onOpenChange={(o) => !o && setAddModalOpen(false)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>대상자 수동 추가</DialogTitle>
+            <DialogDescription>
+              {query.year}년 심사 대상자에 직원을 수동으로 추가합니다.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="flex gap-2">
+              <Input
+                className="h-8 text-sm"
+                placeholder="이름으로 검색"
+                value={searchKeyword}
+                onChange={(e) => setSearchKeyword(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleEmployeeSearch()}
+              />
+              <Button size="sm" className="h-8" onClick={handleEmployeeSearch} disabled={searchLoading}>
+                {searchLoading ? "검색중..." : "검색"}
+              </Button>
+            </div>
+            {searchResults.length > 0 && (
+              <div className="border rounded max-h-60 overflow-y-auto">
+                {searchResults.map((emp) => (
+                  <div
+                    key={emp.id}
+                    className="flex items-center justify-between px-3 py-2 hover:bg-gray-50 border-b last:border-0"
+                  >
+                    <div>
+                      <span className="font-medium text-sm">{emp.name}</span>
+                      <span className="text-xs text-muted-foreground ml-2">
+                        {emp.department} › {emp.team}
+                      </span>
+                    </div>
+                    <Button
+                      size="sm"
+                      className="h-6 text-xs px-2"
+                      disabled={addingUserId === emp.id}
+                      onClick={() => handleAddCandidate(emp.id)}
+                    >
+                      {addingUserId === emp.id ? "추가중..." : "추가"}
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+            {searchResults.length === 0 && searchKeyword && !searchLoading && (
+              <p className="text-sm text-muted-foreground text-center py-2">검색 결과 없음</p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAddModalOpen(false)}>닫기</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── 대상자 삭제 확인 (admin) ───────────────────────── */}
+      <Dialog open={!!deleteTarget} onOpenChange={(o) => !o && setDeleteTarget(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>대상자 삭제</DialogTitle>
+            <DialogDescription>
+              <strong>{deleteTarget?.name}</strong>을(를) 심사 대상자에서 삭제하시겠습니까?
+              이 작업은 되돌릴 수 없습니다.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteTarget(null)} disabled={deleting}>
+              취소
+            </Button>
+            <Button variant="destructive" onClick={handleDeleteCandidate} disabled={deleting}>
+              {deleting ? "삭제 중..." : "삭제"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+// ── MeetTypeRadio ──────────────────────────────────────────────
+
+function MeetTypeRadio({
+  name,
+  value,
+  onChange,
+}: {
+  name: string;
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  const options = [
+    { v: "all", label: "전체" },
+    { v: "point", label: "포인트" },
+    { v: "credit", label: "학점" },
+    { v: "both", label: "포인트&학점" },
+  ];
+
+  return (
+    <div className="flex items-center gap-3">
+      <span className="text-sm font-medium whitespace-nowrap">충족</span>
+      {options.map(({ v, label }) => (
+        <label key={v} className="flex items-center gap-1 cursor-pointer">
+          <input
+            type="radio"
+            name={name}
+            value={v}
+            checked={value === v}
+            onChange={() => onChange(v)}
+          />
+          <span className="text-sm">{label}</span>
+        </label>
+      ))}
+    </div>
+  );
+}

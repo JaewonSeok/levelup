@@ -1,0 +1,128 @@
+/* ── Keyframes ──────────────────────────────────────────────── */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(24px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes float1 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50%      { transform: translate(30px, -40px) scale(1.1); }
+}
+@keyframes float2 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50%      { transform: translate(-20px, 30px) scale(0.95); }
+}
+@keyframes float3 {
+  0%, 100% { transform: translate(0, 0) rotate(0deg); }
+  50%      { transform: translate(15px, -20px) rotate(5deg); }
+}
+@keyframes slideRight {
+  from { transform: scaleX(0); }
+  to   { transform: scaleX(1); }
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ── Input ──────────────────────────────────────────────────── */
+.input {
+  width: 100%;
+  padding: 14px 16px 14px 48px;
+  border: 1.5px solid #e2e5ea;
+  border-radius: 12px;
+  font-size: 15px;
+  font-family: 'Pretendard', -apple-system, sans-serif;
+  color: #1a1d23;
+  background: #fff;
+  outline: none;
+  transition: border-color 0.25s, box-shadow 0.25s;
+}
+.input::placeholder { color: #b0b5be; }
+.input:focus {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37,99,235,0.08);
+}
+.inputError {
+  border-color: #ef4444;
+  box-shadow: 0 0 0 3px rgba(239,68,68,0.08);
+}
+
+/* ── Button ─────────────────────────────────────────────────── */
+.btn {
+  width: 100%;
+  padding: 15px;
+  border: none;
+  border-radius: 12px;
+  font-size: 15.5px;
+  font-weight: 600;
+  font-family: 'Pretendard', -apple-system, sans-serif;
+  color: #fff;
+  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s, opacity 0.2s;
+  letter-spacing: 0.02em;
+}
+.btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 25px -5px rgba(37,99,235,0.4);
+}
+.btn:active:not(:disabled) { transform: translateY(0); }
+.btn:disabled { opacity: 0.7; cursor: not-allowed; }
+
+/* ── Toggle (비밀번호 표시) ──────────────────────────────────── */
+.toggle {
+  position: absolute;
+  right: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #9ca3af;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  transition: color 0.2s;
+  line-height: 0;
+}
+.toggle:hover { color: #6b7280; }
+
+/* ── Brand Pill ─────────────────────────────────────────────── */
+.brandPill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  background: rgba(255,255,255,0.1);
+  border-radius: 100px;
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255,255,255,0.15);
+  animation: fadeUp 0.8s ease-out 0.3s both;
+}
+
+/* ── Forgot Password ─────────────────────────────────────────── */
+.forgot {
+  color: #6b7280;
+  font-size: 13.5px;
+  font-weight: 500;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  font-family: 'Pretendard', -apple-system, sans-serif;
+  transition: color 0.2s;
+}
+.forgot:hover { color: #2563eb; }
+
+/* ── Layout panels ──────────────────────────────────────────── */
+.left  { flex: 0 0 52%; }
+.right { flex: 1; }
+
+/* ── 반응형: 900px 미만에서 좌측 패널 숨김 ──────────────────── */
+@media (max-width: 900px) {
+  .left  { display: none !important; }
+  .right { flex: 1 !important; }
+}
