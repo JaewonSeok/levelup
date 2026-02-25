@@ -22,6 +22,12 @@ import {
 
 // ── Types ─────────────────────────────────────────────────────────
 
+interface GradeCriteriaEntry {
+  grade: string;
+  yearRange: string;
+  points: number;
+}
+
 interface CriteriaRow {
   level: string;
   year: number;
@@ -57,6 +63,14 @@ type EditValues = Record<
 
 const CURRENT_YEAR = new Date().getFullYear();
 const ALL_LEVELS = ["L1", "L2", "L3", "L4", "L5"];
+const GRADES_2022_2024 = ["S", "A", "B", "C"] as const;
+const GRADES_2025 = ["O", "E", "G", "N", "U"] as const;
+
+// Default grade points map
+const DEFAULT_GRADE_POINTS: Record<string, Record<string, string>> = {
+  "2022-2024": { S: "", A: "", B: "", C: "" },
+  "2025": { O: "", E: "", G: "", N: "", U: "" },
+};
 
 // ── Component ─────────────────────────────────────────────────────
 
@@ -70,6 +84,13 @@ export default function SettingsPage() {
 
   const [history, setHistory] = useState<HistoryRow[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
+
+  // ── Grade Criteria 상태 ────────────────────────────────────────
+  const [gradePoints, setGradePoints] = useState<Record<string, Record<string, string>>>(
+    JSON.parse(JSON.stringify(DEFAULT_GRADE_POINTS))
+  );
+  const [gradeDirty, setGradeDirty] = useState(false);
+  const [gradeSaving, setGradeSaving] = useState(false);
 
   const fetchData = useCallback(async (y: number) => {
     setLoading(true);
@@ -104,10 +125,57 @@ export default function SettingsPage() {
     }
   }, []);
 
+  const fetchGradeCriteria = useCallback(async () => {
+    try {
+      const res = await fetch("/api/grade-criteria");
+      if (!res.ok) return;
+      const json: { criteria: GradeCriteriaEntry[] } = await res.json();
+      const map: Record<string, Record<string, string>> = JSON.parse(JSON.stringify(DEFAULT_GRADE_POINTS));
+      for (const entry of json.criteria) {
+        if (map[entry.yearRange]) {
+          map[entry.yearRange][entry.grade] = String(entry.points);
+        }
+      }
+      setGradePoints(map);
+      setGradeDirty(false);
+    } catch {
+      // ignore
+    }
+  }, []);
+
   useEffect(() => {
     fetchData(year);
     fetchHistory(year);
-  }, [year, fetchData, fetchHistory]);
+    fetchGradeCriteria();
+  }, [year, fetchData, fetchHistory, fetchGradeCriteria]);
+
+  async function handleGradeSave() {
+    setGradeSaving(true);
+    try {
+      const criteria: { grade: string; yearRange: string; points: number }[] = [];
+      for (const [yearRange, grades] of Object.entries(gradePoints)) {
+        for (const [grade, pts] of Object.entries(grades)) {
+          criteria.push({ grade, yearRange, points: Number(pts) || 0 });
+        }
+      }
+      const res = await fetch("/api/grade-criteria", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ criteria }),
+      });
+      if (res.ok) {
+        toast.success("등급별 포인트 기준이 저장되었습니다. 포인트 재계산이 실행됩니다.");
+        setGradeDirty(false);
+      } else {
+        const err = await res.json();
+        toast.error(err.error ?? "저장에 실패했습니다.");
+      }
+    } catch {
+      toast.error("저장에 실패했습니다.");
+    } finally {
+      setGradeSaving(false);
+    }
+  }
 
   const handleEdit = (level: string, field: keyof EditValues[string], value: string) => {
     setEditValues((prev) => ({
@@ -249,6 +317,77 @@ export default function SettingsPage() {
             )}
           </TableBody>
         </Table>
+      </div>
+
+      {/* ── 등급별 포인트 기준 ────────────────────────────── */}
+      <div className="mb-8">
+        <div className="flex items-center justify-between mb-3">
+          <div>
+            <h2 className="text-lg font-semibold">등급별 포인트 기준</h2>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              평가등급에 따라 자동으로 포인트를 계산합니다. 저장 시 전체 재계산이 실행됩니다.
+            </p>
+          </div>
+          <Button onClick={handleGradeSave} disabled={gradeSaving || !gradeDirty} size="sm">
+            {gradeSaving ? "저장 중..." : "저장"}
+          </Button>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* 2022-2024 등급 */}
+          <div className="bg-white rounded-lg border p-4">
+            <h3 className="text-sm font-medium mb-3 text-gray-700">2022~2024년 등급 (S/A/B/C)</h3>
+            <div className="space-y-2">
+              {GRADES_2022_2024.map((grade) => (
+                <div key={grade} className="flex items-center gap-3">
+                  <span className="w-8 text-center font-semibold text-sm bg-gray-100 rounded px-1.5 py-0.5">{grade}</span>
+                  <Input
+                    type="number"
+                    step="0.5"
+                    min="0"
+                    className="w-28 h-8 text-sm"
+                    placeholder="0"
+                    value={gradePoints["2022-2024"]?.[grade] ?? ""}
+                    onChange={(e) => {
+                      setGradePoints((prev) => ({
+                        ...prev,
+                        "2022-2024": { ...prev["2022-2024"], [grade]: e.target.value },
+                      }));
+                      setGradeDirty(true);
+                    }}
+                  />
+                  <span className="text-xs text-muted-foreground">점</span>
+                </div>
+              ))}
+            </div>
+          </div>
+          {/* 2025 등급 */}
+          <div className="bg-white rounded-lg border p-4">
+            <h3 className="text-sm font-medium mb-3 text-gray-700">2025년 등급 (O/E/G/N/U)</h3>
+            <div className="space-y-2">
+              {GRADES_2025.map((grade) => (
+                <div key={grade} className="flex items-center gap-3">
+                  <span className="w-8 text-center font-semibold text-sm bg-gray-100 rounded px-1.5 py-0.5">{grade}</span>
+                  <Input
+                    type="number"
+                    step="0.5"
+                    min="0"
+                    className="w-28 h-8 text-sm"
+                    placeholder="0"
+                    value={gradePoints["2025"]?.[grade] ?? ""}
+                    onChange={(e) => {
+                      setGradePoints((prev) => ({
+                        ...prev,
+                        "2025": { ...prev["2025"], [grade]: e.target.value },
+                      }));
+                      setGradeDirty(true);
+                    }}
+                  />
+                  <span className="text-xs text-muted-foreground">점</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* ── 변경 이력 ─────────────────────────────────────── */}

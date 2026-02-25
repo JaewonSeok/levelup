@@ -75,12 +75,23 @@ export async function POST(req: NextRequest) {
     update: { submittedBy: session.user.id, submittedAt: new Date() },
   });
 
-  // 비동기 이메일 발송 (실패해도 응답 정상 반환)
-  sendSubmissionEmail({
-    department,
-    submittedByName: session.user.name ?? "알 수 없음",
-    submittedAt: submission.submittedAt,
-    year,
+  // 통계 계산 후 비동기 이메일 발송
+  prisma.candidate.findMany({
+    where: { year, isReviewTarget: true, user: { department } },
+    include: { review: { select: { recommendation: true } } },
+  }).then((candidates) => {
+    const stats = {
+      total: candidates.length,
+      recommended: candidates.filter((c) => c.review?.recommendation === true).length,
+      notRecommended: candidates.filter((c) => c.review?.recommendation === false).length,
+    };
+    return sendSubmissionEmail({
+      department,
+      submittedByName: session.user.name ?? "알 수 없음",
+      submittedAt: submission.submittedAt,
+      year,
+      stats,
+    });
   }).catch((e) => console.error("[submit email]", e));
 
   return NextResponse.json({

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
+import { EmployeeTooltip } from "@/components/EmployeeTooltip";
 import {
   Select,
   SelectContent,
@@ -17,7 +18,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { CheckCircle2, AlertTriangle, Send, Undo2 } from "lucide-react";
+import { CheckCircle2, AlertTriangle, Send, Undo2, ChevronDown, ChevronUp } from "lucide-react";
 import { OpinionModal } from "@/components/review/OpinionModal";
 import { toast } from "sonner";
 
@@ -125,9 +126,12 @@ export default function ReviewPage() {
   // 제출 상태
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [submittedDepts, setSubmittedDepts] = useState<Set<string>>(new Set());
+  const [submittedDeptMap, setSubmittedDeptMap] = useState<Map<string, string>>(new Map());
   const [submitting, setSubmitting] = useState(false);
   const [confirmSubmitOpen, setConfirmSubmitOpen] = useState(false);
   const [confirmCancelOpen, setConfirmCancelOpen] = useState(false);
+  const [adminPanelOpen, setAdminPanelOpen] = useState(true);
+  const [cancelingDept, setCancelingDept] = useState<string | null>(null);
 
   // ── Fetch ────────────────────────────────────────────────────
 
@@ -137,9 +141,9 @@ export default function ReviewPage() {
       if (!res.ok) return;
       const data = await res.json();
       setIsSubmitted(data.isSubmitted ?? false);
-      setSubmittedDepts(
-        new Set((data.submittedDepartments ?? []).map((s: { department: string }) => s.department))
-      );
+      const deptList: { department: string; submittedAt: string }[] = data.submittedDepartments ?? [];
+      setSubmittedDepts(new Set(deptList.map((s) => s.department)));
+      setSubmittedDeptMap(new Map(deptList.map((s) => [s.department, s.submittedAt])));
     } catch {
       // ignore
     }
@@ -254,6 +258,27 @@ export default function ReviewPage() {
     }
   };
 
+  const handleAdminCancelSubmit = async (dept: string) => {
+    setCancelingDept(dept);
+    try {
+      const res = await fetch("/api/reviews/submit", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ year: query.year, department: dept }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error ?? "취소 실패");
+      }
+      toast.success(`${dept} 제출이 취소되었습니다.`);
+      fetchSubmissionStatus(query.year);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "취소 중 오류가 발생했습니다.");
+    } finally {
+      setCancelingDept(null);
+    }
+  };
+
   const formatDate = (iso: string | null) => (iso ? iso.slice(0, 10) : "-");
 
   // ── Render ───────────────────────────────────────────────────
@@ -261,6 +286,72 @@ export default function ReviewPage() {
   return (
     <div className="p-6">
       <h1 className="text-xl font-bold mb-4">레벨업 심사</h1>
+
+      {/* ── 어드민 패널: 본부별 제출 현황 (SYSTEM_ADMIN 전용) ── */}
+      {isAdmin && (
+        <div className="border rounded-md mb-4 bg-white">
+          <button
+            className="w-full flex items-center justify-between px-4 py-2.5 text-sm font-medium hover:bg-gray-50"
+            onClick={() => setAdminPanelOpen((o) => !o)}
+          >
+            <span>본부별 제출 현황 ({meta.departments.length}개 본부)</span>
+            {adminPanelOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+          </button>
+          {adminPanelOpen && (
+            <div className="border-t overflow-x-auto">
+              <table className="w-full text-sm border-collapse">
+                <thead>
+                  <tr className="bg-gray-50 text-center">
+                    <th className="border-b px-3 py-2 font-medium text-left">본부</th>
+                    <th className="border-b px-3 py-2 font-medium">제출 상태</th>
+                    <th className="border-b px-3 py-2 font-medium">제출 일시</th>
+                    <th className="border-b px-3 py-2 font-medium w-24">관리</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {meta.departments.map((dept) => {
+                    const submittedAt = submittedDeptMap.get(dept);
+                    const isSubm = !!submittedAt;
+                    const isCanceling = cancelingDept === dept;
+                    return (
+                      <tr key={dept} className="text-center hover:bg-gray-50">
+                        <td className="border-b px-3 py-1.5 text-left">{dept}</td>
+                        <td className="border-b px-3 py-1.5">
+                          {isSubm ? (
+                            <span className="inline-flex items-center gap-1 text-xs text-green-700 bg-green-50 px-2 py-0.5 rounded-full font-medium">
+                              <CheckCircle2 className="w-3 h-3" /> 제출 완료
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 text-xs text-orange-600 bg-orange-50 px-2 py-0.5 rounded-full font-medium">
+                              <AlertTriangle className="w-3 h-3" /> 미제출
+                            </span>
+                          )}
+                        </td>
+                        <td className="border-b px-3 py-1.5 text-xs text-gray-500">
+                          {submittedAt ? new Date(submittedAt).toLocaleString("ko-KR", { timeZone: "Asia/Seoul" }) : "-"}
+                        </td>
+                        <td className="border-b px-3 py-1.5">
+                          {isSubm && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-6 text-xs px-2 text-red-600 border-red-300 hover:bg-red-50"
+                              disabled={isCanceling}
+                              onClick={() => handleAdminCancelSubmit(dept)}
+                            >
+                              {isCanceling ? "취소 중..." : "제출 취소"}
+                            </Button>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ── 제출 완료 배너 (본부장) ──────────────────────────── */}
       {isDeptHead && isSubmitted && (
@@ -433,7 +524,21 @@ export default function ReviewPage() {
                       )}
                     </td>
                     <td className="border px-2 py-1.5 text-left">{c.team || "-"}</td>
-                    <td className="border px-2 py-1.5 font-medium">{c.name}</td>
+                    <td className="border px-2 py-1.5 font-medium">
+                      <EmployeeTooltip
+                        name={c.name}
+                        department={c.department}
+                        team={c.team}
+                        level={c.level}
+                        competencyLevel={c.competencyLevel}
+                        hireDate={c.hireDate}
+                        yearsOfService={c.yearsOfService}
+                        pointCumulative={c.pointCumulative}
+                        creditCumulative={c.creditCumulative}
+                      >
+                        {c.name}
+                      </EmployeeTooltip>
+                    </td>
                     <td className="border px-2 py-1.5">{c.competencyLevel ?? c.level ?? "-"}</td>
                     <td className="border px-2 py-1.5">{c.yearsOfService ?? "-"}</td>
                     <td className="border px-2 py-1.5">{formatDate(c.hireDate)}</td>

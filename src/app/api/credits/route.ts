@@ -111,7 +111,7 @@ export async function GET(req: NextRequest) {
 
   const employeesData = users.map((user) => {
     const years = user.yearsOfService ?? 0;
-    const startYear = years > 0 ? CURRENT_YEAR - years + 1 : CURRENT_YEAR;
+    const startYear = Math.max(years > 0 ? CURRENT_YEAR - years + 1 : CURRENT_YEAR, 2021);
     const hireYear = user.hireDate ? new Date(user.hireDate).getFullYear() : null;
 
     const creditsByYear = new Map(user.credits.map((c) => [c.year, c]));

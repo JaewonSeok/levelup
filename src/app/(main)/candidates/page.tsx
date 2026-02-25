@@ -23,6 +23,7 @@ import { Badge } from "@/components/ui/badge";
 import { Pagination } from "@/components/management/Pagination";
 import { Trash2 } from "lucide-react";
 import { toast } from "sonner";
+import { EmployeeTooltip } from "@/components/EmployeeTooltip";
 
 // ── Types ──────────────────────────────────────────────────────
 
@@ -51,6 +52,7 @@ interface CandidateRow {
   pointMet: boolean;
   creditMet: boolean;
   isReviewTarget: boolean;
+  source: string;
   savedAt: string | null;
   grades: GradeMap;
 }
@@ -147,14 +149,26 @@ export default function CandidatesPage() {
 
   // Admin: add candidate modal
   const [addModalOpen, setAddModalOpen] = useState(false);
-  const [searchKeyword, setSearchKeyword] = useState("");
-  const [searchResults, setSearchResults] = useState<{ id: string; name: string; department: string; team: string }[]>([]);
-  const [searchLoading, setSearchLoading] = useState(false);
-  const [addingUserId, setAddingUserId] = useState<string | null>(null);
+  const [addForm, setAddForm] = useState({
+    department: "",
+    team: "",
+    name: "",
+    level: "",
+    yearsOfService: "",
+    hireDate: "",
+    employmentType: "",
+    pointCumulative: "",
+    creditCumulative: "",
+  });
+  const [addSubmitting, setAddSubmitting] = useState(false);
 
   // Admin: delete candidate
   const [deleteTarget, setDeleteTarget] = useState<{ candidateId: string; name: string } | null>(null);
   const [deleting, setDeleting] = useState(false);
+
+  // Admin: auto-select
+  const [autoSelectConfirmOpen, setAutoSelectConfirmOpen] = useState(false);
+  const [autoSelecting, setAutoSelecting] = useState(false);
 
   // ── Fetch ──────────────────────────────────────────────────
 
@@ -279,39 +293,40 @@ export default function CandidatesPage() {
 
   // ── Admin handlers ─────────────────────────────────────────
 
-  const handleEmployeeSearch = async () => {
-    if (!searchKeyword.trim()) return;
-    setSearchLoading(true);
-    try {
-      const res = await fetch(`/api/employees?keyword=${encodeURIComponent(searchKeyword)}&isActive=Y&pageSize=20`);
-      const data = await res.json();
-      setSearchResults(data.employees ?? []);
-    } catch {
-      setSearchResults([]);
-    } finally {
-      setSearchLoading(false);
+  const handleAddCandidate = async () => {
+    const { department, team, name, level, yearsOfService, hireDate, employmentType } = addForm;
+    if (!department || !team || !name || !level || !hireDate || !employmentType) {
+      toast.error("필수 항목을 모두 입력해주세요.");
+      return;
     }
-  };
-
-  const handleAddCandidate = async (userId: string) => {
-    setAddingUserId(userId);
+    setAddSubmitting(true);
     try {
       const res = await fetch("/api/candidates", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId, year: query.year }),
+        body: JSON.stringify({
+          year: query.year,
+          name: name.trim(),
+          department: department.trim(),
+          team: team.trim(),
+          level,
+          employmentType,
+          hireDate,
+          yearsOfService: yearsOfService ? Number(yearsOfService) : undefined,
+          pointCumulative: addForm.pointCumulative ? Number(addForm.pointCumulative) : undefined,
+          creditCumulative: addForm.creditCumulative ? Number(addForm.creditCumulative) : undefined,
+        }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "추가 실패");
       toast.success("대상자가 추가되었습니다.");
       setAddModalOpen(false);
-      setSearchKeyword("");
-      setSearchResults([]);
-      setQuery((q) => ({ ...q })); // re-fetch
+      setAddForm({ department: "", team: "", name: "", level: "", yearsOfService: "", hireDate: "", employmentType: "", pointCumulative: "", creditCumulative: "" });
+      setQuery((q) => ({ ...q }));
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "추가 중 오류가 발생했습니다.");
     } finally {
-      setAddingUserId(null);
+      setAddSubmitting(false);
     }
   };
 
@@ -332,6 +347,26 @@ export default function CandidatesPage() {
     }
   };
 
+  const handleAutoSelect = async () => {
+    setAutoSelecting(true);
+    try {
+      const res = await fetch("/api/candidates/auto-select", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ year: query.year }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "자동 선정 실패");
+      toast.success(`${data.added}명의 대상자가 자동 선정되었습니다. (총 충족 ${data.total}명)`);
+      setAutoSelectConfirmOpen(false);
+      setQuery((q) => ({ ...q }));
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "자동 선정 중 오류가 발생했습니다.");
+    } finally {
+      setAutoSelecting(false);
+    }
+  };
+
   const formatDate = (iso: string | null) => {
     if (!iso) return "-";
     return iso.slice(0, 10);
@@ -344,9 +379,18 @@ export default function CandidatesPage() {
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-xl font-bold">레벨업 대상자 관리</h1>
         {isAdmin && (
-          <Button size="sm" onClick={() => { setAddModalOpen(true); setSearchKeyword(""); setSearchResults([]); }}>
-            + 대상자 추가
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              className="bg-green-600 hover:bg-green-700 text-white"
+              onClick={() => setAutoSelectConfirmOpen(true)}
+            >
+              자동 선정
+            </Button>
+            <Button size="sm" onClick={() => setAddModalOpen(true)}>
+              + 대상자 추가
+            </Button>
+          </div>
         )}
       </div>
 
@@ -581,7 +625,27 @@ export default function CandidatesPage() {
                     <td className="border px-2 py-1.5 text-gray-500">{rowNum}</td>
                     <td className="border px-2 py-1.5 text-left">{row.department || "-"}</td>
                     <td className="border px-2 py-1.5 text-left">{row.team || "-"}</td>
-                    <td className="border px-2 py-1.5 font-medium">{row.name}</td>
+                    <td className="border px-2 py-1.5 font-medium">
+                      <div className="flex items-center gap-1.5 justify-center">
+                        <EmployeeTooltip
+                          name={row.name}
+                          department={row.department}
+                          team={row.team}
+                          level={row.level}
+                          competencyLevel={row.competencyLevel}
+                          hireDate={row.hireDate}
+                          yearsOfService={row.yearsOfService}
+                          employmentType={row.employmentType}
+                          pointCumulative={row.pointCumulative}
+                          creditCumulative={row.creditCumulative}
+                        >
+                          {row.name}
+                        </EmployeeTooltip>
+                        <span className={`text-xs px-1 py-0.5 rounded font-medium ${row.source === "auto" ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-600"}`}>
+                          {row.source === "auto" ? "자동" : "수동"}
+                        </span>
+                      </div>
+                    </td>
                     <td className="border px-2 py-1.5">
                       {row.competencyLevel ?? row.level ?? "-"}
                     </td>
@@ -691,57 +755,117 @@ export default function CandidatesPage() {
 
       {/* ── 대상자 추가 모달 (admin) ──────────────────────── */}
       <Dialog open={addModalOpen} onOpenChange={(o) => !o && setAddModalOpen(false)}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>대상자 수동 추가</DialogTitle>
             <DialogDescription>
-              {query.year}년 심사 대상자에 직원을 수동으로 추가합니다.
+              {query.year}년 심사 대상자에 직원 정보를 직접 입력하여 추가합니다.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-3">
-            <div className="flex gap-2">
-              <Input
-                className="h-8 text-sm"
-                placeholder="이름으로 검색"
-                value={searchKeyword}
-                onChange={(e) => setSearchKeyword(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handleEmployeeSearch()}
-              />
-              <Button size="sm" className="h-8" onClick={handleEmployeeSearch} disabled={searchLoading}>
-                {searchLoading ? "검색중..." : "검색"}
-              </Button>
+          <div className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
+            {/* 본부 */}
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-gray-700">본부 <span className="text-red-500">*</span></label>
+              <Select value={addForm.department || "__none__"} onValueChange={(v) => setAddForm((f) => ({ ...f, department: v === "__none__" ? "" : v }))}>
+                <SelectTrigger className="h-8 text-sm">
+                  <SelectValue placeholder="선택" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">선택</SelectItem>
+                  {meta.departments.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
+                </SelectContent>
+              </Select>
             </div>
-            {searchResults.length > 0 && (
-              <div className="border rounded max-h-60 overflow-y-auto">
-                {searchResults.map((emp) => (
-                  <div
-                    key={emp.id}
-                    className="flex items-center justify-between px-3 py-2 hover:bg-gray-50 border-b last:border-0"
-                  >
-                    <div>
-                      <span className="font-medium text-sm">{emp.name}</span>
-                      <span className="text-xs text-muted-foreground ml-2">
-                        {emp.department} › {emp.team}
-                      </span>
-                    </div>
-                    <Button
-                      size="sm"
-                      className="h-6 text-xs px-2"
-                      disabled={addingUserId === emp.id}
-                      onClick={() => handleAddCandidate(emp.id)}
-                    >
-                      {addingUserId === emp.id ? "추가중..." : "추가"}
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            )}
-            {searchResults.length === 0 && searchKeyword && !searchLoading && (
-              <p className="text-sm text-muted-foreground text-center py-2">검색 결과 없음</p>
-            )}
+            {/* 팀 */}
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-gray-700">팀 <span className="text-red-500">*</span></label>
+              <Input className="h-8 text-sm" placeholder="팀명 입력" value={addForm.team} onChange={(e) => setAddForm((f) => ({ ...f, team: e.target.value }))} />
+            </div>
+            {/* 이름 */}
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-gray-700">이름 <span className="text-red-500">*</span></label>
+              <Input className="h-8 text-sm" placeholder="성명 입력" value={addForm.name} onChange={(e) => setAddForm((f) => ({ ...f, name: e.target.value }))} />
+            </div>
+            {/* 레벨 */}
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-gray-700">레벨 <span className="text-red-500">*</span></label>
+              <Select value={addForm.level || "__none__"} onValueChange={(v) => setAddForm((f) => ({ ...f, level: v === "__none__" ? "" : v }))}>
+                <SelectTrigger className="h-8 text-sm">
+                  <SelectValue placeholder="선택" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">선택</SelectItem>
+                  {["L1", "L2", "L3", "L4", "L5"].map((l) => <SelectItem key={l} value={l}>{l}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            {/* 연차 */}
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-gray-700">연차</label>
+              <Input className="h-8 text-sm" type="number" min={0} placeholder="숫자 입력" value={addForm.yearsOfService} onChange={(e) => setAddForm((f) => ({ ...f, yearsOfService: e.target.value }))} />
+            </div>
+            {/* 입사일 */}
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-gray-700">입사일 <span className="text-red-500">*</span></label>
+              <input type="date" className="w-full h-8 border rounded px-2 text-sm bg-white" value={addForm.hireDate} onChange={(e) => setAddForm((f) => ({ ...f, hireDate: e.target.value }))} />
+            </div>
+            {/* 고용형태 */}
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-gray-700">고용형태 <span className="text-red-500">*</span></label>
+              <Select value={addForm.employmentType || "__none__"} onValueChange={(v) => setAddForm((f) => ({ ...f, employmentType: v === "__none__" ? "" : v }))}>
+                <SelectTrigger className="h-8 text-sm">
+                  <SelectValue placeholder="선택" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">선택</SelectItem>
+                  <SelectItem value="REGULAR">정규직</SelectItem>
+                  <SelectItem value="CONTRACT">계약직</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {/* 포인트 */}
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-gray-700">포인트 누적 (선택)</label>
+              <Input className="h-8 text-sm" type="number" step="0.1" min={0} placeholder="숫자 입력" value={addForm.pointCumulative} onChange={(e) => setAddForm((f) => ({ ...f, pointCumulative: e.target.value }))} />
+            </div>
+            {/* 학점 */}
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-gray-700">학점 누적 (선택)</label>
+              <Input className="h-8 text-sm" type="number" step="0.1" min={0} placeholder="숫자 입력" value={addForm.creditCumulative} onChange={(e) => setAddForm((f) => ({ ...f, creditCumulative: e.target.value }))} />
+            </div>
           </div>
+          <DialogFooter className="mt-2">
+            <Button variant="outline" onClick={() => setAddModalOpen(false)} disabled={addSubmitting}>취소</Button>
+            <Button onClick={handleAddCandidate} disabled={addSubmitting}>
+              {addSubmitting ? "추가 중..." : "추가"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── 자동 선정 확인 다이얼로그 (admin) ────────────────── */}
+      <Dialog open={autoSelectConfirmOpen} onOpenChange={(o) => !o && setAutoSelectConfirmOpen(false)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>대상자 자동 선정</DialogTitle>
+            <DialogDescription>
+              {query.year}년 기준 설정을 기반으로 포인트·학점 모두 충족한 직원을
+              대상자로 자동 선정합니다.
+              <br />
+              기존 대상자는 덮어쓰지 않습니다.
+            </DialogDescription>
+          </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setAddModalOpen(false)}>닫기</Button>
+            <Button variant="outline" onClick={() => setAutoSelectConfirmOpen(false)} disabled={autoSelecting}>
+              취소
+            </Button>
+            <Button
+              className="bg-green-600 hover:bg-green-700"
+              onClick={handleAutoSelect}
+              disabled={autoSelecting}
+            >
+              {autoSelecting ? "선정 중..." : "자동 선정 실행"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

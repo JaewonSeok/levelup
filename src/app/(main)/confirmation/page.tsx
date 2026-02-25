@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
+import { EmployeeTooltip } from "@/components/EmployeeTooltip";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -44,6 +45,7 @@ interface ConfirmationRow {
   reviewRecommendation: boolean | null;
   status: "PENDING" | "CONFIRMED" | "DEFERRED";
   confirmedAt: string | null;
+  isSubmitted: boolean;
   grades: GradeMap;
 }
 
@@ -51,12 +53,14 @@ interface Summary {
   pending: number;
   confirmed: number;
   deferred: number;
+  submittedDeptCount: number;
 }
 
 interface ConfirmationResponse {
   employees: ConfirmationRow[];
   total: number;
   summary: Summary;
+  submittedDepartments: { department: string; submittedAt: string }[];
   meta: { departments: string[]; teams: string[] };
 }
 
@@ -101,6 +105,7 @@ export default function ConfirmationPage() {
 
   const role = session?.user?.role ?? "";
   const canConfirm = role === "CEO" || role === "SYSTEM_ADMIN";
+  const isAdmin = role === "SYSTEM_ADMIN";
 
   useEffect(() => {
     if (authStatus === "loading") return;
@@ -113,9 +118,10 @@ export default function ConfirmationPage() {
   const [year, setYear] = useState(CURRENT_YEAR);
   const [department, setDepartment] = useState("");
   const [team, setTeam] = useState("");
+  const [showAll, setShowAll] = useState(false);
 
   const [rows, setRows] = useState<ConfirmationRow[]>([]);
-  const [summary, setSummary] = useState<Summary>({ pending: 0, confirmed: 0, deferred: 0 });
+  const [summary, setSummary] = useState<Summary>({ pending: 0, confirmed: 0, deferred: 0, submittedDeptCount: 0 });
   const [meta, setMeta] = useState<{ departments: string[]; teams: string[] }>({ departments: [], teams: [] });
   const [loading, setLoading] = useState(false);
   const [changingId, setChangingId] = useState<string | null>(null);
@@ -134,6 +140,7 @@ export default function ConfirmationPage() {
         const sp = new URLSearchParams({ year: String(year) });
         if (department) sp.set("department", department);
         if (team) sp.set("team", team);
+        if (showAll) sp.set("showAll", "true");
 
         const res = await fetch(`/api/confirmation?${sp}`);
         if (cancelled || !res.ok) return;
@@ -141,7 +148,7 @@ export default function ConfirmationPage() {
         if (cancelled) return;
 
         setRows(data.employees ?? []);
-        setSummary(data.summary ?? { pending: 0, confirmed: 0, deferred: 0 });
+        setSummary(data.summary ?? { pending: 0, confirmed: 0, deferred: 0, submittedDeptCount: 0 });
         setMeta(data.meta ?? { departments: [], teams: [] });
       } finally {
         if (!cancelled) setLoading(false);
@@ -150,7 +157,7 @@ export default function ConfirmationPage() {
 
     doFetch();
     return () => { cancelled = true; };
-  }, [year, department, team, authStatus, role]);
+  }, [year, department, team, showAll, authStatus, role]);
 
   // ── Handlers ──────────────────────────────────────────────
 
@@ -180,11 +187,11 @@ export default function ConfirmationPage() {
         const oldRow = rows.find((r) => r.confirmationId === confirmationId);
         if (!oldRow) return prev;
         const next = { ...prev };
-        next[oldRow.status.toLowerCase() as keyof Summary] = Math.max(
+        next[oldRow.status.toLowerCase() as keyof Omit<Summary, "submittedDeptCount">] = Math.max(
           0,
-          next[oldRow.status.toLowerCase() as keyof Summary] - 1
+          next[oldRow.status.toLowerCase() as keyof Omit<Summary, "submittedDeptCount">] - 1
         );
-        next[newStatus.toLowerCase() as keyof Summary] += 1;
+        next[newStatus.toLowerCase() as keyof Omit<Summary, "submittedDeptCount">] += 1;
         return next;
       });
     } catch (e) {
@@ -255,10 +262,27 @@ export default function ConfirmationPage() {
         </div>
 
         <span className="text-sm text-muted-foreground">총 {rows.length}명</span>
+
+        {/* showAll 토글 (CEO/SYSTEM_ADMIN 전용) */}
+        {(canConfirm || isAdmin) && (
+          <Button
+            size="sm"
+            variant={showAll ? "default" : "outline"}
+            className="h-8 ml-auto"
+            onClick={() => setShowAll((prev) => !prev)}
+          >
+            {showAll ? "제출 본부만 보기" : "전체 보기"}
+          </Button>
+        )}
       </div>
 
       {/* ── 요약 카드 ──────────────────────────────────────── */}
-      <div className="grid grid-cols-3 gap-4 mb-4">
+      <div className="grid grid-cols-4 gap-4 mb-4">
+        <div className="border rounded-md p-4 text-center bg-white">
+          <p className="text-xs text-muted-foreground mb-1">제출 본부</p>
+          <p className="text-2xl font-bold text-blue-600">{summary.submittedDeptCount}</p>
+          <p className="text-xs text-muted-foreground">개</p>
+        </div>
         <div className="border rounded-md p-4 text-center bg-white">
           <p className="text-xs text-muted-foreground mb-1">미제출</p>
           <p className="text-2xl font-bold text-gray-600">{summary.pending}</p>
@@ -300,26 +324,49 @@ export default function ConfirmationPage() {
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={canConfirm ? 11 + GRADE_YEARS.length : 10 + GRADE_YEARS.length} className="text-center py-10 text-muted-foreground">
+                <td colSpan={canConfirm ? 12 + GRADE_YEARS.length : 11 + GRADE_YEARS.length} className="text-center py-10 text-muted-foreground">
                   불러오는 중...
                 </td>
               </tr>
             ) : rows.length === 0 ? (
               <tr>
-                <td colSpan={canConfirm ? 11 + GRADE_YEARS.length : 10 + GRADE_YEARS.length} className="text-center py-10 text-muted-foreground">
-                  심사 완료된 대상자가 없습니다.
+                <td colSpan={canConfirm ? 12 + GRADE_YEARS.length : 11 + GRADE_YEARS.length} className="text-center py-10 text-muted-foreground">
+                  {showAll ? "심사 완료된 대상자가 없습니다." : "제출된 본부의 심사 대상자가 없습니다."}
                 </td>
               </tr>
             ) : (
               rows.map((row, idx) => {
                 const isChanging = changingId === row.confirmationId;
+                const notSubmitted = !row.isSubmitted;
 
                 return (
-                  <tr key={row.candidateId} className="text-center hover:bg-gray-50">
+                  <tr
+                    key={row.candidateId}
+                    className={`text-center hover:bg-gray-50 ${notSubmitted ? "bg-gray-50/60" : ""}`}
+                  >
                     <td className="border px-2 py-1.5 text-gray-500">{idx + 1}</td>
-                    <td className="border px-2 py-1.5 text-left">{row.department || "-"}</td>
+                    <td className="border px-2 py-1.5 text-left">
+                      {row.department || "-"}
+                      {notSubmitted && showAll && (
+                        <span className="ml-1.5 text-xs bg-orange-100 text-orange-600 px-1 py-0.5 rounded font-medium">미제출</span>
+                      )}
+                    </td>
                     <td className="border px-2 py-1.5 text-left">{row.team || "-"}</td>
-                    <td className="border px-2 py-1.5 font-medium">{row.name}</td>
+                    <td className="border px-2 py-1.5 font-medium">
+                      <EmployeeTooltip
+                        name={row.name}
+                        department={row.department}
+                        team={row.team}
+                        level={row.level}
+                        competencyLevel={row.competencyLevel}
+                        hireDate={row.hireDate}
+                        yearsOfService={row.yearsOfService}
+                        pointCumulative={row.pointCumulative}
+                        creditCumulative={row.creditCumulative}
+                      >
+                        {row.name}
+                      </EmployeeTooltip>
+                    </td>
                     <td className="border px-2 py-1.5">{row.competencyLevel ?? row.level ?? "-"}</td>
                     <td className="border px-2 py-1.5">{row.yearsOfService ?? "-"}</td>
 
@@ -413,6 +460,11 @@ export default function ConfirmationPage() {
         {!canConfirm && (
           <span className="ml-3 text-orange-600">
             * 확정/반려/미제출 상태 변경은 대표이사 또는 시스템 관리자만 가능합니다.
+          </span>
+        )}
+        {showAll && (
+          <span className="ml-3 text-gray-500">
+            * 주황색 &quot;미제출&quot; 뱃지 행은 아직 본부장이 제출하지 않은 본부입니다.
           </span>
         )}
       </div>

@@ -23,6 +23,7 @@ export async function sendSubmissionEmail(data: {
   submittedByName: string;
   submittedAt: Date;
   year: number;
+  stats: { total: number; recommended: number; notRecommended: number };
 }) {
   const transporter = createTransporter();
   if (!transporter) {
@@ -30,20 +31,22 @@ export async function sendSubmissionEmail(data: {
     return;
   }
 
-  const recipients = ["jwseok@rsupport.com", "shyun@rsupport.com"];
+  const recipients = ["jwseok@rsupport.com", "shyun@rsupport.com", "shjeong@rsupport.com"];
   const dateStr = data.submittedAt.toLocaleString("ko-KR", { timeZone: "Asia/Seoul" });
 
   await transporter.sendMail({
     from: process.env.SMTP_FROM ?? `"레벨업 HR" <${process.env.SMTP_USER}>`,
     to: recipients.join(", "),
-    subject: `[레벨업 심사] ${data.department} ${data.year}년 최종 제출 완료`,
+    subject: `[레벨업] ${data.department} 레벨업 심사 최종 제출`,
     html: `
       <h2 style="color:#1d4ed8;">레벨업 심사 최종 제출 알림</h2>
+      <p>${data.submittedByName}이(가) ${data.department}의 ${data.year}년 레벨업 심사를 최종 제출했습니다.</p>
       <table style="border-collapse:collapse;font-size:14px;">
         <tr><td style="padding:6px 16px 6px 0;color:#6b7280;">본부</td><td><strong>${data.department}</strong></td></tr>
         <tr><td style="padding:6px 16px 6px 0;color:#6b7280;">심사 연도</td><td><strong>${data.year}년</strong></td></tr>
         <tr><td style="padding:6px 16px 6px 0;color:#6b7280;">제출자</td><td><strong>${data.submittedByName}</strong></td></tr>
-        <tr><td style="padding:6px 16px 6px 0;color:#6b7280;">제출 시각</td><td>${dateStr}</td></tr>
+        <tr><td style="padding:6px 16px 6px 0;color:#6b7280;">제출 일시</td><td>${dateStr}</td></tr>
+        <tr><td style="padding:6px 16px 6px 0;color:#6b7280;">대상자 수</td><td>${data.stats.total}명 (추천 ${data.stats.recommended}명 / 미추천 ${data.stats.notRecommended}명)</td></tr>
       </table>
     `,
   });

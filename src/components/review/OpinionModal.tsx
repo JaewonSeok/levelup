@@ -199,8 +199,8 @@ export function OpinionModal({
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
+      <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col overflow-hidden">
+        <DialogHeader className="flex-shrink-0">
           <DialogTitle>심사 의견 입력</DialogTitle>
         </DialogHeader>
 
@@ -215,29 +215,23 @@ export function OpinionModal({
         ) : (
           <>
             {/* ── 대상자 요약 ─────────────────────────────────── */}
-            <div className="bg-blue-50 border border-blue-200 rounded-md p-3 text-sm mb-4">
-              <div className="grid grid-cols-6 gap-x-4 gap-y-1 mb-2">
+            <div className="bg-blue-50 border border-blue-200 rounded-md px-3 py-2 text-sm flex-shrink-0">
+              <div className="flex flex-wrap gap-x-6 gap-y-0.5">
                 <span className="font-semibold text-blue-700">소속/성명</span>
-                <span>{data.candidate.user.department}</span>
-                <span>{data.candidate.user.team}</span>
-                <span className="font-semibold">{data.candidate.user.name}</span>
-                <span className="font-semibold text-blue-700">역량레벨</span>
-                <span>
-                  {data.candidate.user.competencyLevel ??
-                    data.candidate.user.level ??
-                    "-"}
+                <span className="text-gray-700">
+                  {data.candidate.user.department} · {data.candidate.user.team} · <strong>{data.candidate.user.name}</strong>
                 </span>
-              </div>
-              <div className="grid grid-cols-4 gap-x-4 gap-y-1">
+                <span className="font-semibold text-blue-700">역량레벨</span>
+                <span className="text-gray-700">{data.candidate.user.competencyLevel ?? data.candidate.user.level ?? "-"}</span>
                 <span className="font-semibold text-blue-700">포인트</span>
-                <span>{data.pointCumulative.toFixed(1)}</span>
+                <span className="text-gray-700">{data.pointCumulative.toFixed(1)}</span>
                 <span className="font-semibold text-blue-700">학점</span>
-                <span>{data.creditCumulative.toFixed(1)}</span>
+                <span className="text-gray-700">{data.creditCumulative.toFixed(1)}</span>
               </div>
             </div>
 
             {/* ── 본부장 의견 행 ──────────────────────────────── */}
-            <div className="mb-4">
+            <div className="flex-1 overflow-y-auto min-h-0 mt-3">
               <h3 className="text-sm font-semibold text-gray-700 mb-2">
                 본부장 의견
               </h3>
@@ -301,7 +295,7 @@ export function OpinionModal({
                         <div className="flex-1">
                           {editable ? (
                             <textarea
-                              className="w-full text-xs border rounded px-2 py-1.5 resize-none h-20 focus:outline-none focus:ring-1 focus:ring-blue-300 bg-white"
+                              className="w-full text-xs border rounded px-2 py-1.5 resize-none h-[70px] focus:outline-none focus:ring-1 focus:ring-blue-300 bg-white"
                               value={rs.text}
                               onChange={(e) =>
                                 handleChange(reviewer.userId, "text", e.target.value)
@@ -424,7 +418,7 @@ export function OpinionModal({
               </div>
             </div>
 
-            <div className="flex justify-end">
+            <div className="flex justify-end flex-shrink-0 pt-2 border-t mt-2">
               <Button variant="outline" onClick={onClose}>
                 닫기
               </Button>

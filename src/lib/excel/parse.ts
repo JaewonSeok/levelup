@@ -27,7 +27,9 @@ const COLUMN_ALIASES: Record<string, string> = {
   연차: "yearsOfService",
   역량레벨: "competencyLevel",
   레벨업연도: "levelUpYear",
-  // 연도별 평가등급 (2021~2025)
+  포인트: "pointScore",
+  학점: "creditScore",
+  // 연도별 평가등급 (2022~2025)
   "2021평가등급": "grade2021",
   "2022평가등급": "grade2022",
   "2023평가등급": "grade2023",
@@ -56,6 +58,9 @@ export interface ParsedEmployee {
   yearsOfService: number;
   competencyLevel: string;
   levelUpYear: number | null;
+  // 포인트/학점 점수 (선택)
+  pointScore: number | null;
+  creditScore: number | null;
   // 연도별 평가등급 (선택)
   grade2021: string | null;
   grade2022: string | null;
@@ -127,6 +132,12 @@ function parseDateValue(value: unknown): { date: Date | null; str: string } {
   }
 
   return { date: null, str: String(value) };
+}
+
+function parseNumberOrNull(value: unknown): number | null {
+  if (value == null || value === "") return null;
+  const n = Number(value);
+  return isNaN(n) ? null : n;
 }
 
 function isRowBlank(row: Record<string, unknown>): boolean {
@@ -243,6 +254,10 @@ export function parseExcelFile(buffer: ArrayBuffer): ParsedEmployee[] {
         }
       }
 
+      // 포인트/학점 점수 (선택)
+      const pointScore = parseNumberOrNull(mapped.pointScore);
+      const creditScore = parseNumberOrNull(mapped.creditScore);
+
       // 연도별 평가등급 (선택)
       const grade2021 = mapped.grade2021 ? String(mapped.grade2021).trim() || null : null;
       const grade2022 = mapped.grade2022 ? String(mapped.grade2022).trim() || null : null;
@@ -264,6 +279,8 @@ export function parseExcelFile(buffer: ArrayBuffer): ParsedEmployee[] {
         yearsOfService: isNaN(yearsOfService) ? 0 : Math.max(0, Math.floor(yearsOfService)),
         competencyLevel,
         levelUpYear,
+        pointScore,
+        creditScore,
         grade2021,
         grade2022,
         grade2023,

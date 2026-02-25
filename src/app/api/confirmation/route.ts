@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { Role, ConfirmationStatus } from "@prisma/client";
+import { Role, ConfirmationStatus, Prisma } from "@prisma/client";
 
 const ALLOWED_ROLES: Role[] = [Role.CEO, Role.HR_TEAM, Role.SYSTEM_ADMIN];
 
@@ -11,7 +11,7 @@ function getCurrentYear() {
 }
 
 // ── GET /api/confirmation ──────────────────────────────────────────
-// 쿼리: year, department?, team?
+// 쿼리: year, department?, team?, showAll?
 // isReviewTarget=true인 Candidate 조회 + Review join + Confirmation 자동 upsert
 export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions);
@@ -26,17 +26,33 @@ export async function GET(req: NextRequest) {
   const year = Number(searchParams.get("year") ?? getCurrentYear());
   const department = searchParams.get("department") ?? "";
   const team = searchParams.get("team") ?? "";
+  const showAll = searchParams.get("showAll") === "true";
+
+  // 제출된 본부 목록 조회
+  const submissions = await prisma.submission.findMany({ where: { year } });
+  const submittedDepts = new Set(submissions.map((s) => s.department));
+  const submittedDeptMap = new Map(submissions.map((s) => [s.department, s.submittedAt.toISOString()]));
+
+  // 부서 필터 구성
+  const userWhere: Prisma.UserWhereInput = {
+    role: { not: Role.DEPT_HEAD },
+  };
+  if (department) {
+    userWhere.department = { contains: department, mode: "insensitive" };
+  } else if (!showAll && submittedDepts.size > 0) {
+    // 기본(showAll=false): 제출된 본부만 표시
+    userWhere.department = { in: Array.from(submittedDepts) };
+  }
+  if (team) {
+    userWhere.team = { contains: team, mode: "insensitive" };
+  }
 
   // isReviewTarget=true인 Candidate 조회
   const candidates = await prisma.candidate.findMany({
     where: {
       year,
       isReviewTarget: true,
-      user: {
-        role: { not: Role.DEPT_HEAD },
-        ...(department ? { department: { contains: department, mode: "insensitive" } } : {}),
-        ...(team ? { team: { contains: team, mode: "insensitive" } } : {}),
-      },
+      user: userWhere,
     },
     include: {
       user: {
@@ -106,6 +122,7 @@ export async function GET(req: NextRequest) {
         : null;
 
       const userGrades = gradeMap.get(c.userId) ?? {};
+      const deptSubmitted = submittedDepts.has(c.user.department ?? "");
 
       return {
         candidateId: c.id,
@@ -127,6 +144,7 @@ export async function GET(req: NextRequest) {
         reviewRecommendation: c.review?.recommendation ?? null,
         status: confirmation.status,
         confirmedAt: confirmation.confirmedAt?.toISOString() ?? null,
+        isSubmitted: deptSubmitted,
         grades: {
           2021: userGrades[2021] ?? null,
           2022: userGrades[2022] ?? null,
@@ -143,6 +161,7 @@ export async function GET(req: NextRequest) {
     pending: rows.filter((r) => r.status === ConfirmationStatus.PENDING).length,
     confirmed: rows.filter((r) => r.status === ConfirmationStatus.CONFIRMED).length,
     deferred: rows.filter((r) => r.status === ConfirmationStatus.DEFERRED).length,
+    submittedDeptCount: submittedDepts.size,
   };
 
   // 드롭다운용 메타데이터
@@ -163,6 +182,7 @@ export async function GET(req: NextRequest) {
     employees: rows,
     total: rows.length,
     summary,
+    submittedDepartments: Array.from(submittedDeptMap.entries()).map(([dept, at]) => ({ department: dept, submittedAt: at })),
     meta: {
       departments: metaDepts.map((d) => d.department).filter(Boolean),
       teams: metaTeams.map((t) => t.team).filter(Boolean),

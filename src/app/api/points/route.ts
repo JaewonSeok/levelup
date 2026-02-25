@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Role, Level, EmploymentType, Prisma } from "@prisma/client";
+import { recalculatePointsFromGrades } from "@/lib/points/recalculate";
 
 const ALLOWED_ROLES: Role[] = [Role.HR_TEAM, Role.SYSTEM_ADMIN];
 
@@ -34,6 +35,11 @@ export async function GET(req: NextRequest) {
   const pageSize = Math.min(100, Math.max(1, Number(searchParams.get("pageSize") ?? "20")));
 
   const CURRENT_YEAR = getCurrentYear();
+
+  // 등급 기준 설정이 있으면 포인트 재계산 (비동기, 응답 차단 없음)
+  prisma.gradeCriteria.count().then((cnt) => {
+    if (cnt > 0) recalculatePointsFromGrades().catch((e) => console.error("[points/GET] recalculate error:", e));
+  }).catch(() => {});
 
   // ── 필터 조건 구성 ─────────────────────────────────────────
   const conditions: Prisma.UserWhereInput[] = [
@@ -134,7 +140,7 @@ export async function GET(req: NextRequest) {
 
   const employeesData = users.map((user) => {
     const years = user.yearsOfService ?? 0;
-    const startYear = years > 0 ? CURRENT_YEAR - years + 1 : CURRENT_YEAR;
+    const startYear = Math.max(years > 0 ? CURRENT_YEAR - years + 1 : CURRENT_YEAR, 2021);
     const hireYear = user.hireDate ? new Date(user.hireDate).getFullYear() : null;
 
     const pointsByYear = new Map(user.points.map((p) => [p.year, p]));

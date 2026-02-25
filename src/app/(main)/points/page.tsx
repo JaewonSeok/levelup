@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
+import { EmployeeTooltip } from "@/components/EmployeeTooltip";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -12,6 +13,13 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Table,
   TableBody,
@@ -122,6 +130,22 @@ interface EditState {
 const EMPLOYMENT_MAP: Record<string, string> = { REGULAR: "정규직", CONTRACT: "계약직" };
 const PAGE_SIZE = 20;
 const GRADE_YEARS = [2021, 2022, 2023, 2024, 2025] as const;
+const LEVELS = ["L1", "L2", "L3", "L4", "L5"] as const;
+const GRADES_2022_2024 = ["S", "A", "B", "C"] as const;
+const GRADES_2025 = ["O", "E", "G", "N", "U"] as const;
+
+interface AddEmployeeForm {
+  name: string;
+  department: string;
+  team: string;
+  level: string;
+  yearsOfService: string;
+  grade2022: string;
+  grade2023: string;
+  grade2024: string;
+  grade2025: string;
+  pointScore: string;
+}
 
 const DEFAULT_ADVANCED: AdvancedSearchState = {
   department: "",
@@ -205,6 +229,51 @@ export default function PointsPage() {
   const [newYear, setNewYear] = useState<string>("");
   const [newYearScore, setNewYearScore] = useState<string>("");
   const [deletingYear, setDeletingYear] = useState<number | null>(null);
+
+  // ── 직원 추가 모달 ────────────────────────────────────────
+  const DEFAULT_ADD_FORM: AddEmployeeForm = {
+    name: "", department: "", team: "", level: "", yearsOfService: "",
+    grade2022: "", grade2023: "", grade2024: "", grade2025: "", pointScore: "0",
+  };
+  const [addEmpOpen, setAddEmpOpen] = useState(false);
+  const [addEmpForm, setAddEmpForm] = useState<AddEmployeeForm>(DEFAULT_ADD_FORM);
+  const [addEmpSaving, setAddEmpSaving] = useState(false);
+
+  async function handleAddEmployee() {
+    if (!addEmpForm.name || !addEmpForm.department || !addEmpForm.team) {
+      toast.error("이름, 본부, 팀은 필수입니다.");
+      return;
+    }
+    setAddEmpSaving(true);
+    try {
+      const res = await fetch("/api/points/add-employee", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: addEmpForm.name,
+          department: addEmpForm.department,
+          team: addEmpForm.team,
+          level: addEmpForm.level || null,
+          yearsOfService: addEmpForm.yearsOfService !== "" ? Number(addEmpForm.yearsOfService) : null,
+          grade2022: addEmpForm.grade2022 || null,
+          grade2023: addEmpForm.grade2023 || null,
+          grade2024: addEmpForm.grade2024 || null,
+          grade2025: addEmpForm.grade2025 || null,
+          pointScore: addEmpForm.pointScore !== "" ? Number(addEmpForm.pointScore) : null,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "저장 실패");
+      toast.success("직원이 추가되었습니다.");
+      setAddEmpOpen(false);
+      setAddEmpForm(DEFAULT_ADD_FORM);
+      fetchPoints(lastParams, 1);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "저장 중 오류가 발생했습니다.");
+    } finally {
+      setAddEmpSaving(false);
+    }
+  }
 
   // ── 데이터 페치 ──────────────────────────────────────────
   const fetchPoints = useCallback(
@@ -430,7 +499,12 @@ export default function PointsPage() {
 
   return (
     <div>
-      <h1 className="text-2xl font-bold mb-5">레벨업 포인트 관리</h1>
+      <div className="flex items-center justify-between mb-5">
+        <h1 className="text-2xl font-bold">레벨업 포인트 관리</h1>
+        <Button size="sm" variant="outline" onClick={() => { setAddEmpForm(DEFAULT_ADD_FORM); setAddEmpOpen(true); }}>
+          + 직원 추가
+        </Button>
+      </div>
 
       {/* ── 공통 검색 영역 ────────────────────────────────── */}
       <SearchAreas
@@ -502,7 +576,22 @@ export default function PointsPage() {
                   </TableCell>
                   <TableCell className="text-sm">{emp.department || "-"}</TableCell>
                   <TableCell className="text-sm">{emp.team || "-"}</TableCell>
-                  <TableCell className="text-sm font-medium">{emp.name}</TableCell>
+                  <TableCell className="text-sm font-medium">
+                    <EmployeeTooltip
+                      name={emp.name}
+                      department={emp.department}
+                      team={emp.team}
+                      level={emp.level}
+                      competencyLevel={emp.competencyLevel}
+                      hireDate={emp.hireDate}
+                      yearsOfService={emp.yearsOfService}
+                      employmentType={emp.employmentType}
+                      pointCumulative={emp.cumulative}
+                      creditCumulative={emp.creditCumulative}
+                    >
+                      {emp.name}
+                    </EmployeeTooltip>
+                  </TableCell>
                   <TableCell className="text-sm">{emp.competencyLevel || emp.level || "-"}</TableCell>
                   <TableCell className="text-center text-sm">{emp.yearsOfService ?? "-"}</TableCell>
 
@@ -734,6 +823,91 @@ export default function PointsPage() {
       <div className="mt-3 text-xs text-muted-foreground flex gap-4">
         <span>S/O: 최우수 &nbsp; A/E: 우수 &nbsp; B/G: 양호 &nbsp; C/N: 미흡 &nbsp; U: 불량</span>
       </div>
+
+      {/* ── 직원 추가 모달 ─────────────────────────────────────── */}
+      <Dialog open={addEmpOpen} onOpenChange={(o) => !o && setAddEmpOpen(false)}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>직원 추가 (포인트)</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 text-sm">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs text-muted-foreground block mb-1">이름 *</label>
+                <Input className="h-8" value={addEmpForm.name} onChange={(e) => setAddEmpForm((p) => ({ ...p, name: e.target.value }))} />
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground block mb-1">본부 *</label>
+                <Select value={addEmpForm.department || "__none__"} onValueChange={(v) => setAddEmpForm((p) => ({ ...p, department: v === "__none__" ? "" : v }))}>
+                  <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="선택" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">-</SelectItem>
+                    {departments.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground block mb-1">팀 *</label>
+                <Input className="h-8" value={addEmpForm.team} onChange={(e) => setAddEmpForm((p) => ({ ...p, team: e.target.value }))} />
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground block mb-1">레벨</label>
+                <Select value={addEmpForm.level || "__none__"} onValueChange={(v) => setAddEmpForm((p) => ({ ...p, level: v === "__none__" ? "" : v }))}>
+                  <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="선택" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">-</SelectItem>
+                    {LEVELS.map((l) => <SelectItem key={l} value={l}>{l}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground block mb-1">연차</label>
+                <Input className="h-8" type="number" min="0" value={addEmpForm.yearsOfService} onChange={(e) => setAddEmpForm((p) => ({ ...p, yearsOfService: e.target.value }))} />
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground block mb-1">포인트</label>
+                <Input className="h-8" type="number" step="0.5" min="0" value={addEmpForm.pointScore} onChange={(e) => setAddEmpForm((p) => ({ ...p, pointScore: e.target.value }))} />
+              </div>
+            </div>
+            <div className="border-t pt-3">
+              <p className="text-xs text-muted-foreground mb-2">평가등급 (2022~2024: S/A/B/C, 2025: O/E/G/N/U)</p>
+              <div className="grid grid-cols-4 gap-2">
+                {([2022, 2023, 2024] as const).map((yr) => {
+                  const key = `grade${yr}` as keyof AddEmployeeForm;
+                  return (
+                    <div key={yr}>
+                      <label className="text-xs text-muted-foreground block mb-1">{yr}년</label>
+                      <Select value={(addEmpForm[key] as string) || "__none__"} onValueChange={(v) => setAddEmpForm((p) => ({ ...p, [key]: v === "__none__" ? "" : v }))}>
+                        <SelectTrigger className="h-7 text-xs"><SelectValue placeholder="-" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none__">-</SelectItem>
+                          {GRADES_2022_2024.map((g) => <SelectItem key={g} value={g}>{g}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  );
+                })}
+                <div>
+                  <label className="text-xs text-muted-foreground block mb-1">2025년</label>
+                  <Select value={addEmpForm.grade2025 || "__none__"} onValueChange={(v) => setAddEmpForm((p) => ({ ...p, grade2025: v === "__none__" ? "" : v }))}>
+                    <SelectTrigger className="h-7 text-xs"><SelectValue placeholder="-" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">-</SelectItem>
+                      {GRADES_2025.map((g) => <SelectItem key={g} value={g}>{g}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAddEmpOpen(false)} disabled={addEmpSaving}>취소</Button>
+            <Button onClick={handleAddEmployee} disabled={addEmpSaving}>
+              {addEmpSaving ? "저장 중..." : "저장"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

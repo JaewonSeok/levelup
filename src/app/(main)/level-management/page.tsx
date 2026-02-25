@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useSession } from "next-auth/react";
+import { EmployeeTooltip } from "@/components/EmployeeTooltip";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -79,8 +80,6 @@ interface AdvancedSearch {
 
 interface EmployeeFormData {
   name: string;
-  email: string;
-  password: string;
   department: string;
   team: string;
   level: string;
@@ -108,8 +107,6 @@ const PAGE_SIZE = 20;
 
 const DEFAULT_FORM: EmployeeFormData = {
   name: "",
-  email: "",
-  password: "",
   department: "",
   team: "",
   level: "",
@@ -233,27 +230,44 @@ function EmployeeFormModal({
       toast.error("이름, 본부, 팀은 필수입니다.");
       return;
     }
-    if (mode === "add" && !form.email) {
-      toast.error("이메일은 필수입니다.");
+    if (mode === "add" && !form.hireDate) {
+      toast.error("입사일자는 필수입니다.");
       return;
     }
 
     setSaving(true);
     try {
-      const payload = {
-        name: form.name,
-        department: form.department,
-        team: form.team,
-        level: form.level || null,
-        position: form.position || null,
-        employmentType: form.employmentType || null,
-        hireDate: form.hireDate || null,
-        competencyLevel: form.competencyLevel || null,
-        yearsOfService: form.yearsOfService !== "" ? Number(form.yearsOfService) : null,
-        levelUpYear: form.levelUpYear !== "" ? Number(form.levelUpYear) : null,
-        isActive: form.isActive,
-        ...(mode === "add" && { email: form.email, password: form.password || undefined }),
-      };
+      let payload: Record<string, unknown>;
+
+      if (mode === "add") {
+        const hireYear = new Date(form.hireDate).getFullYear();
+        const yearsOfService = new Date().getFullYear() - hireYear;
+        payload = {
+          name: form.name,
+          department: form.department,
+          team: form.team,
+          level: form.level || null,
+          position: form.position || null,
+          employmentType: "REGULAR",
+          hireDate: form.hireDate,
+          yearsOfService,
+          isActive: true,
+        };
+      } else {
+        payload = {
+          name: form.name,
+          department: form.department,
+          team: form.team,
+          level: form.level || null,
+          position: form.position || null,
+          employmentType: form.employmentType || null,
+          hireDate: form.hireDate || null,
+          competencyLevel: form.competencyLevel || null,
+          yearsOfService: form.yearsOfService !== "" ? Number(form.yearsOfService) : null,
+          levelUpYear: form.levelUpYear !== "" ? Number(form.levelUpYear) : null,
+          isActive: form.isActive,
+        };
+      }
 
       const url = mode === "add" ? "/api/employees" : `/api/employees/${editId ?? ""}`;
       const method = mode === "add" ? "POST" : "PUT";
@@ -284,81 +298,116 @@ function EmployeeFormModal({
         </DialogHeader>
 
         <div className="space-y-3 text-sm">
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-xs text-muted-foreground block mb-1">이름 *</label>
-              <Input className="h-8" value={form.name} onChange={(e) => set("name", e.target.value)} />
-            </div>
-            {mode === "add" && (
+          {mode === "add" ? (
+            /* ── 추가 폼 (간소화) ── */
+            <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="text-xs text-muted-foreground block mb-1">이메일 *</label>
-                <Input className="h-8" type="email" value={form.email} onChange={(e) => set("email", e.target.value)} />
+                <label className="text-xs text-muted-foreground block mb-1">이름 *</label>
+                <Input className="h-8" value={form.name} onChange={(e) => set("name", e.target.value)} />
               </div>
-            )}
-            {mode === "add" && (
               <div>
-                <label className="text-xs text-muted-foreground block mb-1">비밀번호 (미입력 시 password123)</label>
-                <Input className="h-8" type="password" value={form.password} onChange={(e) => set("password", e.target.value)} placeholder="password123" />
+                <label className="text-xs text-muted-foreground block mb-1">본부 *</label>
+                <Select value={form.department || "__none__"} onValueChange={(v) => set("department", v === "__none__" ? "" : v)}>
+                  <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="선택" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">-</SelectItem>
+                    {departments.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
+                  </SelectContent>
+                </Select>
               </div>
-            )}
-            <div>
-              <label className="text-xs text-muted-foreground block mb-1">본부 *</label>
-              <Input className="h-8" value={form.department} onChange={(e) => set("department", e.target.value)} list="dept-list" />
-              <datalist id="dept-list">{departments.map((d) => <option key={d} value={d} />)}</datalist>
+              <div>
+                <label className="text-xs text-muted-foreground block mb-1">팀 *</label>
+                <Input className="h-8" value={form.team} onChange={(e) => set("team", e.target.value)} />
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground block mb-1">직책</label>
+                <Select value={form.position || "__none__"} onValueChange={(v) => set("position", v === "__none__" ? "" : v)}>
+                  <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="선택" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">-</SelectItem>
+                    {POSITIONS.map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground block mb-1">레벨</label>
+                <Select value={form.level || "__none__"} onValueChange={(v) => set("level", v === "__none__" ? "" : v)}>
+                  <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="선택" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">-</SelectItem>
+                    {LEVELS.map((l) => <SelectItem key={l} value={l}>{l}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground block mb-1">입사일자 *</label>
+                <Input className="h-8" type="date" value={form.hireDate} onChange={(e) => set("hireDate", e.target.value)} />
+              </div>
             </div>
-            <div>
-              <label className="text-xs text-muted-foreground block mb-1">팀 *</label>
-              <Input className="h-8" value={form.team} onChange={(e) => set("team", e.target.value)} list="team-list" />
-              <datalist id="team-list">{teams.map((t) => <option key={t} value={t} />)}</datalist>
-            </div>
-            <div>
-              <label className="text-xs text-muted-foreground block mb-1">레벨</label>
-              <Select value={form.level || "__none__"} onValueChange={(v) => set("level", v === "__none__" ? "" : v)}>
-                <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="선택" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__none__">-</SelectItem>
-                  {LEVELS.map((l) => <SelectItem key={l} value={l}>{l}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <label className="text-xs text-muted-foreground block mb-1">직책</label>
-              <Select value={form.position || "__none__"} onValueChange={(v) => set("position", v === "__none__" ? "" : v)}>
-                <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="선택" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__none__">-</SelectItem>
-                  {POSITIONS.map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <label className="text-xs text-muted-foreground block mb-1">고용형태</label>
-              <Select value={form.employmentType || "__none__"} onValueChange={(v) => set("employmentType", v === "__none__" ? "" : v)}>
-                <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="선택" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__none__">-</SelectItem>
-                  <SelectItem value="REGULAR">정규직</SelectItem>
-                  <SelectItem value="CONTRACT">계약직</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <label className="text-xs text-muted-foreground block mb-1">입사일자</label>
-              <Input className="h-8" type="date" value={form.hireDate} onChange={(e) => set("hireDate", e.target.value)} />
-            </div>
-            <div>
-              <label className="text-xs text-muted-foreground block mb-1">역량레벨</label>
-              <Input className="h-8" value={form.competencyLevel} onChange={(e) => set("competencyLevel", e.target.value)} placeholder="예: L3-07" />
-            </div>
-            <div>
-              <label className="text-xs text-muted-foreground block mb-1">연차</label>
-              <Input className="h-8" type="number" min="0" value={form.yearsOfService} onChange={(e) => set("yearsOfService", e.target.value)} />
-            </div>
-            <div>
-              <label className="text-xs text-muted-foreground block mb-1">레벨업연도</label>
-              <Input className="h-8" type="number" value={form.levelUpYear} onChange={(e) => set("levelUpYear", e.target.value)} placeholder="예: 2026" />
-            </div>
-            {mode === "edit" && (
+          ) : (
+            /* ── 수정 폼 (전체 필드) ── */
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs text-muted-foreground block mb-1">이름 *</label>
+                <Input className="h-8" value={form.name} onChange={(e) => set("name", e.target.value)} />
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground block mb-1">본부 *</label>
+                <Input className="h-8" value={form.department} onChange={(e) => set("department", e.target.value)} list="dept-list" />
+                <datalist id="dept-list">{departments.map((d) => <option key={d} value={d} />)}</datalist>
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground block mb-1">팀 *</label>
+                <Input className="h-8" value={form.team} onChange={(e) => set("team", e.target.value)} list="team-list" />
+                <datalist id="team-list">{teams.map((t) => <option key={t} value={t} />)}</datalist>
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground block mb-1">레벨</label>
+                <Select value={form.level || "__none__"} onValueChange={(v) => set("level", v === "__none__" ? "" : v)}>
+                  <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="선택" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">-</SelectItem>
+                    {LEVELS.map((l) => <SelectItem key={l} value={l}>{l}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground block mb-1">직책</label>
+                <Select value={form.position || "__none__"} onValueChange={(v) => set("position", v === "__none__" ? "" : v)}>
+                  <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="선택" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">-</SelectItem>
+                    {POSITIONS.map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground block mb-1">고용형태</label>
+                <Select value={form.employmentType || "__none__"} onValueChange={(v) => set("employmentType", v === "__none__" ? "" : v)}>
+                  <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="선택" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">-</SelectItem>
+                    <SelectItem value="REGULAR">정규직</SelectItem>
+                    <SelectItem value="CONTRACT">계약직</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground block mb-1">입사일자</label>
+                <Input className="h-8" type="date" value={form.hireDate} onChange={(e) => set("hireDate", e.target.value)} />
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground block mb-1">역량레벨</label>
+                <Input className="h-8" value={form.competencyLevel} onChange={(e) => set("competencyLevel", e.target.value)} placeholder="예: L3-07" />
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground block mb-1">연차</label>
+                <Input className="h-8" type="number" min="0" value={form.yearsOfService} onChange={(e) => set("yearsOfService", e.target.value)} />
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground block mb-1">레벨업연도</label>
+                <Input className="h-8" type="number" value={form.levelUpYear} onChange={(e) => set("levelUpYear", e.target.value)} placeholder="예: 2026" />
+              </div>
               <div className="flex items-center gap-2 col-span-2">
                 <label className="text-xs text-muted-foreground">재직여부</label>
                 <input
@@ -369,8 +418,8 @@ function EmployeeFormModal({
                 />
                 <span className="text-xs">{form.isActive ? "재직" : "퇴직"}</span>
               </div>
-            )}
-          </div>
+            </div>
+          )}
         </div>
 
         <DialogFooter>
@@ -514,7 +563,6 @@ export default function LevelManagementPage() {
   function toFormData(emp: Employee): EmployeeFormData {
     return {
       ...DEFAULT_FORM,
-      ...(emp as unknown as { id: string }),
       name: emp.name,
       department: emp.department ?? "",
       team: emp.team ?? "",
@@ -619,26 +667,6 @@ export default function LevelManagementPage() {
             </Select>
           </div>
 
-          {/* 고용형태 */}
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-medium whitespace-nowrap">고용형태</span>
-            <Select
-              value={advanced.employmentType || "__all__"}
-              onValueChange={(v) =>
-                setAdvanced({ ...advanced, employmentType: v === "__all__" ? "" : v })
-              }
-            >
-              <SelectTrigger className="w-24 bg-white h-8 text-sm">
-                <SelectValue placeholder="전체" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__all__">전체</SelectItem>
-                <SelectItem value="REGULAR">정규직</SelectItem>
-                <SelectItem value="CONTRACT">계약직</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
           {/* 레벨 */}
           <div className="flex items-center gap-2">
             <span className="text-sm font-medium whitespace-nowrap">레벨</span>
@@ -730,13 +758,11 @@ export default function LevelManagementPage() {
               <TableHead className="text-xs">본부</TableHead>
               <TableHead className="text-xs">팀</TableHead>
               <TableHead className="text-xs">이름</TableHead>
-              <TableHead className="text-xs">고용형태</TableHead>
               <TableHead className="text-xs">직책</TableHead>
+              <TableHead className="text-xs">레벨</TableHead>
               <TableHead className="text-xs">입사일자</TableHead>
-              <TableHead className="text-xs">퇴사일자</TableHead>
-              <TableHead className="text-xs">역량레벨</TableHead>
               <TableHead className="text-center text-xs">연차</TableHead>
-              <TableHead className="text-center text-xs">레벨업연도</TableHead>
+              <TableHead className="text-xs">역량레벨</TableHead>
               {isAdmin && <TableHead className="text-center text-xs">관리</TableHead>}
             </TableRow>
           </TableHeader>
@@ -744,7 +770,7 @@ export default function LevelManagementPage() {
             {loading ? (
               <TableRow>
                 <TableCell
-                  colSpan={isAdmin ? 12 : 11}
+                  colSpan={isAdmin ? 10 : 9}
                   className="text-center py-16 text-muted-foreground text-sm"
                 >
                   로딩 중...
@@ -753,7 +779,7 @@ export default function LevelManagementPage() {
             ) : employees.length === 0 ? (
               <TableRow>
                 <TableCell
-                  colSpan={isAdmin ? 12 : 11}
+                  colSpan={isAdmin ? 10 : 9}
                   className="text-center py-16 text-muted-foreground text-sm"
                 >
                   검색 결과가 없습니다.
@@ -768,27 +794,32 @@ export default function LevelManagementPage() {
                   <TableCell className="text-sm">{emp.department || "-"}</TableCell>
                   <TableCell className="text-sm">{emp.team || "-"}</TableCell>
                   <TableCell>
-                    <button
-                      className="text-blue-600 hover:underline font-medium text-sm"
-                      onClick={() => setSelectedEmployee(emp)}
+                    <EmployeeTooltip
+                      name={emp.name}
+                      department={emp.department}
+                      team={emp.team}
+                      level={emp.level}
+                      competencyLevel={emp.competencyLevel}
+                      hireDate={emp.hireDate}
+                      yearsOfService={emp.yearsOfService}
+                      employmentType={emp.employmentType}
                     >
-                      {emp.name}
-                    </button>
-                  </TableCell>
-                  <TableCell>
-                    <EmploymentTypeBadge type={emp.employmentType} />
+                      <button
+                        className="text-blue-600 hover:underline font-medium text-sm"
+                        onClick={() => setSelectedEmployee(emp)}
+                      >
+                        {emp.name}
+                      </button>
+                    </EmployeeTooltip>
                   </TableCell>
                   <TableCell className="text-sm">{emp.position || "-"}</TableCell>
+                  <TableCell className="text-sm font-medium">{emp.level || "-"}</TableCell>
                   <TableCell className="text-sm">{formatDate(emp.hireDate)}</TableCell>
-                  <TableCell className="text-sm">{formatDate(emp.resignDate)}</TableCell>
-                  <TableCell className="text-sm font-medium">
-                    {emp.competencyLevel || "-"}
-                  </TableCell>
                   <TableCell className="text-center text-sm">
                     {emp.yearsOfService ?? "-"}
                   </TableCell>
-                  <TableCell className="text-center text-sm">
-                    {emp.levelUpYear ?? "-"}
+                  <TableCell className="text-sm font-medium">
+                    {emp.competencyLevel || "-"}
                   </TableCell>
                   {isAdmin && (
                     <TableCell className="text-center">

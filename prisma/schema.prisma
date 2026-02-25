@@ -169,6 +169,8 @@ model Candidate {
   pointMet       Boolean  @default(false) // 포인트 충족 여부
   creditMet      Boolean  @default(false) // 학점 충족 여부
   isReviewTarget Boolean  @default(false) // 인사팀 심사대상 체크 여부
+  /// "auto" = 자동 선정, "manual" = 수동 추가
+  source         String   @default("manual")
   /// null = 미저장(저장 버튼 활성), non-null = 저장됨 표시
   savedAt        DateTime?
 
@@ -315,6 +317,21 @@ model LevelCriteria {
 
   @@unique([level, year])
   @@map("level_criteria")
+}
+
+/// 등급별 포인트 기준.
+/// 2022-2024 등급: S/A/B/C, 2025 등급: O/E/G/N/U
+/// 포인트 자동 계산 시 직원의 연도별 평가등급 × 기준 포인트를 합산.
+model GradeCriteria {
+  id        String   @id @default(cuid())
+  grade     String   // "S","A","B","C" (2022-2024) | "O","E","G","N","U" (2025)
+  yearRange String   // "2022-2024" | "2025"
+  points    Float    @default(0)
+
+  updatedAt DateTime @updatedAt
+
+  @@unique([grade, yearRange])
+  @@map("grade_criteria")
 }
 
 /// 기준 변경 이력.

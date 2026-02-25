@@ -4,6 +4,8 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { parseExcelFile } from "@/lib/excel/parse";
 import { Level, EmploymentType, Role } from "@prisma/client";
+import { recalculatePointsFromGrades } from "@/lib/points/recalculate";
+import { autoSelectCandidates } from "@/lib/candidates/auto-select";
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 
@@ -85,6 +87,11 @@ export async function POST(req: NextRequest) {
   let successCount = 0;
   let skipCount = 0;
 
+  // 포인트/학점 저장 시 사용할 기준값 맵 (level_year → criteria)
+  const criteriaList = await prisma.levelCriteria.findMany();
+  const criteriaMap = new Map(criteriaList.map((c) => [`${c.level}_${c.year}`, c]));
+  const CURRENT_YEAR = new Date().getFullYear();
+
   try {
     await prisma.$transaction(async (tx) => {
       for (const row of validRows) {
@@ -153,6 +160,52 @@ export async function POST(req: NextRequest) {
               update: { grade: entry.grade },
             });
           }
+
+          // 포인트 upsert
+          if (row.pointScore != null) {
+            const pointYear = row.levelUpYear ?? CURRENT_YEAR;
+            const pointCriteria = row.level ? criteriaMap.get(`${row.level}_${pointYear}`) : null;
+            const isMet = pointCriteria ? row.pointScore >= pointCriteria.requiredPoints : false;
+            await tx.point.upsert({
+              where: { userId_year: { userId: savedUserId, year: pointYear } },
+              create: {
+                userId: savedUserId,
+                year: pointYear,
+                score: row.pointScore,
+                merit: 0,
+                penalty: 0,
+                cumulative: row.pointScore,
+                isMet,
+              },
+              update: {
+                score: row.pointScore,
+                cumulative: row.pointScore,
+                isMet,
+              },
+            });
+          }
+
+          // 학점 upsert
+          if (row.creditScore != null) {
+            const creditYear = row.levelUpYear ?? CURRENT_YEAR;
+            const creditCriteria = row.level ? criteriaMap.get(`${row.level}_${creditYear}`) : null;
+            const isMet = creditCriteria ? row.creditScore >= creditCriteria.requiredCredits : false;
+            await tx.credit.upsert({
+              where: { userId_year: { userId: savedUserId, year: creditYear } },
+              create: {
+                userId: savedUserId,
+                year: creditYear,
+                score: row.creditScore,
+                cumulative: row.creditScore,
+                isMet,
+              },
+              update: {
+                score: row.creditScore,
+                cumulative: row.creditScore,
+                isMet,
+              },
+            });
+          }
         }
       }
     });
@@ -191,7 +244,17 @@ export async function POST(req: NextRequest) {
     },
   });
 
-  // ── 7. 응답 ───────────────────────────────────────────────
+  // ── 7. 포인트 재계산 → 자동 선정 (비동기) ────────────────
+  const currentYear = new Date().getFullYear();
+  prisma.gradeCriteria.count().then((cnt) => {
+    if (cnt > 0) {
+      recalculatePointsFromGrades()
+        .then(() => autoSelectCandidates(currentYear))
+        .catch((e) => console.error("[upload] recalculate error:", e));
+    }
+  }).catch(() => {});
+
+  // ── 8. 응답 ───────────────────────────────────────────────
   return NextResponse.json({
     totalCount: parsedRows.length,
     successCount,

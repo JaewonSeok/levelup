@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { Role, EmploymentType, Prisma } from "@prisma/client";
+import { Role, Level, EmploymentType, Prisma } from "@prisma/client";
 
 const ALLOWED_ROLES: Role[] = [Role.HR_TEAM, Role.SYSTEM_ADMIN];
 
@@ -140,7 +140,7 @@ export async function GET(req: NextRequest) {
             data: { pointMet, creditMet },
           })
         : await prisma.candidate.create({
-            data: { userId: user.id, year, pointMet, creditMet },
+            data: { userId: user.id, year, pointMet, creditMet, source: "manual" },
           });
 
       const userGrades = gradeMap.get(user.id) ?? {};
@@ -162,6 +162,7 @@ export async function GET(req: NextRequest) {
         pointMet,
         creditMet,
         isReviewTarget: candidate.isReviewTarget,
+        source: candidate.source,
         savedAt: candidate.savedAt?.toISOString() ?? null,
         grades: {
           2021: userGrades[2021] ?? null,
@@ -188,7 +189,11 @@ export async function GET(req: NextRequest) {
 }
 
 // ── POST /api/candidates (SYSTEM_ADMIN only) ─────────────────────
-// Body: { userId, year }
+// Body (form-based):
+//   { year, name, department, team, level, employmentType, hireDate,
+//     yearsOfService?, pointCumulative?, creditCumulative? }
+// Body (userId-based legacy):
+//   { userId, year }
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session) {
@@ -201,26 +206,106 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  let body: { userId: string; year: number };
+  let body: Record<string, unknown>;
   try {
     body = await req.json();
   } catch {
     return NextResponse.json({ error: "요청 파싱 실패" }, { status: 400 });
   }
 
-  const { userId, year } = body;
-  if (!userId || !year) {
-    return NextResponse.json({ error: "userId와 year가 필요합니다." }, { status: 400 });
+  const year = Number(body.year);
+  if (!year) {
+    return NextResponse.json({ error: "year가 필요합니다." }, { status: 400 });
   }
 
-  const user = await prisma.user.findUnique({ where: { id: userId } });
+  let userId: string;
+
+  // ── 폼 기반 추가 (직원 정보 직접 입력) ──────────────────────
+  if (!body.userId && body.name) {
+    const { name, department, team, level, employmentType, hireDate, yearsOfService, pointCumulative, creditCumulative } = body as {
+      name: string;
+      department: string;
+      team: string;
+      level: string;
+      employmentType: string;
+      hireDate: string;
+      yearsOfService?: number;
+      pointCumulative?: number;
+      creditCumulative?: number;
+    };
+
+    if (!name || !department || !team || !level || !employmentType || !hireDate) {
+      return NextResponse.json({ error: "필수 항목이 누락되었습니다." }, { status: 400 });
+    }
+    if (!Object.values(Level).includes(level as Level)) {
+      return NextResponse.json({ error: "유효하지 않은 레벨입니다." }, { status: 400 });
+    }
+    if (!Object.values(EmploymentType).includes(employmentType as EmploymentType)) {
+      return NextResponse.json({ error: "유효하지 않은 고용형태입니다." }, { status: 400 });
+    }
+
+    const hireDateParsed = new Date(hireDate);
+    if (isNaN(hireDateParsed.getTime())) {
+      return NextResponse.json({ error: "유효하지 않은 입사일입니다." }, { status: 400 });
+    }
+
+    // 동명이인 + 동일 입사일로 기존 직원 조회
+    const existingUser = await prisma.user.findFirst({
+      where: { name, hireDate: hireDateParsed },
+    });
+
+    if (existingUser) {
+      userId = existingUser.id;
+    } else {
+      const newUser = await prisma.user.create({
+        data: {
+          name,
+          department,
+          team,
+          level: level as Level,
+          employmentType: employmentType as EmploymentType,
+          hireDate: hireDateParsed,
+          yearsOfService: yearsOfService ?? null,
+          isActive: true,
+        },
+      });
+      userId = newUser.id;
+    }
+
+    // 포인트/학점 충족 여부 판단
+    const criteria = await prisma.levelCriteria.findFirst({
+      where: { level: level as Level, year },
+    });
+    const pointMet = criteria && pointCumulative != null
+      ? pointCumulative >= criteria.requiredPoints
+      : false;
+    const creditMet = criteria && creditCumulative != null
+      ? creditCumulative >= criteria.requiredCredits
+      : false;
+
+    const candidate = await prisma.candidate.upsert({
+      where: { userId_year: { userId, year } },
+      create: { userId, year, pointMet, creditMet, isReviewTarget: true, source: "manual" },
+      update: { isReviewTarget: true, pointMet, creditMet },
+    });
+
+    return NextResponse.json({ success: true, candidateId: candidate.id }, { status: 201 });
+  }
+
+  // ── userId 기반 추가 (레거시) ────────────────────────────────
+  const legacyUserId = String(body.userId ?? "");
+  if (!legacyUserId) {
+    return NextResponse.json({ error: "userId 또는 직원 정보가 필요합니다." }, { status: 400 });
+  }
+
+  const user = await prisma.user.findUnique({ where: { id: legacyUserId } });
   if (!user) {
     return NextResponse.json({ error: "직원을 찾을 수 없습니다." }, { status: 404 });
   }
 
   const candidate = await prisma.candidate.upsert({
-    where: { userId_year: { userId, year } },
-    create: { userId, year, pointMet: false, creditMet: false, isReviewTarget: true },
+    where: { userId_year: { userId: legacyUserId, year } },
+    create: { userId: legacyUserId, year, pointMet: false, creditMet: false, isReviewTarget: true, source: "manual" },
     update: { isReviewTarget: true },
   });
 

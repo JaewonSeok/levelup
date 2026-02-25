@@ -3,6 +3,8 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Role, Level } from "@prisma/client";
+import { autoSelectCandidates } from "@/lib/candidates/auto-select";
+import { recalculatePointsFromGrades } from "@/lib/points/recalculate";
 
 const ALLOWED_ROLES: Role[] = [Role.HR_TEAM, Role.SYSTEM_ADMIN];
 const READ_ROLES: Role[] = [
@@ -166,6 +168,11 @@ export async function POST(req: NextRequest) {
       }
     }
   });
+
+  // 기준 저장 후 포인트 재계산 → 자동 선정 실행 (에러 발생해도 저장은 성공)
+  recalculatePointsFromGrades()
+    .then(() => autoSelectCandidates(year))
+    .catch((e) => console.error("[settings] recalculate error:", e));
 
   return NextResponse.json({ success: true });
 }
