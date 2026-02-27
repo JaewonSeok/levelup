@@ -37,7 +37,12 @@ export async function POST(req: NextRequest) {
   }
 
   // ── 3. 파일 기본 검증 ─────────────────────────────────────
+  // [KISA2021-6] 확장자 + MIME 타입 이중 검증
   if (!file.name.toLowerCase().endsWith(".xlsx")) {
+    return NextResponse.json({ error: ".xlsx 파일만 허용됩니다." }, { status: 400 });
+  }
+  const XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+  if (file.type && file.type !== XLSX_MIME) {
     return NextResponse.json({ error: ".xlsx 파일만 허용됩니다." }, { status: 400 });
   }
   if (file.size > MAX_FILE_SIZE) {
@@ -210,8 +215,9 @@ export async function POST(req: NextRequest) {
       }
     });
   } catch (e) {
-    const msg = e instanceof Error ? e.message : "알 수 없는 오류";
-    return NextResponse.json({ error: `DB 저장 오류: ${msg}` }, { status: 500 });
+    // [KISA2021-36] 내부 오류 상세는 서버 로그에만 기록, 클라이언트에 노출 금지
+    console.error("[upload] DB 저장 오류:", e);
+    return NextResponse.json({ error: "데이터 저장 중 오류가 발생했습니다." }, { status: 500 });
   }
 
   // ── 6. 업로드 이력 기록 ───────────────────────────────────

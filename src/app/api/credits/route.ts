@@ -72,7 +72,7 @@ export async function GET(req: NextRequest) {
     conditions.length > 0 ? { AND: conditions } : {};
 
   // ── 쿼리 ──────────────────────────────────────────────────
-  const [total, users, metaDepts, metaTeams] = await Promise.all([
+  const [total, users, metaDepts, metaTeams, levelCriteriaList] = await Promise.all([
     prisma.user.count({ where }),
     prisma.user.findMany({
       where,
@@ -105,7 +105,15 @@ export async function GET(req: NextRequest) {
       select: { team: true },
       orderBy: { team: "asc" },
     }),
+    prisma.levelCriteria.findMany({
+      where: { year: CURRENT_YEAR },
+      select: { level: true, minTenure: true, requiredCredits: true },
+    }),
   ]);
+
+  const levelCriteriaMap = new Map(
+    levelCriteriaList.map((c) => [c.level as string, c])
+  );
 
   // ── 학점 데이터 가공 ───────────────────────────────────────
   const allYearsSet = new Set<number>();
@@ -149,12 +157,35 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // 누적 = 연도별 합산 (포인트와 달리 상점/벌점 없음)
-    const latestCredit = user.credits[user.credits.length - 1];
-    const cumulative =
-      latestCredit?.cumulative ??
-      Object.values(yearData).reduce((s, d) => s + (d.score ?? 0), 0);
-    const isMet = user.credits.some((c) => c.isMet);
+    // 학점 누적 = 최근 tenureRange년 합산 (포인트와 완전히 별개)
+    const userLevelCriteria = user.level
+      ? levelCriteriaMap.get(user.level as string)
+      : null;
+    const minTenure = userLevelCriteria?.minTenure ?? 0;
+    const yearsOfService = user.yearsOfService ?? 0;
+    const tenureRange =
+      minTenure > 0 && yearsOfService > 0
+        ? Math.min(yearsOfService, minTenure)
+        : yearsOfService > 0
+          ? yearsOfService
+          : 0;
+
+    let cumulative = 0;
+    if (tenureRange > 0) {
+      for (let i = 0; i < tenureRange; i++) {
+        const yr = MAX_CREDIT_YEAR - i;
+        if (yr < 2021) break;
+        const d = yearData[yr];
+        cumulative += d?.score ?? 0;
+      }
+    } else {
+      // 기준 없음: 전체 합산 (fallback)
+      cumulative = Object.values(yearData).reduce((s, d) => s + (d.score ?? 0), 0);
+    }
+
+    const isMet = userLevelCriteria
+      ? cumulative >= (userLevelCriteria.requiredCredits ?? 0)
+      : user.credits.some((c) => c.isMet);
 
     return {
       id: user.id,

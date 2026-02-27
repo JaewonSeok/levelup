@@ -15,13 +15,13 @@ export async function GET() {
     return NextResponse.json({ error: "권한이 없습니다." }, { status: 403 });
   }
 
+  // [KISA2021-22] residentIdLast7(개인식별정보) 응답에서 제외
   const accounts = await prisma.user.findMany({
     where: { role: Role.DEPT_HEAD },
     select: {
       id: true,
       name: true,
       email: true,
-      residentIdLast7: true,
       department: true,
       createdAt: true,
     },
@@ -75,6 +75,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "이미 사용 중인 이메일입니다." }, { status: 409 });
   }
 
+  // [KISA2021-22] 주민번호는 비밀번호 해시 생성에만 사용하고 DB에 저장하지 않음
   const hashedPassword = await bcrypt.hash(residentIdLast7, 10);
 
   const account = await prisma.user.create({
@@ -82,7 +83,6 @@ export async function POST(req: NextRequest) {
       name,
       email,
       password: hashedPassword,
-      residentIdLast7,
       department,
       team: "",
       role: Role.DEPT_HEAD,
@@ -91,7 +91,6 @@ export async function POST(req: NextRequest) {
       id: true,
       name: true,
       email: true,
-      residentIdLast7: true,
       department: true,
       createdAt: true,
     },

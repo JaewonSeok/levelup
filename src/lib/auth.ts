@@ -4,6 +4,7 @@ import { PrismaAdapter } from "@auth/prisma-adapter";
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 import { Role } from "@prisma/client";
+import { checkRateLimit, resetRateLimit } from "@/lib/rate-limit";
 
 declare module "next-auth" {
   interface Session {
@@ -49,6 +50,14 @@ export const authOptions: NextAuthOptions = {
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) return null;
 
+        // [KISA2021-33] 로그인 시도 횟수 제한 (이메일 기준)
+        const rateLimitKey = `login:${credentials.email}`;
+        const rateCheck = checkRateLimit(rateLimitKey);
+        if (!rateCheck.allowed) {
+          const mins = Math.ceil(rateCheck.remainingMs / 60000);
+          throw new Error(`로그인 시도가 너무 많습니다. ${mins}분 후 다시 시도하세요.`);
+        }
+
         try {
           const user = await prisma.user.findUnique({
             where: { email: credentials.email },
@@ -59,6 +68,9 @@ export const authOptions: NextAuthOptions = {
           const isValid = await bcrypt.compare(credentials.password, user.password);
           if (!isValid) return null;
 
+          // 로그인 성공 시 시도 횟수 초기화
+          resetRateLimit(rateLimitKey);
+
           return {
             id: user.id,
             name: user.name,
@@ -68,6 +80,8 @@ export const authOptions: NextAuthOptions = {
             team: user.team,
           };
         } catch (e) {
+          // rate limit 에러는 그대로 전파 (fail-safe)
+          if (e instanceof Error && e.message.includes("로그인 시도가 너무")) throw e;
           console.error("[auth] authorize error:", e);
           return null;
         }

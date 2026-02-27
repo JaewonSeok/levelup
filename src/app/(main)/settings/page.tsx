@@ -68,7 +68,7 @@ const GRADES_2025 = ["S", "O", "E", "G", "N", "U"] as const;
 
 // Default grade points map
 const DEFAULT_GRADE_POINTS: Record<string, Record<string, string>> = {
-  "2022-2024": { S: "", A: "", B: "", C: "" },
+  "2021-2024": { S: "", A: "", B: "", C: "" },
   "2025": { S: "", O: "", E: "", G: "", N: "", U: "" },
 };
 
@@ -345,9 +345,9 @@ export default function SettingsPage() {
           </Button>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* 2022-2024 등급 */}
+          {/* 2021-2024 등급 */}
           <div className="bg-white rounded-lg border p-4">
-            <h3 className="text-sm font-medium mb-3 text-gray-700">2022~2024년 등급 (S/A/B/C)</h3>
+            <h3 className="text-sm font-medium mb-3 text-gray-700">2021~2024년 등급 (S/A/B/C)</h3>
             <div className="space-y-2">
               {GRADES_2022_2024.map((grade) => (
                 <div key={grade} className="flex items-center gap-3">
@@ -358,11 +358,11 @@ export default function SettingsPage() {
                     min="0"
                     className="w-28 h-8 text-sm"
                     placeholder="0"
-                    value={gradePoints["2022-2024"]?.[grade] ?? ""}
+                    value={gradePoints["2021-2024"]?.[grade] ?? ""}
                     onChange={(e) => {
                       setGradePoints((prev) => ({
                         ...prev,
-                        "2022-2024": { ...prev["2022-2024"], [grade]: e.target.value },
+                        "2021-2024": { ...prev["2021-2024"], [grade]: e.target.value },
                       }));
                       setGradeDirty(true);
                     }}

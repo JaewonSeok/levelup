@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Role, Level, EmploymentType, Prisma } from "@prisma/client";
 import bcrypt from "bcryptjs";
+import { randomBytes } from "crypto";
 
 export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions);
@@ -164,9 +165,10 @@ export async function GET(req: NextRequest) {
       },
     });
   } catch (error) {
+    // [KISA2021-36] 내부 오류 상세는 서버 로그에만 기록, 클라이언트에 노출 금지
     console.error("[GET /api/employees] error:", error);
     return NextResponse.json(
-      { error: "서버 오류가 발생했습니다.", detail: error instanceof Error ? error.message : String(error) },
+      { error: "서버 오류가 발생했습니다." },
       { status: 500 }
     );
   }
@@ -217,7 +219,8 @@ export async function POST(req: NextRequest) {
 
   // 이메일 자동 생성 (unique 보장)
   const placeholderEmail = `${body.name.replace(/\s/g, "").toLowerCase()}_${Date.now()}@placeholder.com`;
-  const hashedPassword = await bcrypt.hash("password123", 12);
+  // [KISA2021-23] 하드코드 비밀번호 금지 → CSPRNG 임시 비밀번호 생성
+  const hashedPassword = await bcrypt.hash(randomBytes(16).toString("hex"), 12);
 
   const POINT_YEAR = new Date().getFullYear();
   const CREDIT_YEAR = Math.min(POINT_YEAR, 2025);

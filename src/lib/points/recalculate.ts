@@ -1,11 +1,13 @@
 import { prisma } from "@/lib/prisma";
 
+const MAX_DATA_YEAR = 2025;
+const GRADE_YEARS = [2021, 2022, 2023, 2024, 2025];
+
 /**
  * 등급별 포인트 기준(GradeCriteria)에 따라 전체 직원의 포인트를 재계산.
- * - 직원의 2022~2025년 평가등급을 조회
- * - 각 연도의 등급에 대응하는 기준 포인트를 합산 → 연도별 Point 레코드 upsert
+ * - tenureRange = min(yearsOfService, minTenure) 범위의 최근 N년 합산
+ * - yearRange: 2024년 이하 → "2021-2024", 2025년 → "2025"
  * - 누적(cumulative) 및 isMet 재계산
- * @param yearFilter 특정 직원 ID 배열 (미지정 시 전체)
  */
 export async function recalculatePointsFromGrades(
   userIds?: string[]
@@ -16,24 +18,35 @@ export async function recalculatePointsFromGrades(
   const allGradeCriteria = await prisma.gradeCriteria.findMany();
   if (allGradeCriteria.length === 0) return { updated: 0 };
 
-  // map: "grade:yearRange" → points
   const gradePointsMap = new Map<string, number>();
   for (const gc of allGradeCriteria) {
     gradePointsMap.set(`${gc.grade}:${gc.yearRange}`, gc.points);
   }
 
   function getYearRange(year: number): string {
-    return year <= 2024 ? "2022-2024" : "2025";
+    return year <= 2024 ? "2021-2024" : "2025";
   }
 
-  // 2. 대상 직원 조회
+  function gradeToPoints(grade: string, year: number): number {
+    if (!grade) return 0;
+    return gradePointsMap.get(`${grade}:${getYearRange(year)}`) ?? 0;
+  }
+
+  // 2. LevelCriteria 로드 (minTenure, requiredPoints)
+  const levelCriteriaList = await prisma.levelCriteria.findMany({
+    where: { year: CURRENT_YEAR },
+  });
+  const criteriaMap = new Map(levelCriteriaList.map((c) => [c.level, c]));
+
+  // 3. 대상 직원 조회
   const users = await prisma.user.findMany({
     where: userIds ? { id: { in: userIds } } : { isActive: true },
     select: {
       id: true,
       level: true,
+      yearsOfService: true,
       performanceGrades: {
-        where: { year: { in: [2022, 2023, 2024, 2025] } },
+        where: { year: { in: GRADE_YEARS } },
         select: { year: true, grade: true },
       },
       points: {
@@ -43,52 +56,52 @@ export async function recalculatePointsFromGrades(
     },
   });
 
-  // 3. LevelCriteria 로드 (현재 연도 기준 isMet 판정)
-  const levelCriteriaList = await prisma.levelCriteria.findMany({
-    where: { year: CURRENT_YEAR },
-  });
-  const criteriaMap = new Map(levelCriteriaList.map((c) => [c.level, c]));
-
   let updated = 0;
 
   for (const user of users) {
     if (user.performanceGrades.length === 0) continue;
 
-    // 연도별 grade → points 계산
-    const gradeYearScores: { year: number; score: number }[] = [];
-    for (const pg of user.performanceGrades) {
-      const yearRange = getYearRange(pg.year);
-      const score = gradePointsMap.get(`${pg.grade}:${yearRange}`);
-      if (score !== undefined) {
-        gradeYearScores.push({ year: pg.year, score });
-      }
-    }
+    const criteria = user.level ? criteriaMap.get(user.level) : null;
+    const minTenure = criteria?.minTenure ?? 0;
+    const yearsOfService = user.yearsOfService ?? 0;
 
-    if (gradeYearScores.length === 0) continue;
+    // tenureRange = min(연차, 기준연한) — 최근 N년만 합산
+    const tenureRange =
+      minTenure > 0 && yearsOfService > 0
+        ? Math.min(yearsOfService, minTenure)
+        : yearsOfService > 0
+          ? yearsOfService
+          : user.performanceGrades.length;
 
-    // 기존 merit/penalty 맵
-    const meritPenaltyMap = new Map(user.points.map((p) => [p.year, { merit: p.merit, penalty: p.penalty }]));
-
-    // 총 merit, penalty (전체 연도 합산)
+    // merit/penalty 합산
     const totalMerit = user.points.reduce((s, p) => s + p.merit, 0);
     const totalPenalty = user.points.reduce((s, p) => s + p.penalty, 0);
 
-    // 누적 계산 (연도 오름차순)
-    gradeYearScores.sort((a, b) => a.year - b.year);
-    const scoreSum = gradeYearScores.reduce((s, ys) => s + ys.score, 0);
-    const cumulative = scoreSum + totalMerit - totalPenalty;
+    // 연도별 grade map
+    const gradeMap = new Map(user.performanceGrades.map((pg) => [pg.year, pg.grade]));
 
-    const criteria = user.level ? criteriaMap.get(user.level) : null;
+    // 포인트 윈도우 합산 (최근 tenureRange년: MAX_DATA_YEAR부터 역순)
+    let windowSum = 0;
+    for (let i = 0; i < tenureRange; i++) {
+      const yr = MAX_DATA_YEAR - i;
+      if (yr < 2021) break;
+      const grade = gradeMap.get(yr) ?? "";
+      windowSum += gradeToPoints(grade, yr);
+    }
+
+    const cumulative = windowSum + totalMerit - totalPenalty;
     const isMet = criteria ? cumulative >= criteria.requiredPoints : false;
 
-    // Upsert Point records
-    for (const { year, score } of gradeYearScores) {
-      const mp = meritPenaltyMap.get(year) ?? { merit: 0, penalty: 0 };
+    // 연도별 Point 레코드 upsert (각 연도별 score + 공통 cumulative/isMet)
+    for (const pg of user.performanceGrades) {
+      const score = gradeToPoints(pg.grade, pg.year);
+      const mp = user.points.find((p) => p.year === pg.year) ?? { merit: 0, penalty: 0 };
+
       await prisma.point.upsert({
-        where: { userId_year: { userId: user.id, year } },
+        where: { userId_year: { userId: user.id, year: pg.year } },
         create: {
           userId: user.id,
-          year,
+          year: pg.year,
           score,
           merit: mp.merit,
           penalty: mp.penalty,
@@ -102,13 +115,6 @@ export async function recalculatePointsFromGrades(
         },
       });
     }
-
-    // Update latest point's cumulative/isMet
-    const latestYear = gradeYearScores[gradeYearScores.length - 1].year;
-    await prisma.point.updateMany({
-      where: { userId: user.id, year: { gte: latestYear } },
-      data: { cumulative, isMet },
-    });
 
     updated++;
   }

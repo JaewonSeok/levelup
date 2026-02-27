@@ -41,11 +41,11 @@ const DEPARTMENTS = [
 ] as const;
 
 // ── Types ─────────────────────────────────────────────────────────────
+// [KISA2021-22] residentIdLast7(개인식별정보)는 API에서 반환하지 않음
 interface Account {
   id: string;
   name: string;
   email: string;
-  residentIdLast7: string | null;
   department: string;
   createdAt: string;
 }
@@ -248,7 +248,7 @@ export default function AccountsPage() {
                   <TableCell className="text-sm">{acc.name}</TableCell>
                   <TableCell className="text-sm">{acc.email}</TableCell>
                   <TableCell className="text-sm tracking-widest text-gray-500">
-                    {acc.residentIdLast7 ? "●●●●●●●" : "-"}
+                    ●●●●●●●
                   </TableCell>
                   <TableCell className="text-center text-sm">
                     {new Date(acc.createdAt).toLocaleDateString("ko-KR")}

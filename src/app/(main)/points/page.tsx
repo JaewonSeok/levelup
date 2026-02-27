@@ -112,8 +112,14 @@ function GradeBadge({ grade }: { grade: string | null }) {
 
 interface GradeCriteriaItem {
   grade: string;
-  yearRange: string; // "2022-2024" | "2025"
+  yearRange: string; // "2021-2024" | "2025"
   points: number;
+}
+
+interface LevelCriteriaItem {
+  level: string;
+  minTenure: number | null;
+  requiredPoints: number | null;
 }
 
 interface PointsResponse {
@@ -262,6 +268,26 @@ export default function PointsPage() {
       fetch("/api/grade-criteria")
         .then((r) => r.json())
         .then((d) => { if (Array.isArray(d.criteria)) setGradeCriteria(d.criteria); })
+        .catch(() => {});
+    }
+  }, [status]);
+
+  const [levelCriteriaData, setLevelCriteriaData] = useState<LevelCriteriaItem[]>([]);
+  useEffect(() => {
+    if (status === "authenticated") {
+      fetch("/api/settings")
+        .then((r) => r.json())
+        .then((d) => {
+          if (Array.isArray(d.criteria)) {
+            setLevelCriteriaData(
+              d.criteria.map((c: { level: string; minTenure: number | null; requiredPoints: number | null }) => ({
+                level: c.level,
+                minTenure: c.minTenure,
+                requiredPoints: c.requiredPoints,
+              }))
+            );
+          }
+        })
         .catch(() => {});
     }
   }, [status]);
@@ -468,27 +494,39 @@ export default function PointsPage() {
   // ── 등급→포인트 변환 ─────────────────────────────────────
   function getPointsForGrade(grade: string, yr: number): number {
     if (!grade) return 0;
-    const yearRange = yr <= 2024 ? "2022-2024" : "2025";
+    const yearRange = yr <= 2024 ? "2021-2024" : "2025";
     const crit = gradeCriteria.find((c) => c.grade === grade && c.yearRange === yearRange);
     return crit ? crit.points : 0;
   }
 
-  // ── 편집 계산 ─────────────────────────────────────────────
+  // ── 편집 계산 (최근 tenureRange년 윈도우 합산) ────────────
   const editCalc = useMemo(() => {
     if (!editState) return { scoreSum: 0, cumulative: 0 };
-    const scoreSum = GRADE_YEARS
-      .filter((yr) => yr >= editState.employee.startYear)
-      .reduce((s, yr) => {
-        const grade = editState.yearGrades[yr] ?? "";
-        if (!grade) return s;
-        const yearRange = yr <= 2024 ? "2022-2024" : "2025";
-        const crit = gradeCriteria.find((c) => c.grade === grade && c.yearRange === yearRange);
-        return s + (crit ? crit.points : 0);
-      }, 0);
+    const MAX_DATA_YEAR = 2025;
+    const emp = editState.employee;
+    const tenureCriteria = levelCriteriaData.find((c) => c.level === emp.level);
+    const minTenure = tenureCriteria?.minTenure ?? 0;
+    const yearsOfService = emp.yearsOfService ?? 0;
+    const tenureRange =
+      minTenure > 0 && yearsOfService > 0
+        ? Math.min(yearsOfService, minTenure)
+        : yearsOfService > 0
+          ? yearsOfService
+          : GRADE_YEARS.length;
+    let scoreSum = 0;
+    for (let i = 0; i < tenureRange; i++) {
+      const yr = MAX_DATA_YEAR - i;
+      if (yr < 2021) break;
+      const grade = editState.yearGrades[yr] ?? "";
+      if (!grade) continue;
+      const yearRange = yr <= 2024 ? "2021-2024" : "2025";
+      const crit = gradeCriteria.find((c) => c.grade === grade && c.yearRange === yearRange);
+      scoreSum += crit ? crit.points : 0;
+    }
     const cumulative =
       scoreSum + numVal(editState.totalMerit) - numVal(editState.totalPenalty);
     return { scoreSum, cumulative };
-  }, [editState, gradeCriteria]);
+  }, [editState, gradeCriteria, levelCriteriaData]);
 
   // ── 저장 ─────────────────────────────────────────────────
   async function handleSave() {

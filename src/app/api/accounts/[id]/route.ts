@@ -46,7 +46,6 @@ export async function PUT(
     name?: string;
     email?: string;
     department?: string;
-    residentIdLast7?: string;
     password?: string;
   } = {};
 
@@ -65,7 +64,7 @@ export async function PUT(
   }
 
   if (body.residentIdLast7) {
-    updateData.residentIdLast7 = body.residentIdLast7;
+    // [KISA2021-22] 주민번호는 비밀번호 해시 생성에만 사용하고 DB에 저장하지 않음
     updateData.password = await bcrypt.hash(body.residentIdLast7, 10);
   }
 
@@ -76,7 +75,6 @@ export async function PUT(
       id: true,
       name: true,
       email: true,
-      residentIdLast7: true,
       department: true,
       createdAt: true,
     },
