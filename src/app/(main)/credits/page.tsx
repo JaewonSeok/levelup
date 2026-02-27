@@ -574,7 +574,8 @@ export default function CreditsPage() {
                     const d = emp.yearData[yr];
                     const isInRange = yr >= emp.startYear;
 
-                    if (!isInRange) {
+                    // startYear 이전이라도 실제 학점 레코드가 있으면 표시 (소급 적용)
+                    if (!isInRange && (!d || d.score === null)) {
                       return (
                         <TableCell
                           key={yr}

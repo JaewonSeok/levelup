@@ -141,6 +141,14 @@ export async function GET(req: NextRequest) {
       };
     }
 
+    // 소급 학점: startYear 이전에 실제 Credit 레코드가 있으면 yearData에 포함 (소급 적용 케이스)
+    for (const credit of user.credits) {
+      if (credit.year < startYear && credit.year <= MAX_CREDIT_YEAR && !(credit.year in yearData)) {
+        allYearsSet.add(credit.year);
+        yearData[credit.year] = { score: credit.score, isAutoFill: false, isRetroactive: true };
+      }
+    }
+
     // 누적 = 연도별 합산 (포인트와 달리 상점/벌점 없음)
     const latestCredit = user.credits[user.credits.length - 1];
     const cumulative =

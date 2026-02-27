@@ -110,6 +110,12 @@ function GradeBadge({ grade }: { grade: string | null }) {
   );
 }
 
+interface GradeCriteriaItem {
+  grade: string;
+  yearRange: string; // "2022-2024" | "2025"
+  points: number;
+}
+
 interface PointsResponse {
   employees: EmployeePoint[];
   total: number;
@@ -245,6 +251,17 @@ export default function PointsPage() {
   const [editState, setEditState] = useState<EditState | null>(null);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+
+  // ── 등급 기준 ─────────────────────────────────────────────
+  const [gradeCriteria, setGradeCriteria] = useState<GradeCriteriaItem[]>([]);
+  useEffect(() => {
+    if (status === "authenticated") {
+      fetch("/api/grade-criteria")
+        .then((r) => r.json())
+        .then((d) => { if (Array.isArray(d.criteria)) setGradeCriteria(d.criteria); })
+        .catch(() => {});
+    }
+  }, [status]);
 
   // ── 가감점 모달 ───────────────────────────────────────────
   const [bpEmployee, setBpEmployee] = useState<EmployeePoint | null>(null);
@@ -437,8 +454,22 @@ export default function PointsPage() {
   // ── 편집 모달 열기 ────────────────────────────────────────
   function openEdit(emp: EmployeePoint) {
     const yearScores: Record<number, string> = {};
-    for (const yr of yearColumns) {
+    // 2026 이후 연도 제외 (2021~2025만 표시)
+    for (const yr of yearColumns.filter((y) => y <= 2025)) {
       const d = emp.yearData[yr];
+      const grade = yr >= 2021 && yr <= 2025 ? (emp.grades?.[yr as keyof GradeMap] ?? null) : null;
+
+      // 등급 기반 자동계산 (GradeCriteria 있고 해당 연도에 등급이 있을 때)
+      if (grade && gradeCriteria.length > 0) {
+        const yearRange = yr <= 2024 ? "2022-2024" : "2025";
+        const crit = gradeCriteria.find((c) => c.grade === grade && c.yearRange === yearRange);
+        if (crit) {
+          yearScores[yr] = String(crit.points);
+          continue;
+        }
+      }
+
+      // 기존 포인트 값 사용
       if (d) {
         yearScores[yr] = d.score !== null ? String(d.score) : d.isAutoFill ? "2" : "";
       } else {
@@ -494,8 +525,8 @@ export default function PointsPage() {
   // ── 연도 추가 (admin) ─────────────────────────────────────
   function handleAddYear() {
     const yr = Number(newYear);
-    if (!newYear || isNaN(yr) || yr < 2021 || yr > 2100) {
-      toast.error("2021년 이상의 유효한 연도를 입력하세요.");
+    if (!newYear || isNaN(yr) || yr < 2021 || yr > 2025) {
+      toast.error("2021년 이상 2025년 이하의 유효한 연도를 입력하세요.");
       return;
     }
     if (!editState) return;
@@ -794,11 +825,27 @@ export default function PointsPage() {
                       const d = editState.employee.yearData[yr];
                       const isAutoFill = d?.isAutoFill ?? false;
                       const isCurrent = yr === currentYear;
+                      const grade =
+                        yr >= 2021 && yr <= 2025
+                          ? (editState.employee.grades?.[yr as keyof GradeMap] ?? null)
+                          : null;
+                      const yearRange = yr <= 2024 ? "2022-2024" : "2025";
+                      const gradeCrit = grade
+                        ? gradeCriteria.find(
+                            (c) => c.grade === grade && c.yearRange === yearRange
+                          )
+                        : null;
 
                       return (
                         <div key={yr}>
-                          <label className="text-xs text-muted-foreground flex items-center gap-1 mb-1">
+                          <label className="text-xs text-muted-foreground flex items-center gap-1 mb-1 flex-wrap">
                             {yr}년
+                            {grade && <GradeBadge grade={grade} />}
+                            {gradeCrit && (
+                              <span className="text-[10px] bg-indigo-50 text-indigo-600 px-1 rounded">
+                                자동{gradeCrit.points}pt
+                              </span>
+                            )}
                             {isAutoFill && (
                               <span className="text-[10px] bg-amber-100 text-amber-700 px-1 rounded">
                                 자동부여
