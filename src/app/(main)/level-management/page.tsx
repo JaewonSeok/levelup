@@ -372,7 +372,7 @@ function EmployeeFormModal({
                   min="0"
                   value={form.yearsOfService}
                   onChange={(e) => set("yearsOfService", e.target.value)}
-                  placeholder="입사일 입력 시 자동계산"
+                  placeholder="연차 입력"
                 />
               </div>
               <div />
@@ -531,9 +531,10 @@ export default function LevelManagementPage() {
       try {
         const res = await fetch(`/api/employees?${buildQuery(params, currentPage)}`);
         if (!res.ok) {
-          let body: { error?: string; detail?: string } = {};
+          let body: { error?: string; detail?: string; _debug?: string } = {};
           try { body = await res.json(); } catch { /* empty body */ }
-          throw new Error(body.error ?? `데이터 조회 실패 (${res.status})`);
+          const msg = body.error ?? `데이터 조회 실패 (${res.status})`;
+          throw new Error(body._debug ? `${msg}: ${body._debug}` : msg);
         }
         const data: EmployeeResponse = await res.json();
         setEmployees(data.employees);

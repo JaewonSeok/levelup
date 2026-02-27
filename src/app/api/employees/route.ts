@@ -165,10 +165,10 @@ export async function GET(req: NextRequest) {
       },
     });
   } catch (error) {
-    // [KISA2021-36] 내부 오류 상세는 서버 로그에만 기록, 클라이언트에 노출 금지
+    // [TEMP DEBUG] 진단용 - 확인 후 제거 예정
     console.error("[GET /api/employees] error:", error);
     return NextResponse.json(
-      { error: "서버 오류가 발생했습니다." },
+      { error: "서버 오류가 발생했습니다.", _debug: error instanceof Error ? error.message : String(error) },
       { status: 500 }
     );
   }
