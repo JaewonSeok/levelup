@@ -84,16 +84,29 @@ export async function GET(req: NextRequest) {
     ],
   });
 
-  // 평가등급 일괄 조회
+  // 평가등급 + 가감점 일괄 조회
   const candidateUserIds = candidates.map((c) => c.userId);
-  const allGrades = await prisma.performanceGrade.findMany({
-    where: { userId: { in: candidateUserIds }, year: { in: [2021, 2022, 2023, 2024, 2025] } },
-    select: { userId: true, year: true, grade: true },
-  });
+  const [allGrades, bonusPenaltyRecords] = await Promise.all([
+    prisma.performanceGrade.findMany({
+      where: { userId: { in: candidateUserIds }, year: { in: [2021, 2022, 2023, 2024, 2025] } },
+      select: { userId: true, year: true, grade: true },
+    }),
+    prisma.bonusPenalty.findMany({
+      where: { userId: { in: candidateUserIds } },
+      select: { userId: true, type: true, points: true },
+    }),
+  ]);
   const gradeMap = new Map<string, Record<number, string>>();
   for (const g of allGrades) {
     if (!gradeMap.has(g.userId)) gradeMap.set(g.userId, {});
     gradeMap.get(g.userId)![g.year] = g.grade;
+  }
+  const bpMap = new Map<string, { bonusTotal: number; penaltyTotal: number }>();
+  for (const bp of bonusPenaltyRecords) {
+    if (!bpMap.has(bp.userId)) bpMap.set(bp.userId, { bonusTotal: 0, penaltyTotal: 0 });
+    const entry = bpMap.get(bp.userId)!;
+    if (bp.points > 0) entry.bonusTotal += bp.points;
+    else entry.penaltyTotal += Math.abs(bp.points);
   }
 
   // Confirmation이 없으면 자동 upsert (PENDING)
@@ -113,6 +126,9 @@ export async function GET(req: NextRequest) {
         prisma.point.findFirst({ where: { userId: c.userId }, orderBy: { year: "desc" } }),
         prisma.credit.findFirst({ where: { userId: c.userId }, orderBy: { year: "desc" } }),
       ]);
+
+      const { bonusTotal = 0, penaltyTotal = 0 } = bpMap.get(c.userId) ?? {};
+      const adjustment = bonusTotal - penaltyTotal;
 
       // 기준 조회
       const criteria = c.user.level
@@ -135,13 +151,16 @@ export async function GET(req: NextRequest) {
         competencyLevel: c.user.competencyLevel,
         yearsOfService: c.user.yearsOfService,
         hireDate: c.user.hireDate?.toISOString() ?? null,
-        pointCumulative: latestPoint?.cumulative ?? 0,
+        pointCumulative: (latestPoint?.cumulative ?? 0) + adjustment,
         creditCumulative: latestCredit?.cumulative ?? 0,
+        bonusTotal,
+        penaltyTotal,
         requiredPoints: criteria?.requiredPoints ?? null,
         requiredCredits: criteria?.requiredCredits ?? null,
         competencyScore: c.review?.competencyScore ?? null,
         competencyEval: c.review?.competencyEval ?? null,
         reviewRecommendation: c.review?.recommendation ?? null,
+        promotionType: c.promotionType ?? "normal",
         status: confirmation.status,
         confirmedAt: confirmation.confirmedAt?.toISOString() ?? null,
         isSubmitted: deptSubmitted,
@@ -157,11 +176,16 @@ export async function GET(req: NextRequest) {
   );
 
   // 요약 통계
+  const confirmedRows = rows.filter((r) => r.status === ConfirmationStatus.CONFIRMED);
   const summary = {
     pending: rows.filter((r) => r.status === ConfirmationStatus.PENDING).length,
-    confirmed: rows.filter((r) => r.status === ConfirmationStatus.CONFIRMED).length,
+    confirmed: confirmedRows.length,
     deferred: rows.filter((r) => r.status === ConfirmationStatus.DEFERRED).length,
     submittedDeptCount: submittedDepts.size,
+    confirmedNormal: confirmedRows.filter((r) => r.promotionType === "normal").length,
+    confirmedSpecial: confirmedRows.filter((r) => r.promotionType === "special").length,
+    totalNormal: rows.filter((r) => r.promotionType === "normal").length,
+    totalSpecial: rows.filter((r) => r.promotionType === "special").length,
   };
 
   // 드롭다운용 메타데이터

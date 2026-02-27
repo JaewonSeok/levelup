@@ -135,6 +135,19 @@ export async function GET(req: NextRequest) {
   }
   const creditMap = new Map(latestCredits.map((c) => [c.userId, c.cumulative]));
 
+  // 가감점 일괄 조회
+  const bonusPenaltyRecords = await prisma.bonusPenalty.findMany({
+    where: { userId: { in: allUserIds } },
+    select: { userId: true, type: true, points: true },
+  });
+  const bpMap = new Map<string, { bonusTotal: number; penaltyTotal: number }>();
+  for (const bp of bonusPenaltyRecords) {
+    if (!bpMap.has(bp.userId)) bpMap.set(bp.userId, { bonusTotal: 0, penaltyTotal: 0 });
+    const entry = bpMap.get(bp.userId)!;
+    if (bp.points > 0) entry.bonusTotal += bp.points;
+    else entry.penaltyTotal += Math.abs(bp.points);
+  }
+
   // ── 포인트 데이터 가공 ─────────────────────────────────────
   const allYearsSet = new Set<number>();
 
@@ -183,6 +196,9 @@ export async function GET(req: NextRequest) {
 
     const userGrades = gradeMap.get(user.id) ?? {};
     const creditCumulative = creditMap.get(user.id) ?? 0;
+    const { bonusTotal = 0, penaltyTotal = 0 } = bpMap.get(user.id) ?? {};
+    const adjustment = bonusTotal - penaltyTotal;
+    const totalPoints = cumulative + adjustment;
 
     return {
       id: user.id,
@@ -204,6 +220,10 @@ export async function GET(req: NextRequest) {
       cumulative,
       isMet,
       creditCumulative,
+      bonusTotal,
+      penaltyTotal,
+      adjustment,
+      totalPoints,
       grades: {
         2021: userGrades[2021] ?? null,
         2022: userGrades[2022] ?? null,

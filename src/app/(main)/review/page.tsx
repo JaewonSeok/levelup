@@ -45,6 +45,9 @@ interface ReviewCandidate {
   competencyLevel: string | null;
   pointCumulative: number;
   creditCumulative: number;
+  bonusTotal?: number;
+  penaltyTotal?: number;
+  promotionType?: string;
   currentUserOpinionSavedAt: string | null;
   recommendationStatus: "추천" | "제외" | null;
   grades: GradeMap;
@@ -71,9 +74,9 @@ const CURRENT_YEAR = new Date().getFullYear();
 const YEARS = Array.from({ length: 5 }, (_, i) => CURRENT_YEAR - i);
 const GRADE_YEARS = [2021, 2022, 2023, 2024, 2025] as const;
 
-// No. 본부 팀 이름 레벨 연차 입사일 포인트 학점 의견 추천여부 + 5 grade cols
-const COL_BASE = 11;
-const COL_COUNT = COL_BASE + GRADE_YEARS.length; // 16
+// No. 본부 팀 이름 레벨 연차 입사일 포인트 학점 구분 의견 추천여부 + 5 grade cols
+const COL_BASE = 12;
+const COL_COUNT = COL_BASE + GRADE_YEARS.length; // 17
 
 // ── Grade badge ────────────────────────────────────────────────
 
@@ -479,6 +482,7 @@ export default function ReviewPage() {
               {GRADE_YEARS.map((y) => (
                 <th key={y} className="border px-2 py-2 font-medium text-xs text-gray-600">{y}</th>
               ))}
+              <th className="border px-2 py-2 font-medium">구분</th>
               <th className="border px-2 py-2 font-medium">의견</th>
               <th className="border px-2 py-2 font-medium">추천여부</th>
             </tr>
@@ -535,7 +539,18 @@ export default function ReviewPage() {
                     <td className="border px-2 py-1.5">{c.competencyLevel ?? c.level ?? "-"}</td>
                     <td className="border px-2 py-1.5">{c.yearsOfService ?? "-"}</td>
                     <td className="border px-2 py-1.5">{formatDate(c.hireDate)}</td>
-                    <td className="border px-2 py-1.5 font-mono text-xs">{c.pointCumulative.toFixed(1)}</td>
+                    <td className="border px-2 py-1.5 font-mono text-xs">
+                      {c.pointCumulative.toFixed(1)}
+                      {(c.bonusTotal ?? 0) > 0 && (c.penaltyTotal ?? 0) > 0 && (
+                        <span className="ml-1 text-[10px] text-purple-600">±</span>
+                      )}
+                      {(c.bonusTotal ?? 0) > 0 && (c.penaltyTotal ?? 0) === 0 && (
+                        <span className="ml-1 text-[10px] text-blue-600">↑</span>
+                      )}
+                      {(c.bonusTotal ?? 0) === 0 && (c.penaltyTotal ?? 0) > 0 && (
+                        <span className="ml-1 text-[10px] text-red-500">↓</span>
+                      )}
+                    </td>
                     <td className="border px-2 py-1.5 font-mono text-xs">{c.creditCumulative.toFixed(1)}</td>
 
                     {/* 평가등급 컬럼 2021~2025 */}
@@ -544,6 +559,15 @@ export default function ReviewPage() {
                         <GradeBadge grade={c.grades[y]} />
                       </td>
                     ))}
+
+                    {/* 구분 (일반/특진) */}
+                    <td className="border px-2 py-1.5 text-center">
+                      {c.promotionType === "special" ? (
+                        <span className="text-xs font-medium px-1.5 py-0.5 rounded bg-orange-100 text-orange-700">특진</span>
+                      ) : (
+                        <span className="text-xs font-medium px-1.5 py-0.5 rounded bg-blue-100 text-blue-700">일반</span>
+                      )}
+                    </td>
 
                     {/* 의견 */}
                     <td className="border px-2 py-1.5">

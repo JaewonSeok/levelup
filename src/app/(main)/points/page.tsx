@@ -74,6 +74,10 @@ interface EmployeePoint {
   cumulative: number;
   isMet: boolean;
   creditCumulative: number;
+  bonusTotal: number;
+  penaltyTotal: number;
+  adjustment: number;
+  totalPoints: number;
   grades: GradeMap;
 }
 
@@ -123,6 +127,22 @@ interface EditState {
   totalMerit: string;
   totalPenalty: string;
 }
+
+// ─────────────────────────────────────────
+// 가감점 상수
+// ─────────────────────────────────────────
+
+const BONUS_ITEMS = [
+  { category: "공로상", points: 1.0, type: "bonus" },
+  { category: "B of B", points: 0.5, type: "bonus" },
+  { category: "기술혁신상", points: 0.5, type: "bonus" },
+] as const;
+
+const PENALTY_ITEMS = [
+  { category: "견책", points: -0.5, type: "penalty" },
+  { category: "감급", points: -1.0, type: "penalty" },
+  { category: "정직 이상", points: -2.0, type: "penalty" },
+] as const;
 
 // ─────────────────────────────────────────
 // 상수
@@ -225,6 +245,89 @@ export default function PointsPage() {
   const [editState, setEditState] = useState<EditState | null>(null);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+
+  // ── 가감점 모달 ───────────────────────────────────────────
+  const [bpEmployee, setBpEmployee] = useState<EmployeePoint | null>(null);
+  const [bpChecked, setBpChecked] = useState<Set<string>>(new Set());
+  const [bpNote, setBpNote] = useState("");
+  const [bpLoading, setBpLoading] = useState(false);
+  const [bpSaving, setBpSaving] = useState(false);
+
+  async function openBonusPenalty(emp: EmployeePoint) {
+    setBpEmployee(emp);
+    setBpChecked(new Set());
+    setBpNote("");
+    setBpLoading(true);
+    try {
+      const res = await fetch(`/api/bonus-penalty?userId=${emp.id}&year=${currentYear}`);
+      const data = await res.json();
+      if (res.ok && data.items) {
+        const checked = new Set<string>(data.items.map((it: { category: string }) => it.category));
+        setBpChecked(checked);
+        setBpNote(data.items[0]?.note ?? "");
+      }
+    } finally {
+      setBpLoading(false);
+    }
+  }
+
+  function toggleBpItem(category: string) {
+    setBpChecked((prev) => {
+      const next = new Set(prev);
+      if (next.has(category)) next.delete(category);
+      else next.add(category);
+      return next;
+    });
+  }
+
+  const bpAdjustment = useMemo(() => {
+    let total = 0;
+    for (const b of BONUS_ITEMS) {
+      if (bpChecked.has(b.category)) total += b.points;
+    }
+    for (const p of PENALTY_ITEMS) {
+      if (bpChecked.has(p.category)) total += p.points; // points is negative
+    }
+    return total;
+  }, [bpChecked]);
+
+  async function handleBpSave() {
+    if (!bpEmployee) return;
+    setBpSaving(true);
+    try {
+      const items: { type: string; category: string; points: number }[] = [];
+      for (const b of BONUS_ITEMS) {
+        if (bpChecked.has(b.category)) items.push({ type: b.type, category: b.category, points: b.points });
+      }
+      for (const p of PENALTY_ITEMS) {
+        if (bpChecked.has(p.category)) items.push({ type: p.type, category: p.category, points: p.points });
+      }
+      const res = await fetch("/api/bonus-penalty", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: bpEmployee.id, year: currentYear, items, note: bpNote }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "저장 실패");
+      toast.success("가감점이 저장되었습니다.");
+      // 로컬 상태 업데이트
+      const bonusTotal = items.filter((i) => i.type === "bonus").reduce((s, i) => s + i.points, 0);
+      const penaltyTotal = Math.abs(items.filter((i) => i.type === "penalty").reduce((s, i) => s + i.points, 0));
+      const adjustment = bonusTotal - penaltyTotal;
+      setEmployees((prev) =>
+        prev.map((e) =>
+          e.id === bpEmployee.id
+            ? { ...e, bonusTotal, penaltyTotal, adjustment, totalPoints: e.cumulative + adjustment }
+            : e
+        )
+      );
+      setBpEmployee(null);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "저장 중 오류가 발생했습니다.");
+    } finally {
+      setBpSaving(false);
+    }
+  }
 
   // ── 연도 추가 (admin) ─────────────────────────────────────
   const [newYear, setNewYear] = useState<string>("");
@@ -546,6 +649,8 @@ export default function PointsPage() {
                 </TableHead>
               ))}
               <TableHead className="text-center text-xs font-bold">포인트</TableHead>
+              <TableHead className="text-center text-xs">가감점</TableHead>
+              <TableHead className="text-center text-xs font-bold">총점</TableHead>
               <TableHead className="text-center text-xs font-bold">충족</TableHead>
               <TableHead className="text-center text-xs">편집</TableHead>
             </TableRow>
@@ -554,7 +659,7 @@ export default function PointsPage() {
             {loading ? (
               <TableRow>
                 <TableCell
-                  colSpan={6 + GRADE_YEARS.length + 3}
+                  colSpan={6 + GRADE_YEARS.length + 5}
                   className="text-center py-16 text-muted-foreground text-sm"
                 >
                   로딩 중...
@@ -563,7 +668,7 @@ export default function PointsPage() {
             ) : employees.length === 0 ? (
               <TableRow>
                 <TableCell
-                  colSpan={6 + GRADE_YEARS.length + 3}
+                  colSpan={6 + GRADE_YEARS.length + 5}
                   className="text-center py-16 text-muted-foreground text-sm"
                 >
                   검색 결과가 없습니다.
@@ -601,8 +706,25 @@ export default function PointsPage() {
                     </TableCell>
                   ))}
 
-                  <TableCell className="text-center text-sm font-bold">
+                  <TableCell className="text-center text-sm">
                     {emp.cumulative.toFixed(1)}
+                  </TableCell>
+                  <TableCell className="text-center">
+                    <button
+                      className={`text-xs px-1.5 py-0.5 rounded border transition-colors cursor-pointer ${
+                        emp.adjustment > 0
+                          ? "text-blue-700 bg-blue-50 border-blue-200 hover:bg-blue-100"
+                          : emp.adjustment < 0
+                          ? "text-red-700 bg-red-50 border-red-200 hover:bg-red-100"
+                          : "text-gray-500 bg-gray-50 border-gray-200 hover:bg-gray-100"
+                      }`}
+                      onClick={() => openBonusPenalty(emp)}
+                    >
+                      {emp.adjustment > 0 ? `+${emp.adjustment.toFixed(1)}` : emp.adjustment < 0 ? emp.adjustment.toFixed(1) : "0"}
+                    </button>
+                  </TableCell>
+                  <TableCell className="text-center text-sm font-bold">
+                    {emp.totalPoints.toFixed(1)}
                   </TableCell>
                   <TableCell className="text-center">
                     <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${emp.isMet ? "bg-green-100 text-green-700" : "bg-red-100 text-red-600"}`}>
@@ -821,6 +943,111 @@ export default function PointsPage() {
       <div className="mt-3 text-xs text-muted-foreground flex gap-4">
         <span>S/O: 최우수 &nbsp; A/E: 우수 &nbsp; B/G: 양호 &nbsp; C/N: 미흡 &nbsp; U: 불량</span>
       </div>
+
+      {/* ── 가감점 모달 ───────────────────────────────────────── */}
+      <Dialog open={!!bpEmployee} onOpenChange={(open) => !open && setBpEmployee(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>{bpEmployee?.name} 가감점 관리</DialogTitle>
+          </DialogHeader>
+          {bpLoading ? (
+            <div className="text-center py-8 text-sm text-muted-foreground">로딩 중...</div>
+          ) : (
+            <div className="space-y-4">
+              {/* 가점 섹션 */}
+              <div>
+                <h3 className="text-sm font-semibold mb-2 text-blue-700">가점</h3>
+                <div className="border rounded overflow-hidden">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="bg-muted/40 text-xs text-muted-foreground">
+                        <th className="text-left px-3 py-1.5">항목</th>
+                        <th className="text-center px-3 py-1.5 w-16">점수</th>
+                        <th className="text-center px-3 py-1.5 w-12">적용</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {BONUS_ITEMS.map((item) => (
+                        <tr key={item.category} className="border-t hover:bg-muted/20">
+                          <td className="px-3 py-2">{item.category}</td>
+                          <td className="text-center px-3 py-2 text-blue-700">+{item.points.toFixed(1)}점</td>
+                          <td className="text-center px-3 py-2">
+                            <input
+                              type="checkbox"
+                              checked={bpChecked.has(item.category)}
+                              onChange={() => toggleBpItem(item.category)}
+                              className="w-4 h-4 cursor-pointer"
+                            />
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* 감점 섹션 */}
+              <div>
+                <h3 className="text-sm font-semibold mb-2 text-red-700">감점</h3>
+                <div className="border rounded overflow-hidden">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="bg-muted/40 text-xs text-muted-foreground">
+                        <th className="text-left px-3 py-1.5">항목</th>
+                        <th className="text-center px-3 py-1.5 w-16">점수</th>
+                        <th className="text-center px-3 py-1.5 w-12">적용</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {PENALTY_ITEMS.map((item) => (
+                        <tr key={item.category} className="border-t hover:bg-muted/20">
+                          <td className="px-3 py-2">{item.category}</td>
+                          <td className="text-center px-3 py-2 text-red-700">{item.points.toFixed(1)}점</td>
+                          <td className="text-center px-3 py-2">
+                            <input
+                              type="checkbox"
+                              checked={bpChecked.has(item.category)}
+                              onChange={() => toggleBpItem(item.category)}
+                              className="w-4 h-4 cursor-pointer"
+                            />
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* 합계 */}
+              <div className="bg-muted/40 rounded px-4 py-2 flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">합계</span>
+                <span className={`font-bold text-base ${bpAdjustment > 0 ? "text-blue-700" : bpAdjustment < 0 ? "text-red-700" : "text-gray-600"}`}>
+                  {bpAdjustment > 0 ? `+${bpAdjustment.toFixed(1)}` : bpAdjustment.toFixed(1)}점
+                </span>
+              </div>
+
+              {/* 비고 */}
+              <div>
+                <label className="text-xs text-muted-foreground block mb-1">비고 (선택)</label>
+                <Input
+                  className="h-8 text-sm"
+                  placeholder="비고를 입력하세요"
+                  value={bpNote}
+                  onChange={(e) => setBpNote(e.target.value)}
+                />
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBpEmployee(null)} disabled={bpSaving}>
+              취소
+            </Button>
+            <Button onClick={handleBpSave} disabled={bpSaving || bpLoading}>
+              {bpSaving ? "저장 중..." : "저장"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* ── 직원 추가 모달 ─────────────────────────────────────── */}
       <Dialog open={addEmpOpen} onOpenChange={(o) => !o && setAddEmpOpen(false)}>

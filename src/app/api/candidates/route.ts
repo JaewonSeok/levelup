@@ -24,6 +24,7 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const year = Number(searchParams.get("year") ?? getCurrentYear());
   const meetType = searchParams.get("meetType") ?? "all"; // all | point | credit | both
+  const promotionFilter = searchParams.get("promotionType") ?? "all"; // all | normal | special
   const department = searchParams.get("department") ?? "";
   const team = searchParams.get("team") ?? "";
   const keyword = searchParams.get("keyword") ?? "";
@@ -83,6 +84,7 @@ export async function GET(req: NextRequest) {
         employmentType: true,
         hireDate: true,
         yearsOfService: true,
+        levelStartDate: true,
         competencyLevel: true,
         levelUpYear: true,
         points: { orderBy: { year: "asc" } },
@@ -103,16 +105,29 @@ export async function GET(req: NextRequest) {
     }),
   ]);
 
-  // 평가등급 일괄 조회 (2021~2025)
+  // 평가등급 + 가감점 일괄 조회 (2021~2025)
   const userIds = users.map((u) => u.id);
-  const allGrades = await prisma.performanceGrade.findMany({
-    where: { userId: { in: userIds }, year: { in: [2021, 2022, 2023, 2024, 2025] } },
-    select: { userId: true, year: true, grade: true },
-  });
+  const [allGrades, bonusPenaltyRecords] = await Promise.all([
+    prisma.performanceGrade.findMany({
+      where: { userId: { in: userIds }, year: { in: [2021, 2022, 2023, 2024, 2025] } },
+      select: { userId: true, year: true, grade: true },
+    }),
+    prisma.bonusPenalty.findMany({
+      where: { userId: { in: userIds } },
+      select: { userId: true, type: true, points: true },
+    }),
+  ]);
   const gradeMap = new Map<string, Record<number, string>>();
   for (const g of allGrades) {
     if (!gradeMap.has(g.userId)) gradeMap.set(g.userId, {});
     gradeMap.get(g.userId)![g.year] = g.grade;
+  }
+  const bpMap = new Map<string, { bonusTotal: number; penaltyTotal: number }>();
+  for (const bp of bonusPenaltyRecords) {
+    if (!bpMap.has(bp.userId)) bpMap.set(bp.userId, { bonusTotal: 0, penaltyTotal: 0 });
+    const entry = bpMap.get(bp.userId)!;
+    if (bp.points > 0) entry.bonusTotal += bp.points;
+    else entry.penaltyTotal += Math.abs(bp.points);
   }
 
   // ── 직원별 데이터 가공 + Candidate 레코드 생성/업데이트 ──────
@@ -123,13 +138,26 @@ export async function GET(req: NextRequest) {
     users.map(async (user) => {
       const latestPoint = user.points[user.points.length - 1];
       const latestCredit = user.credits[user.credits.length - 1];
-      const pointCumulative = latestPoint?.cumulative ?? 0;
+      const baseCumulative = latestPoint?.cumulative ?? 0;
       const creditCumulative = latestCredit?.cumulative ?? 0;
 
-      // ★ isMet 필드 대신 cumulative vs LevelCriteria로 직접 계산
+      // 가감점 반영 총점
+      const { bonusTotal = 0, penaltyTotal = 0 } = bpMap.get(user.id) ?? {};
+      const adjustment = bonusTotal - penaltyTotal;
+      const pointCumulative = baseCumulative + adjustment;
+
+      // ★ isMet 필드 대신 cumulative vs LevelCriteria로 직접 계산 (가감점 반영)
       const criteria = user.level ? criteriaMap.get(user.level) : null;
       const pointMet = criteria != null ? pointCumulative >= criteria.requiredPoints : false;
       const creditMet = criteria != null ? creditCumulative >= criteria.requiredCredits : false;
+
+      // 체류 연수 계산 (levelStartDate → hireDate → yearsOfService 순)
+      const levelStart = user.levelStartDate ?? user.hireDate;
+      const tenure = levelStart
+        ? currentYear - new Date(levelStart).getFullYear()
+        : (user.yearsOfService ?? 0);
+      const tenureMet = criteria != null ? tenure >= criteria.minTenure : true;
+      const promotionType = (pointMet && creditMet && !tenureMet) ? "special" : "normal";
 
       // 기존 Candidate 레코드 업데이트 or 신규 생성 (충족 시에만)
       const existingCandidate = user.candidates[0];
@@ -138,11 +166,11 @@ export async function GET(req: NextRequest) {
       const candidate = existingCandidate
         ? await prisma.candidate.update({
             where: { id: existingCandidate.id },
-            data: { pointMet, creditMet },
+            data: { pointMet, creditMet, promotionType },
           })
         : (pointMet || creditMet)
           ? await prisma.candidate.create({
-              data: { userId: user.id, year, pointMet, creditMet, source: "auto" },
+              data: { userId: user.id, year, pointMet, creditMet, source: "auto", promotionType },
             })
           : null;
 
@@ -164,6 +192,9 @@ export async function GET(req: NextRequest) {
         creditCumulative,
         pointMet,
         creditMet,
+        bonusTotal,
+        penaltyTotal,
+        promotionType: candidate?.promotionType ?? promotionType,
         isReviewTarget: candidate?.isReviewTarget ?? false,
         source: candidate?.source ?? "auto",
         savedAt: candidate?.savedAt?.toISOString() ?? null,
@@ -178,13 +209,19 @@ export async function GET(req: NextRequest) {
     })
   );
 
-  // ── meetType 필터 (JS에서 처리) ──────────────────────────────
+  // ── meetType + promotionType 필터 (JS에서 처리) ─────────────
   const filteredEmployees = allEmployeesData.filter((emp) => {
-    if (meetType === "point") return emp.pointMet || hasExistingCandidateSet.has(emp.userId);
-    if (meetType === "credit") return emp.creditMet || hasExistingCandidateSet.has(emp.userId);
-    if (meetType === "both") return emp.pointMet && emp.creditMet;
-    return true; // "all"
+    if (meetType === "point") { if (!(emp.pointMet || hasExistingCandidateSet.has(emp.userId))) return false; }
+    else if (meetType === "credit") { if (!(emp.creditMet || hasExistingCandidateSet.has(emp.userId))) return false; }
+    else if (meetType === "both") { if (!(emp.pointMet && emp.creditMet)) return false; }
+    if (promotionFilter === "normal") return emp.promotionType === "normal";
+    if (promotionFilter === "special") return emp.promotionType === "special";
+    return true;
   });
+
+  // 구분별 집계 (전체 대상에서 계산)
+  const normalCount = allEmployeesData.filter((e) => e.promotionType === "normal" && e.pointMet && e.creditMet).length;
+  const specialCount = allEmployeesData.filter((e) => e.promotionType === "special").length;
 
   // ── 페이지네이션 ─────────────────────────────────────────────
   const total = filteredEmployees.length;
@@ -194,6 +231,8 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({
     employees: pagedEmployees,
     total,
+    normalCount,
+    specialCount,
     page,
     pageSize,
     totalPages: Math.ceil(total / pageSize),

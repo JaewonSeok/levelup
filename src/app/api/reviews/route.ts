@@ -107,8 +107,8 @@ export async function GET(req: NextRequest) {
     for (const r of newReviews) reviewMap.set(r.candidateId, r);
   }
 
-  // Fetch level criteria, latest points, latest credits, grades
-  const [criteriaList, latestPoints, latestCredits, allGrades] = await Promise.all([
+  // Fetch level criteria, latest points, latest credits, grades, bonus-penalty
+  const [criteriaList, latestPoints, latestCredits, allGrades, bonusPenaltyRecords] = await Promise.all([
     levels.length > 0
       ? prisma.levelCriteria.findMany({ where: { year, level: { in: levels } } })
       : Promise.resolve([]),
@@ -126,6 +126,10 @@ export async function GET(req: NextRequest) {
       where: { userId: { in: userIds }, year: { in: [2021, 2022, 2023, 2024, 2025] } },
       select: { userId: true, year: true, grade: true },
     }),
+    prisma.bonusPenalty.findMany({
+      where: { userId: { in: userIds } },
+      select: { userId: true, type: true, points: true },
+    }),
   ]);
 
   const gradeMap = new Map<string, Record<number, string>>();
@@ -137,6 +141,13 @@ export async function GET(req: NextRequest) {
   const criteriaMap = new Map(criteriaList.map((c) => [c.level as string, c]));
   const pointMap = new Map(latestPoints.map((p) => [p.userId, p.cumulative]));
   const creditMap = new Map(latestCredits.map((c) => [c.userId, c.cumulative]));
+  const bpMap = new Map<string, { bonusTotal: number; penaltyTotal: number }>();
+  for (const bp of bonusPenaltyRecords) {
+    if (!bpMap.has(bp.userId)) bpMap.set(bp.userId, { bonusTotal: 0, penaltyTotal: 0 });
+    const entry = bpMap.get(bp.userId)!;
+    if (bp.points > 0) entry.bonusTotal += bp.points;
+    else entry.penaltyTotal += Math.abs(bp.points);
+  }
 
   // Build response rows
   const result = candidates.map((candidate) => {
@@ -154,6 +165,9 @@ export async function GET(req: NextRequest) {
     const criteria = candidate.user.level ? criteriaMap.get(candidate.user.level) : null;
 
     const userGrades = gradeMap.get(candidate.userId) ?? {};
+    const { bonusTotal = 0, penaltyTotal = 0 } = bpMap.get(candidate.userId) ?? {};
+    const adjustment = bonusTotal - penaltyTotal;
+    const baseCumulative = pointMap.get(candidate.userId) ?? 0;
 
     return {
       candidateId: candidate.id,
@@ -166,12 +180,15 @@ export async function GET(req: NextRequest) {
       hireDate: candidate.user.hireDate?.toISOString() ?? null,
       yearsOfService: candidate.user.yearsOfService,
       competencyLevel: candidate.user.competencyLevel,
-      pointCumulative: pointMap.get(candidate.userId) ?? 0,
+      pointCumulative: baseCumulative + adjustment,
       creditCumulative: creditMap.get(candidate.userId) ?? 0,
+      bonusTotal,
+      penaltyTotal,
       requiredPoints: criteria?.requiredPoints ?? null,
       requiredCredits: criteria?.requiredCredits ?? null,
       competencyScore: review?.competencyScore ?? null,
       competencyEval: review?.competencyEval ?? null,
+      promotionType: candidate.promotionType ?? "normal",
       currentUserOpinionSavedAt: currentUserOpinion?.savedAt?.toISOString() ?? null,
       recommendationStatus,
       grades: {

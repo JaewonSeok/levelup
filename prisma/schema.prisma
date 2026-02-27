@@ -74,6 +74,8 @@ model User {
   competencyLevel String?
   /// 레벨업 대상 연도 (예: 2025)
   levelUpYear     Int?
+  /// 현재 레벨 시작일. 미설정 시 hireDate 기준으로 체류 연수 계산.
+  levelStartDate  DateTime?
   /// 재직 여부 (레벨관리 화면 사용 Y/N 필터)
   isActive        Boolean @default(true)
 
@@ -87,6 +89,7 @@ model User {
   accounts           Account[]
   sessions           Session[]
   performanceGrades  PerformanceGrade[]
+  bonusPenalties     BonusPenalty[]
 
   @@map("users")
 }
@@ -171,6 +174,8 @@ model Candidate {
   isReviewTarget Boolean  @default(false) // 인사팀 심사대상 체크 여부
   /// "auto" = 자동 선정, "manual" = 수동 추가
   source         String   @default("manual")
+  /// "normal" = 일반 승진, "special" = 특진 (체류 연수 미달)
+  promotionType  String   @default("normal")
   /// null = 미저장(저장 버튼 활성), non-null = 저장됨 표시
   savedAt        DateTime?
 
@@ -351,6 +356,33 @@ model LevelCriteriaHistory {
   newValue String   // 변경값
 
   @@map("level_criteria_histories")
+}
+
+// ─────────────────────────────────────────
+// 가감점 (BonusPenalty)
+// ─────────────────────────────────────────
+
+/// 개인별 가점/감점 항목.
+/// 카테고리별 체크박스로 입력, 연도별 관리.
+model BonusPenalty {
+  id       String @id @default(cuid())
+  userId   String
+  year     Int
+
+  /// "bonus" = 가점, "penalty" = 감점
+  type     String
+  /// 공로상 | B of B | 기술혁신상 | 견책 | 감급 | 정직 이상
+  category String
+  /// 가점: 1, 0.5, 0.5 / 감점: -0.5, -1, -2
+  points   Float
+  note     String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("bonus_penalties")
 }
 
 // ─────────────────────────────────────────

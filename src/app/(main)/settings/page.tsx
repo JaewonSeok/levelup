@@ -319,6 +319,18 @@ export default function SettingsPage() {
         </Table>
       </div>
 
+      {/* ── 특진 기준 ─────────────────────────────────────── */}
+      <div className="mb-8 border rounded-lg p-5 bg-orange-50 border-orange-200">
+        <h2 className="text-lg font-semibold mb-2 text-orange-800">특진(特進) 기준</h2>
+        <p className="text-sm text-orange-700 mb-3">
+          최소 체류 연수 미달이나 필요 포인트와 필요 학점을 모두 충족한 직원은 특진 대상자로 자동 선정됩니다.
+        </p>
+        <div className="bg-white rounded border border-orange-200 p-4 text-xs text-gray-600 space-y-1">
+          <p>• <strong>일반 승진</strong>: 포인트 충족 + 학점 충족 + 최소 체류 연수 충족</p>
+          <p>• <strong>특진</strong>: 포인트 충족 + 학점 충족 (최소 체류 연수 미달이어도 대상자 포함)</p>
+        </div>
+      </div>
+
       {/* ── 등급별 포인트 기준 ────────────────────────────── */}
       <div className="mb-8">
         <div className="flex items-center justify-between mb-3">

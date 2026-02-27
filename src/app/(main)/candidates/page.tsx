@@ -51,15 +51,20 @@ interface CandidateRow {
   creditCumulative: number;
   pointMet: boolean;
   creditMet: boolean;
+  bonusTotal?: number;
+  penaltyTotal?: number;
+  promotionType?: string;
   source: string;
   grades: GradeMap;
 }
 
 type MeetType = "all" | "point" | "credit" | "both";
+type PromotionFilter = "all" | "normal" | "special";
 
 interface Query {
   year: number;
   meetType: MeetType;
+  promotionType: PromotionFilter;
   department: string;
   team: string;
   keyword: string;
@@ -96,6 +101,7 @@ function GradeBadge({ grade }: { grade: string | null }) {
 const defaultQuery: Query = {
   year: CURRENT_YEAR,
   meetType: "both",
+  promotionType: "all",
   department: "",
   team: "",
   keyword: "",
@@ -121,6 +127,7 @@ export default function CandidatesPage() {
     team: "",
     keyword: "",
     meetType: "both" as MeetType,
+    promotionType: "all" as PromotionFilter,
     position: "",
     hireDateFrom: "",
     hireDateTo: "",
@@ -129,6 +136,8 @@ export default function CandidatesPage() {
   // Server data
   const [rows, setRows] = useState<CandidateRow[]>([]);
   const [total, setTotal] = useState(0);
+  const [normalCount, setNormalCount] = useState(0);
+  const [specialCount, setSpecialCount] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
   const [meta, setMeta] = useState<{ departments: string[]; teams: string[] }>({
     departments: [],
@@ -169,6 +178,7 @@ export default function CandidatesPage() {
         const sp = new URLSearchParams({
           year: String(query.year),
           meetType: query.meetType,
+          promotionType: query.promotionType,
           department: query.department,
           team: query.team,
           keyword: query.keyword,
@@ -186,6 +196,8 @@ export default function CandidatesPage() {
 
         setRows(data.employees ?? []);
         setTotal(data.total ?? 0);
+        setNormalCount(data.normalCount ?? 0);
+        setSpecialCount(data.specialCount ?? 0);
         setTotalPages(data.totalPages ?? 0);
         setMeta(data.meta ?? { departments: [], teams: [] });
 
@@ -206,6 +218,7 @@ export default function CandidatesPage() {
     setQuery({
       year: query.year,
       meetType: advDraft.meetType,
+      promotionType: advDraft.promotionType,
       department: advDraft.department,
       team: advDraft.team,
       keyword: advDraft.keyword,
@@ -342,7 +355,15 @@ export default function CandidatesPage() {
           </SelectContent>
         </Select>
         <span className="text-sm text-muted-foreground">
-          총 {total}명 · 포인트 또는 학점 충족 직원
+          총 {total}명
+          {(normalCount > 0 || specialCount > 0) && (
+            <span className="ml-1">
+              (<span className="text-blue-700">일반 {normalCount}명</span>
+              {specialCount > 0 && (
+                <span> / <span className="text-orange-600">특진 {specialCount}명</span></span>
+              )})
+            </span>
+          )}
         </span>
       </div>
 
@@ -470,6 +491,23 @@ export default function CandidatesPage() {
             }
           />
 
+          {/* 구분 필터 */}
+          <div className="flex items-center gap-1.5 text-sm">
+            <span className="font-medium whitespace-nowrap">구분</span>
+            {(["all", "normal", "special"] as PromotionFilter[]).map((v) => (
+              <label key={v} className="flex items-center gap-1 cursor-pointer">
+                <input
+                  type="radio"
+                  name="adv-promotionType"
+                  value={v}
+                  checked={advDraft.promotionType === v}
+                  onChange={() => setAdvDraft((prev) => ({ ...prev, promotionType: v }))}
+                />
+                <span>{v === "all" ? "전체" : v === "normal" ? "일반" : "특진"}</span>
+              </label>
+            ))}
+          </div>
+
           <Button
             onClick={handleAdvancedSearch}
             disabled={loading}
@@ -497,6 +535,7 @@ export default function CandidatesPage() {
               <th className="border px-2 py-2 font-medium">충족여부</th>
               <th className="border px-2 py-2 font-medium">학점</th>
               <th className="border px-2 py-2 font-medium">충족여부</th>
+              <th className="border px-2 py-2 font-medium">구분</th>
               {GRADE_YEARS.map((y) => (
                 <th key={y} className="border px-2 py-2 font-medium text-xs text-gray-600">{y}</th>
               ))}
@@ -506,13 +545,13 @@ export default function CandidatesPage() {
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={isAdmin ? 12 + GRADE_YEARS.length : 11 + GRADE_YEARS.length} className="text-center py-10 text-muted-foreground">
+                <td colSpan={isAdmin ? 13 + GRADE_YEARS.length : 12 + GRADE_YEARS.length} className="text-center py-10 text-muted-foreground">
                   불러오는 중...
                 </td>
               </tr>
             ) : rows.length === 0 ? (
               <tr>
-                <td colSpan={isAdmin ? 12 + GRADE_YEARS.length : 11 + GRADE_YEARS.length} className="text-center py-10 text-muted-foreground">
+                <td colSpan={isAdmin ? 13 + GRADE_YEARS.length : 12 + GRADE_YEARS.length} className="text-center py-10 text-muted-foreground">
                   충족 조건을 만족하는 직원이 없습니다.
                 </td>
               </tr>
@@ -560,6 +599,15 @@ export default function CandidatesPage() {
                       }`}
                     >
                       {row.pointCumulative.toFixed(1)}
+                      {(row.bonusTotal ?? 0) > 0 && (row.penaltyTotal ?? 0) > 0 && (
+                        <span className="ml-1 text-[10px] text-purple-600">±</span>
+                      )}
+                      {(row.bonusTotal ?? 0) > 0 && (row.penaltyTotal ?? 0) === 0 && (
+                        <span className="ml-1 text-[10px] text-blue-600">↑</span>
+                      )}
+                      {(row.bonusTotal ?? 0) === 0 && (row.penaltyTotal ?? 0) > 0 && (
+                        <span className="ml-1 text-[10px] text-red-500">↓</span>
+                      )}
                     </td>
                     <td className="border px-2 py-1.5">
                       <Badge
@@ -585,6 +633,15 @@ export default function CandidatesPage() {
                       >
                         {row.creditMet ? "충족" : "미충족"}
                       </Badge>
+                    </td>
+
+                    {/* 구분 (일반/특진) */}
+                    <td className="border px-2 py-1.5 text-center">
+                      {row.promotionType === "special" ? (
+                        <span className="text-xs font-medium px-1.5 py-0.5 rounded bg-orange-100 text-orange-700">특진</span>
+                      ) : (
+                        <span className="text-xs font-medium px-1.5 py-0.5 rounded bg-blue-100 text-blue-700">일반</span>
+                      )}
                     </td>
 
                     {/* 평가등급 2021~2025 */}

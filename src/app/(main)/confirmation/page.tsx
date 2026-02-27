@@ -38,6 +38,9 @@ interface ConfirmationRow {
   hireDate: string | null;
   pointCumulative: number;
   creditCumulative: number;
+  bonusTotal?: number;
+  penaltyTotal?: number;
+  promotionType?: string;
   requiredPoints: number | null;
   requiredCredits: number | null;
   competencyScore: number | null;
@@ -54,6 +57,10 @@ interface Summary {
   confirmed: number;
   deferred: number;
   submittedDeptCount: number;
+  confirmedNormal?: number;
+  confirmedSpecial?: number;
+  totalNormal?: number;
+  totalSpecial?: number;
 }
 
 interface ConfirmationResponse {
@@ -190,13 +197,14 @@ export default function ConfirmationPage() {
       setSummary((prev) => {
         const oldRow = rows.find((r) => r.confirmationId === confirmationId);
         if (!oldRow) return prev;
-        const next = { ...prev };
-        next[oldRow.status.toLowerCase() as keyof Omit<Summary, "submittedDeptCount">] = Math.max(
-          0,
-          next[oldRow.status.toLowerCase() as keyof Omit<Summary, "submittedDeptCount">] - 1
-        );
-        next[newStatus.toLowerCase() as keyof Omit<Summary, "submittedDeptCount">] += 1;
-        return next;
+        type StatusKey = "pending" | "confirmed" | "deferred";
+        const oldKey = oldRow.status.toLowerCase() as StatusKey;
+        const newKey = newStatus.toLowerCase() as StatusKey;
+        return {
+          ...prev,
+          [oldKey]: Math.max(0, (prev[oldKey] ?? 0) - 1),
+          [newKey]: (prev[newKey] ?? 0) + 1,
+        };
       });
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "변경 중 오류가 발생했습니다.");
@@ -296,6 +304,11 @@ export default function ConfirmationPage() {
           <p className="text-xs text-muted-foreground mb-1">확정</p>
           <p className="text-2xl font-bold text-green-600">{summary.confirmed}</p>
           <p className="text-xs text-muted-foreground">명</p>
+          {(summary.confirmedNormal != null || summary.confirmedSpecial != null) && (
+            <p className="text-xs text-muted-foreground mt-1">
+              일반 {summary.confirmedNormal ?? 0} / 특진 {summary.confirmedSpecial ?? 0}
+            </p>
+          )}
         </div>
         <div className="border rounded-md p-4 text-center bg-white">
           <p className="text-xs text-muted-foreground mb-1">반려</p>
@@ -303,6 +316,20 @@ export default function ConfirmationPage() {
           <p className="text-xs text-muted-foreground">명</p>
         </div>
       </div>
+
+      {/* ── 특진 통계 (특진 대상자가 있는 경우) ──────────────── */}
+      {(summary.totalSpecial ?? 0) > 0 && (
+        <div className="mb-4 px-4 py-2 border rounded-md bg-orange-50 border-orange-200 text-sm text-orange-800 flex items-center gap-3">
+          <span className="font-medium">특진 현황</span>
+          <span>대상 {summary.totalSpecial}명</span>
+          <span className="text-gray-400">|</span>
+          <span>일반 승진 확정 {summary.confirmedNormal ?? 0}명</span>
+          <span className="text-gray-400">|</span>
+          <span>특진 확정 {summary.confirmedSpecial ?? 0}명</span>
+          <span className="text-gray-400">|</span>
+          <span>총 확정 {summary.confirmed}명</span>
+        </div>
+      )}
 
       {/* ── 테이블 ─────────────────────────────────────────── */}
       <div className="overflow-x-auto border rounded-md">
@@ -320,6 +347,7 @@ export default function ConfirmationPage() {
               {GRADE_YEARS.map((y) => (
                 <th key={y} className="border px-2 py-2 font-medium text-xs text-gray-600">{y}</th>
               ))}
+              <th className="border px-2 py-2 font-medium">구분</th>
               <th className="border px-2 py-2 font-medium">추천여부</th>
               <th className="border px-2 py-2 font-medium">확정상태</th>
               {canConfirm && <th className="border px-2 py-2 font-medium">상태변경</th>}
@@ -328,13 +356,13 @@ export default function ConfirmationPage() {
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={canConfirm ? 12 + GRADE_YEARS.length : 11 + GRADE_YEARS.length} className="text-center py-10 text-muted-foreground">
+                <td colSpan={canConfirm ? 13 + GRADE_YEARS.length : 12 + GRADE_YEARS.length} className="text-center py-10 text-muted-foreground">
                   불러오는 중...
                 </td>
               </tr>
             ) : rows.length === 0 ? (
               <tr>
-                <td colSpan={canConfirm ? 12 + GRADE_YEARS.length : 11 + GRADE_YEARS.length} className="text-center py-10 text-muted-foreground">
+                <td colSpan={canConfirm ? 13 + GRADE_YEARS.length : 12 + GRADE_YEARS.length} className="text-center py-10 text-muted-foreground">
                   {showAll ? "심사 완료된 대상자가 없습니다." : "제출된 본부의 심사 대상자가 없습니다."}
                 </td>
               </tr>
@@ -374,9 +402,18 @@ export default function ConfirmationPage() {
                     <td className="border px-2 py-1.5">{row.competencyLevel ?? row.level ?? "-"}</td>
                     <td className="border px-2 py-1.5">{row.yearsOfService ?? "-"}</td>
 
-                    {/* 포인트: 숫자만 */}
+                    {/* 포인트: 가감점 인디케이터 포함 */}
                     <td className="border px-2 py-1.5 font-mono text-xs">
                       {row.pointCumulative.toFixed(1)}
+                      {(row.bonusTotal ?? 0) > 0 && (row.penaltyTotal ?? 0) > 0 && (
+                        <span className="ml-1 text-[10px] text-purple-600">±</span>
+                      )}
+                      {(row.bonusTotal ?? 0) > 0 && (row.penaltyTotal ?? 0) === 0 && (
+                        <span className="ml-1 text-[10px] text-blue-600">↑</span>
+                      )}
+                      {(row.bonusTotal ?? 0) === 0 && (row.penaltyTotal ?? 0) > 0 && (
+                        <span className="ml-1 text-[10px] text-red-500">↓</span>
+                      )}
                     </td>
 
                     {/* 학점: 숫자만 */}
@@ -390,6 +427,15 @@ export default function ConfirmationPage() {
                         <GradeBadge grade={row.grades?.[y] ?? null} />
                       </td>
                     ))}
+
+                    {/* 구분 (일반/특진) */}
+                    <td className="border px-2 py-1.5 text-center">
+                      {row.promotionType === "special" ? (
+                        <span className="text-xs font-medium px-1.5 py-0.5 rounded bg-orange-100 text-orange-700">특진</span>
+                      ) : (
+                        <span className="text-xs font-medium px-1.5 py-0.5 rounded bg-blue-100 text-blue-700">일반</span>
+                      )}
+                    </td>
 
                     {/* 추천여부 */}
                     <td className="border px-2 py-1.5">
