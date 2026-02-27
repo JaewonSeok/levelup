@@ -34,6 +34,7 @@ export async function GET(req: NextRequest) {
   const pageSize = Math.min(100, Math.max(1, Number(searchParams.get("pageSize") ?? "20")));
 
   const CURRENT_YEAR = getCurrentYear();
+  const MAX_CREDIT_YEAR = 2025; // 학점 표시 최대 연도 (2026년 컬럼 없음)
 
   // ── 필터 조건 구성 ─────────────────────────────────────────
   const conditions: Prisma.UserWhereInput[] = [
@@ -116,10 +117,10 @@ export async function GET(req: NextRequest) {
 
     const creditsByYear = new Map(user.credits.map((c) => [c.year, c]));
 
-    // 연도별 데이터 구성
+    // 연도별 데이터 구성 (최대 MAX_CREDIT_YEAR까지, 2026년 미표시)
     const yearData: Record<number, { score: number | null; isAutoFill: boolean; isRetroactive: boolean }> = {};
 
-    for (let yr = startYear; yr <= CURRENT_YEAR; yr++) {
+    for (let yr = startYear; yr <= Math.min(CURRENT_YEAR, MAX_CREDIT_YEAR); yr++) {
       allYearsSet.add(yr);
       const credit = creditsByYear.get(yr);
 

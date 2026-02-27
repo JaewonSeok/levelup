@@ -90,6 +90,8 @@ interface EmployeeFormData {
   yearsOfService: string;
   levelUpYear: string;
   isActive: boolean;
+  pointScore: string;
+  creditScore: string;
 }
 
 // ─────────────────────────────────────────
@@ -123,6 +125,8 @@ const DEFAULT_FORM: EmployeeFormData = {
   yearsOfService: "",
   levelUpYear: "",
   isActive: true,
+  pointScore: "",
+  creditScore: "",
 };
 
 // ─────────────────────────────────────────
@@ -242,9 +246,10 @@ function EmployeeFormModal({
       toast.error("이름, 본부, 팀은 필수입니다.");
       return;
     }
-    if (mode === "add" && !form.hireDate) {
-      toast.error("입사일자는 필수입니다.");
-      return;
+    if (mode === "add") {
+      if (!form.level) { toast.error("레벨은 필수입니다."); return; }
+      if (!form.hireDate) { toast.error("입사일자는 필수입니다."); return; }
+      if (form.yearsOfService === "") { toast.error("연차는 필수입니다."); return; }
     }
 
     setSaving(true);
@@ -252,8 +257,6 @@ function EmployeeFormModal({
       let payload: Record<string, unknown>;
 
       if (mode === "add") {
-        const hireYear = new Date(form.hireDate).getFullYear();
-        const yearsOfService = new Date().getFullYear() - hireYear;
         payload = {
           name: form.name,
           department: form.department,
@@ -262,8 +265,10 @@ function EmployeeFormModal({
           position: form.position || null,
           employmentType: "REGULAR",
           hireDate: form.hireDate,
-          yearsOfService,
+          yearsOfService: form.yearsOfService !== "" ? Number(form.yearsOfService) : 0,
           isActive: true,
+          pointScore: form.pointScore !== "" ? Number(form.pointScore) : 0,
+          creditScore: form.creditScore !== "" ? Number(form.creditScore) : 0,
         };
       } else {
         payload = {
@@ -341,7 +346,7 @@ function EmployeeFormModal({
                 </Select>
               </div>
               <div>
-                <label className="text-xs text-muted-foreground block mb-1">레벨</label>
+                <label className="text-xs text-muted-foreground block mb-1">레벨 *</label>
                 <Select value={form.level || "__none__"} onValueChange={(v) => set("level", v === "__none__" ? "" : v)}>
                   <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="선택" /></SelectTrigger>
                   <SelectContent>
@@ -352,7 +357,54 @@ function EmployeeFormModal({
               </div>
               <div>
                 <label className="text-xs text-muted-foreground block mb-1">입사일자 *</label>
-                <Input className="h-8" type="date" value={form.hireDate} onChange={(e) => set("hireDate", e.target.value)} />
+                <Input
+                  className="h-8"
+                  type="date"
+                  value={form.hireDate}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    const autoYears = val
+                      ? String(new Date().getFullYear() - new Date(val).getFullYear())
+                      : form.yearsOfService;
+                    setForm((prev) => ({ ...prev, hireDate: val, yearsOfService: autoYears }));
+                  }}
+                />
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground block mb-1">연차 *</label>
+                <Input
+                  className="h-8"
+                  type="number"
+                  min="0"
+                  value={form.yearsOfService}
+                  onChange={(e) => set("yearsOfService", e.target.value)}
+                  placeholder="입사일 입력 시 자동계산"
+                />
+              </div>
+              <div />
+              <div>
+                <label className="text-xs text-muted-foreground block mb-1">포인트</label>
+                <Input
+                  className="h-8"
+                  type="number"
+                  min="0"
+                  step="0.5"
+                  value={form.pointScore}
+                  onChange={(e) => set("pointScore", e.target.value)}
+                  placeholder="0"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground block mb-1">학점</label>
+                <Input
+                  className="h-8"
+                  type="number"
+                  min="0"
+                  step="0.5"
+                  value={form.creditScore}
+                  onChange={(e) => set("creditScore", e.target.value)}
+                  placeholder="0"
+                />
               </div>
             </div>
           ) : (

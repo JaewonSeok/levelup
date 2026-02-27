@@ -361,8 +361,8 @@ export default function CreditsPage() {
   // ── 연도 추가 (admin) ─────────────────────────────────────
   function handleAddYear() {
     const yr = Number(newYear);
-    if (!newYear || isNaN(yr) || yr < 2021 || yr > 2100) {
-      toast.error("2021년 이상의 유효한 연도를 입력하세요.");
+    if (!newYear || isNaN(yr) || yr < 2021 || yr > 2025) {
+      toast.error("2021년 이상 2025년 이하의 유효한 연도를 입력하세요.");
       return;
     }
     if (!editState) return;

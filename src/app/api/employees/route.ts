@@ -173,8 +173,9 @@ export async function GET(req: NextRequest) {
 }
 
 // ── POST /api/employees (SYSTEM_ADMIN only) ──────────────────────
-// Body: { name, email, password?, department, team, level?, position?,
-//         employmentType?, hireDate?, competencyLevel?, yearsOfService?, levelUpYear? }
+// Body: { name, department, team, level?, position?,
+//         employmentType?, hireDate?, competencyLevel?, yearsOfService?, levelUpYear?,
+//         pointScore?, creditScore? }
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session) {
@@ -189,8 +190,6 @@ export async function POST(req: NextRequest) {
 
   let body: {
     name: string;
-    email: string;
-    password?: string;
     department: string;
     team: string;
     level?: string | null;
@@ -200,6 +199,8 @@ export async function POST(req: NextRequest) {
     competencyLevel?: string | null;
     yearsOfService?: number | null;
     levelUpYear?: number | null;
+    pointScore?: number;
+    creditScore?: number;
   };
   try {
     body = await req.json();
@@ -207,58 +208,89 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "요청 파싱 실패" }, { status: 400 });
   }
 
-  if (!body.name || !body.email || !body.department || !body.team) {
+  if (!body.name || !body.department || !body.team) {
     return NextResponse.json(
-      { error: "필수 항목이 없습니다. (이름, 이메일, 본부, 팀)" },
+      { error: "필수 항목이 없습니다. (이름, 본부, 팀)" },
       { status: 400 }
     );
   }
 
-  const existingUser = await prisma.user.findUnique({ where: { email: body.email } });
-  if (existingUser) {
-    return NextResponse.json({ error: "이미 사용 중인 이메일입니다." }, { status: 409 });
-  }
+  // 이메일 자동 생성 (unique 보장)
+  const placeholderEmail = `${body.name.replace(/\s/g, "").toLowerCase()}_${Date.now()}@placeholder.com`;
+  const hashedPassword = await bcrypt.hash("password123", 12);
 
-  const hashedPassword = await bcrypt.hash(body.password || "password123", 12);
+  const POINT_YEAR = new Date().getFullYear();
+  const CREDIT_YEAR = Math.min(POINT_YEAR, 2025);
 
-  const user = await prisma.user.create({
-    data: {
-      name: body.name,
-      email: body.email,
-      password: hashedPassword,
-      department: body.department,
-      team: body.team,
-      level:
-        body.level && Object.values(Level).includes(body.level as Level)
-          ? (body.level as Level)
-          : null,
-      position: body.position ?? null,
-      employmentType:
-        body.employmentType &&
-        Object.values(EmploymentType).includes(body.employmentType as EmploymentType)
-          ? (body.employmentType as EmploymentType)
-          : null,
-      hireDate: body.hireDate ? new Date(body.hireDate) : null,
-      competencyLevel: body.competencyLevel ?? null,
-      yearsOfService: body.yearsOfService ?? null,
-      levelUpYear: body.levelUpYear ?? null,
-    },
-    select: {
-      id: true,
-      name: true,
-      email: true,
-      department: true,
-      team: true,
-      level: true,
-      position: true,
-      employmentType: true,
-      hireDate: true,
-      competencyLevel: true,
-      yearsOfService: true,
-      levelUpYear: true,
-      isActive: true,
-      role: true,
-    },
+  const user = await prisma.$transaction(async (tx) => {
+    const created = await tx.user.create({
+      data: {
+        name: body.name,
+        email: placeholderEmail,
+        password: hashedPassword,
+        department: body.department,
+        team: body.team,
+        level:
+          body.level && Object.values(Level).includes(body.level as Level)
+            ? (body.level as Level)
+            : null,
+        position: body.position ?? null,
+        employmentType:
+          body.employmentType &&
+          Object.values(EmploymentType).includes(body.employmentType as EmploymentType)
+            ? (body.employmentType as EmploymentType)
+            : null,
+        hireDate: body.hireDate ? new Date(body.hireDate) : null,
+        competencyLevel: body.competencyLevel ?? null,
+        yearsOfService: body.yearsOfService ?? null,
+        levelUpYear: body.levelUpYear ?? null,
+      },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        department: true,
+        team: true,
+        level: true,
+        position: true,
+        employmentType: true,
+        hireDate: true,
+        competencyLevel: true,
+        yearsOfService: true,
+        levelUpYear: true,
+        isActive: true,
+        role: true,
+      },
+    });
+
+    const pointScore = body.pointScore ?? 0;
+    const creditScore = body.creditScore ?? 0;
+
+    // Point 레코드 생성 (포인트 관리에 표시용)
+    await tx.point.create({
+      data: {
+        userId: created.id,
+        year: POINT_YEAR,
+        score: pointScore,
+        merit: 0,
+        penalty: 0,
+        cumulative: pointScore,
+        isMet: false,
+      },
+    });
+
+    // Credit 레코드 생성 (학점 관리에 표시용, 최대 2025년)
+    await tx.credit.create({
+      data: {
+        userId: created.id,
+        year: CREDIT_YEAR,
+        score: creditScore,
+        cumulative: creditScore,
+        isMet: false,
+      },
+    });
+
+    return created;
   });
 
   return NextResponse.json({ success: true, employee: user }, { status: 201 });
