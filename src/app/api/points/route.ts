@@ -273,6 +273,7 @@ export async function POST(req: NextRequest) {
   let body: {
     userId: string;
     yearScores: { year: number; score: number }[];
+    yearGrades?: { year: number; grade: string }[];
     totalMerit: number;
     totalPenalty: number;
   };
@@ -282,7 +283,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "요청 파싱 실패" }, { status: 400 });
   }
 
-  const { userId, yearScores, totalMerit = 0, totalPenalty = 0 } = body;
+  const { userId, yearScores, yearGrades, totalMerit = 0, totalPenalty = 0 } = body;
 
   if (!userId || !Array.isArray(yearScores)) {
     return NextResponse.json({ error: "필수 값이 없습니다." }, { status: 400 });
@@ -351,6 +352,18 @@ export async function POST(req: NextRequest) {
             isMet,
           },
         });
+      }
+
+      // 평가등급 저장 (선택적)
+      if (yearGrades && yearGrades.length > 0) {
+        for (const { year, grade } of yearGrades) {
+          if (!grade) continue;
+          await tx.performanceGrade.upsert({
+            where: { userId_year: { userId, year } },
+            create: { userId, year, grade },
+            update: { grade },
+          });
+        }
       }
     });
   } catch (e) {

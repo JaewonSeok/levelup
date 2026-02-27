@@ -34,7 +34,7 @@ import {
   type AdvancedSearchState,
 } from "@/components/management/SearchAreas";
 import { Pagination } from "@/components/management/Pagination";
-import { Trash2 } from "lucide-react";
+
 import { toast } from "sonner";
 
 // ─────────────────────────────────────────
@@ -129,7 +129,7 @@ interface PointsResponse {
 
 interface EditState {
   employee: EmployeePoint;
-  yearScores: Record<number, string>;
+  yearGrades: Record<number, string>; // year → grade letter ("S","A",...) or "" for none
   totalMerit: string;
   totalPenalty: string;
 }
@@ -217,6 +217,7 @@ function buildQuery(
 export default function PointsPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const isAdmin = session?.user?.role === "SYSTEM_ADMIN";
 
   // ── 권한 체크 ────────────────────────────────────────────
@@ -239,6 +240,7 @@ export default function PointsPage() {
 
   // ── 결과 ─────────────────────────────────────────────────
   const [employees, setEmployees] = useState<EmployeePoint[]>([]);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [yearColumns, setYearColumns] = useState<number[]>([]);
   const [currentYear, setCurrentYear] = useState<number>(new Date().getFullYear());
   const [total, setTotal] = useState(0);
@@ -346,11 +348,6 @@ export default function PointsPage() {
     }
   }
 
-  // ── 연도 추가 (admin) ─────────────────────────────────────
-  const [newYear, setNewYear] = useState<string>("");
-  const [newYearScore, setNewYearScore] = useState<string>("");
-  const [deletingYear, setDeletingYear] = useState<number | null>(null);
-
   // ── 직원 추가 모달 ────────────────────────────────────────
   const DEFAULT_ADD_FORM: AddEmployeeForm = {
     name: "", department: "", team: "", level: "", yearsOfService: "",
@@ -453,101 +450,43 @@ export default function PointsPage() {
 
   // ── 편집 모달 열기 ────────────────────────────────────────
   function openEdit(emp: EmployeePoint) {
-    const yearScores: Record<number, string> = {};
-    // 2026 이후 연도 제외 (2021~2025만 표시)
-    for (const yr of yearColumns.filter((y) => y <= 2025)) {
-      const d = emp.yearData[yr];
-      const grade = yr >= 2021 && yr <= 2025 ? (emp.grades?.[yr as keyof GradeMap] ?? null) : null;
-
-      // 등급 기반 자동계산 (GradeCriteria 있고 해당 연도에 등급이 있을 때)
-      if (grade && gradeCriteria.length > 0) {
-        const yearRange = yr <= 2024 ? "2022-2024" : "2025";
-        const crit = gradeCriteria.find((c) => c.grade === grade && c.yearRange === yearRange);
-        if (crit) {
-          yearScores[yr] = String(crit.points);
-          continue;
-        }
-      }
-
-      // 기존 포인트 값 사용
-      if (d) {
-        yearScores[yr] = d.score !== null ? String(d.score) : d.isAutoFill ? "2" : "";
-      } else {
-        yearScores[yr] = "";
-      }
+    const yearGrades: Record<number, string> = {};
+    for (const yr of GRADE_YEARS) {
+      yearGrades[yr] = emp.grades?.[yr as keyof GradeMap] ?? "";
     }
     setEditState({
       employee: emp,
-      yearScores,
+      yearGrades,
       totalMerit: String(emp.totalMerit),
       totalPenalty: String(emp.totalPenalty),
     });
     setSaveError(null);
   }
 
+  // ── 등급→포인트 변환 ─────────────────────────────────────
+  function getPointsForGrade(grade: string, yr: number): number {
+    if (!grade) return 0;
+    const yearRange = yr <= 2024 ? "2022-2024" : "2025";
+    const crit = gradeCriteria.find((c) => c.grade === grade && c.yearRange === yearRange);
+    return crit ? crit.points : 0;
+  }
+
   // ── 편집 계산 ─────────────────────────────────────────────
   const editCalc = useMemo(() => {
     if (!editState) return { scoreSum: 0, cumulative: 0 };
-    const scoreSum = Object.entries(editState.yearScores)
-      .filter(([yr]) => Number(yr) >= editState.employee.startYear)
-      .reduce((s, [, v]) => s + numVal(v), 0);
+    const scoreSum = GRADE_YEARS
+      .filter((yr) => yr >= editState.employee.startYear)
+      .reduce((s, yr) => {
+        const grade = editState.yearGrades[yr] ?? "";
+        if (!grade) return s;
+        const yearRange = yr <= 2024 ? "2022-2024" : "2025";
+        const crit = gradeCriteria.find((c) => c.grade === grade && c.yearRange === yearRange);
+        return s + (crit ? crit.points : 0);
+      }, 0);
     const cumulative =
       scoreSum + numVal(editState.totalMerit) - numVal(editState.totalPenalty);
     return { scoreSum, cumulative };
-  }, [editState]);
-
-  // ── 연도 삭제 (admin) ─────────────────────────────────────
-  async function handleDeleteYear(yr: number) {
-    if (!editState) return;
-    setDeletingYear(yr);
-    try {
-      const res = await fetch(
-        `/api/points?userId=${editState.employee.id}&year=${yr}`,
-        { method: "DELETE" }
-      );
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "삭제 실패");
-      toast.success(`${yr}년 포인트 데이터가 삭제되었습니다.`);
-      // 로컬 상태에서 해당 연도 제거
-      setEditState((prev) => {
-        if (!prev) return null;
-        const newYearScores = { ...prev.yearScores };
-        delete newYearScores[yr];
-        return { ...prev, yearScores: newYearScores };
-      });
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "삭제 중 오류가 발생했습니다.");
-    } finally {
-      setDeletingYear(null);
-    }
-  }
-
-  // ── 연도 추가 (admin) ─────────────────────────────────────
-  function handleAddYear() {
-    const yr = Number(newYear);
-    if (!newYear || isNaN(yr) || yr < 2021 || yr > 2025) {
-      toast.error("2021년 이상 2025년 이하의 유효한 연도를 입력하세요.");
-      return;
-    }
-    if (!editState) return;
-    if (editState.yearScores[yr] !== undefined) {
-      toast.error("이미 존재하는 연도입니다.");
-      return;
-    }
-    setEditState((prev) =>
-      prev
-        ? {
-            ...prev,
-            yearScores: {
-              ...prev.yearScores,
-              [yr]: newYearScore !== "" ? newYearScore : "0",
-            },
-          }
-        : null
-    );
-    setNewYear("");
-    setNewYearScore("");
-  }
+  }, [editState, gradeCriteria]);
 
   // ── 저장 ─────────────────────────────────────────────────
   async function handleSave() {
@@ -557,16 +496,20 @@ export default function PointsPage() {
 
     const emp = editState.employee;
     const yearScores: { year: number; score: number }[] = [];
-    for (const [yrStr, val] of Object.entries(editState.yearScores)) {
-      const yr = Number(yrStr);
-      // SYSTEM_ADMIN can save years outside the normal range
-      if (!isAdmin && yr < emp.startYear) continue;
-      if (val !== "") yearScores.push({ year: yr, score: numVal(val) });
+    const yearGradesPayload: { year: number; grade: string }[] = [];
+
+    for (const yr of GRADE_YEARS) {
+      if (yr < emp.startYear) continue;
+      const grade = editState.yearGrades[yr] ?? "";
+      const score = getPointsForGrade(grade, yr);
+      yearScores.push({ year: yr, score });
+      if (grade) yearGradesPayload.push({ year: yr, grade });
     }
 
     const payload = {
       userId: emp.id,
       yearScores,
+      yearGrades: yearGradesPayload,
       totalMerit: numVal(editState.totalMerit),
       totalPenalty: numVal(editState.totalPenalty),
     };
@@ -590,9 +533,14 @@ export default function PointsPage() {
           for (const ys of yearScores) {
             newYearData[ys.year] = { score: ys.score, isAutoFill: false };
           }
+          const newGrades = { ...e.grades };
+          for (const { year, grade } of yearGradesPayload) {
+            newGrades[year as keyof GradeMap] = grade;
+          }
           return {
             ...e,
             yearData: newYearData,
+            grades: newGrades,
             totalMerit: result.totalMerit,
             totalPenalty: result.totalPenalty,
             cumulative: result.cumulative,
@@ -815,106 +763,80 @@ export default function PointsPage() {
               <Separator />
 
               <div>
-                <h3 className="text-sm font-semibold mb-3">연도별 포인트</h3>
-                <div className="grid grid-cols-3 gap-3">
-                  {Object.keys(editState.yearScores)
-                    .map(Number)
-                    .sort((a, b) => a - b)
-                    .filter((yr) => yr >= editState.employee.startYear || yearColumns.includes(yr))
-                    .map((yr) => {
-                      const d = editState.employee.yearData[yr];
-                      const isAutoFill = d?.isAutoFill ?? false;
-                      const isCurrent = yr === currentYear;
-                      const grade =
-                        yr >= 2021 && yr <= 2025
-                          ? (editState.employee.grades?.[yr as keyof GradeMap] ?? null)
-                          : null;
-                      const yearRange = yr <= 2024 ? "2022-2024" : "2025";
-                      const gradeCrit = grade
-                        ? gradeCriteria.find(
-                            (c) => c.grade === grade && c.yearRange === yearRange
-                          )
-                        : null;
+                <h3 className="text-sm font-semibold mb-3">연도별 평가등급</h3>
+                <div className="border rounded overflow-hidden">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="bg-muted/40 text-xs text-muted-foreground">
+                        <th className="text-left px-3 py-1.5 w-20">연도</th>
+                        <th className="text-left px-3 py-1.5">평가등급</th>
+                        <th className="text-right px-3 py-1.5 w-24">포인트</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {GRADE_YEARS.map((yr) => {
+                        const isDisabled = yr < editState.employee.startYear;
+                        const grade = editState.yearGrades[yr] ?? "";
+                        const points = getPointsForGrade(grade, yr);
+                        const gradeOptions =
+                          yr <= 2024 ? GRADES_2022_2024 : GRADES_2025;
 
-                      return (
-                        <div key={yr}>
-                          <label className="text-xs text-muted-foreground flex items-center gap-1 mb-1 flex-wrap">
-                            {yr}년
-                            {grade && <GradeBadge grade={grade} />}
-                            {gradeCrit && (
-                              <span className="text-[10px] bg-indigo-50 text-indigo-600 px-1 rounded">
-                                자동{gradeCrit.points}pt
-                              </span>
-                            )}
-                            {isAutoFill && (
-                              <span className="text-[10px] bg-amber-100 text-amber-700 px-1 rounded">
-                                자동부여
-                              </span>
-                            )}
-                            {isCurrent && (
-                              <span className="text-[10px] bg-blue-100 text-blue-700 px-1 rounded">
-                                현재
-                              </span>
-                            )}
-                            {isAdmin && (
-                              <button
-                                type="button"
-                                className="ml-auto text-red-500 hover:text-red-700 disabled:opacity-40"
-                                title="해당 연도 삭제"
-                                disabled={deletingYear === yr}
-                                onClick={() => handleDeleteYear(yr)}
-                              >
-                                <Trash2 className="w-3 h-3" />
-                              </button>
-                            )}
-                          </label>
-                          <Input
-                            type="number"
-                            step="0.5"
-                            min="0"
-                            className="h-8 text-sm"
-                            value={editState.yearScores[yr] ?? ""}
-                            onChange={(e) =>
-                              setEditState((prev) =>
-                                prev
-                                  ? { ...prev, yearScores: { ...prev.yearScores, [yr]: e.target.value } }
-                                  : null
-                              )
-                            }
-                            placeholder="-"
-                          />
-                        </div>
-                      );
-                    })}
+                        return (
+                          <tr key={yr} className="border-t">
+                            <td className="px-3 py-2 text-muted-foreground text-xs">
+                              {yr}년
+                            </td>
+                            <td className="px-3 py-2">
+                              {isDisabled ? (
+                                <span className="text-xs text-muted-foreground">-</span>
+                              ) : (
+                                <Select
+                                  value={grade || "none"}
+                                  onValueChange={(v) =>
+                                    setEditState((prev) =>
+                                      prev
+                                        ? {
+                                            ...prev,
+                                            yearGrades: {
+                                              ...prev.yearGrades,
+                                              [yr]: v === "none" ? "" : v,
+                                            },
+                                          }
+                                        : null
+                                    )
+                                  }
+                                >
+                                  <SelectTrigger className="h-7 w-32 text-xs">
+                                    <SelectValue placeholder="- (없음)" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="none">- (없음)</SelectItem>
+                                    {gradeOptions.map((g) => (
+                                      <SelectItem key={g} value={g}>
+                                        {g}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              )}
+                            </td>
+                            <td className="px-3 py-2 text-right">
+                              {isDisabled ? (
+                                <span className="text-xs text-muted-foreground">-</span>
+                              ) : grade ? (
+                                <span className="text-sm font-medium">
+                                  {points.toFixed(1)}점
+                                </span>
+                              ) : (
+                                <span className="text-xs text-muted-foreground">-</span>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
                 </div>
-
-                {/* 연도 추가 (admin) */}
-                {isAdmin && (
-                  <div className="mt-3 border-t pt-3">
-                    <p className="text-xs text-muted-foreground mb-2">연도 추가</p>
-                    <div className="flex gap-2 items-center">
-                      <Input
-                        type="number"
-                        className="h-7 w-24 text-xs"
-                        placeholder="연도"
-                        value={newYear}
-                        onChange={(e) => setNewYear(e.target.value)}
-                      />
-                      <Input
-                        type="number"
-                        step="0.5"
-                        min="0"
-                        className="h-7 w-20 text-xs"
-                        placeholder="점수"
-                        value={newYearScore}
-                        onChange={(e) => setNewYearScore(e.target.value)}
-                      />
-                      <Button size="sm" className="h-7 text-xs px-2" onClick={handleAddYear}>
-                        추가
-                      </Button>
-                    </div>
-                  </div>
-                )}
               </div>
 
               <Separator />
@@ -964,9 +886,9 @@ export default function PointsPage() {
                 <span className="font-bold text-lg">{editCalc.cumulative.toFixed(1)}</span>
               </div>
 
-              {Object.values(editState.employee.yearData).some((d) => d.isAutoFill) && (
-                <div className="text-xs text-amber-700 bg-amber-50 rounded p-2 border border-amber-200">
-                  * 자동부여(G기준 2점) 항목은 신규입사자의 입사 전 레벨 체류 연도입니다.
+              {editState.employee.startYear > 2021 && (
+                <div className="text-xs text-muted-foreground bg-muted/30 rounded p-2 border">
+                  * 입사 전 연도({editState.employee.startYear - 1}년 이전)는 편집 불가합니다.
                 </div>
               )}
 
