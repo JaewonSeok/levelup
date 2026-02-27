@@ -7,7 +7,8 @@ export function generateUploadTemplate(): Buffer {
   const wb = XLSX.utils.book_new();
 
   // ── 직원정보 시트 ──────────────────────────
-  const gradeYears = [2022, 2023, 2024, 2025];
+  // 헤더 순서: 본부, 팀, 이름, 직책, 레벨, 입사일자, 연차, 2021~2025평가등급, 학점
+  const gradeYears = [2021, 2022, 2023, 2024, 2025];
 
   const headers = [
     "본부",
@@ -17,9 +18,8 @@ export function generateUploadTemplate(): Buffer {
     "레벨",
     "입사일자",
     "연차",
-    "포인트",
-    "학점",
     ...gradeYears.map((y) => `${y}평가등급`),
+    "학점",
   ];
 
   const example1 = [
@@ -30,9 +30,12 @@ export function generateUploadTemplate(): Buffer {
     "L3",
     "2022-03-01",
     5,
-    12.5,
-    8.0,
-    "A", "B", "S", "A",
+    "",   // 2021평가등급 (입사 전이므로 공백)
+    "A",  // 2022평가등급
+    "B",  // 2023평가등급
+    "S",  // 2024평가등급
+    "E",  // 2025평가등급
+    8.0,  // 학점
   ];
   const example2 = [
     "기술지원본부",
@@ -42,9 +45,12 @@ export function generateUploadTemplate(): Buffer {
     "L4",
     "2021-08-15",
     7,
-    20.0,
-    15.0,
-    "S", "A", "S", "A",
+    "A",  // 2021평가등급
+    "S",  // 2022평가등급
+    "A",  // 2023평가등급
+    "S",  // 2024평가등급
+    "O",  // 2025평가등급
+    15.0, // 학점
   ];
 
   const ws = XLSX.utils.aoa_to_sheet([headers, example1, example2]);
@@ -58,9 +64,8 @@ export function generateUploadTemplate(): Buffer {
     { wch: 8 },  // 레벨
     { wch: 14 }, // 입사일자
     { wch: 6 },  // 연차
-    { wch: 8 },  // 포인트
-    { wch: 8 },  // 학점
     ...gradeYears.map(() => ({ wch: 12 })), // 20xx평가등급
+    { wch: 8 },  // 학점
   ];
 
   XLSX.utils.book_append_sheet(wb, ws, "직원정보");
@@ -75,26 +80,26 @@ export function generateUploadTemplate(): Buffer {
     ["레벨", "필수", "L1 / L2 / L3 / L4 / L5", "L3"],
     ["입사일자", "필수", "YYYY-MM-DD (예: 2022-03-01)", "2022-03-01"],
     ["연차", "필수", "현재 레벨 체류 연수 (0 이상 정수)", "5"],
-    ["포인트", "선택", "해당 연도 포인트 점수 (소수 가능)", "12.5"],
-    ["학점", "선택", "해당 연도 학점 점수 (소수 가능)", "8.0"],
     ...gradeYears.map((y) => [
       `${y}평가등급`,
       "선택",
-      y <= 2024 ? "S / A / B / C" : "S / O / E / G / N / U",
+      y <= 2024 ? "S / A / B / C (입사 전 연도는 공백)" : "S / O / E / G / N / U",
       y <= 2024 ? "A" : "O",
     ]),
+    ["학점", "선택", "해당 연도까지 누적 학점 점수 (소수 가능)", "8.0"],
     [],
     ["※ 주의사항"],
     ["- 다중 시트 지원: 시트별로 본부/팀 구분 가능"],
     ["- 빈 행은 자동으로 건너뜁니다"],
     ["- 중복 사원(이름+입사일 동일)은 업로드 시 업데이트 또는 스킵 선택 가능"],
+    ["- 입사 전 연도의 평가등급은 공백으로 두세요 (자동 무시)"],
   ];
 
   const wsGuide = XLSX.utils.aoa_to_sheet(guide);
   wsGuide["!cols"] = [
     { wch: 12 },
     { wch: 8 },
-    { wch: 36 },
+    { wch: 40 },
     { wch: 14 },
   ];
 
