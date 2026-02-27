@@ -151,11 +151,14 @@ export async function GET(req: NextRequest) {
       const pointMet = criteria != null ? pointCumulative >= criteria.requiredPoints : false;
       const creditMet = criteria != null ? creditCumulative >= criteria.requiredCredits : false;
 
-      // 체류 연수 계산 (levelStartDate → hireDate → yearsOfService 순)
-      const levelStart = user.levelStartDate ?? user.hireDate;
-      const tenure = levelStart
-        ? currentYear - new Date(levelStart).getFullYear()
-        : (user.yearsOfService ?? 0);
+      // 체류 연수 계산 (yearsOfService 우선 사용 — 날짜 연도 빼기는 월 미반영으로 부정확)
+      const tenure = user.levelStartDate
+        ? currentYear - new Date(user.levelStartDate).getFullYear()
+        : user.yearsOfService != null
+          ? user.yearsOfService
+          : user.hireDate
+            ? currentYear - new Date(user.hireDate).getFullYear()
+            : 0;
       const tenureMet = criteria != null ? tenure >= criteria.minTenure : true;
       const promotionType = (pointMet && creditMet && !tenureMet) ? "special" : "normal";
 

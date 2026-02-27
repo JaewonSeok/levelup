@@ -74,11 +74,14 @@ export async function autoSelectCandidates(
     // 둘 다 충족해야 대상자 (일반 또는 특진)
     if (!pointMet || !creditMet) continue;
 
-    // 5. 체류 연수 계산
-    const levelStart = user.levelStartDate ?? user.hireDate;
-    const tenure = levelStart
-      ? currentYear - new Date(levelStart).getFullYear()
-      : (user.yearsOfService ?? 0);
+    // 5. 체류 연수 계산 (yearsOfService 우선 사용 — 날짜 연도 빼기는 월 미반영으로 부정확)
+    const tenure = user.levelStartDate
+      ? currentYear - new Date(user.levelStartDate).getFullYear()
+      : user.yearsOfService != null
+        ? user.yearsOfService
+        : user.hireDate
+          ? currentYear - new Date(user.hireDate).getFullYear()
+          : 0;
     const tenureMet = tenure >= criteria.minTenure;
 
     // 6. 승진 유형 결정

@@ -325,21 +325,32 @@ export default function CreditsPage() {
   // ── 연도 삭제 (admin) ─────────────────────────────────────
   async function handleDeleteYear(yr: number) {
     if (!editState) return;
+    const employeeId = editState.employee.id;
     setDeletingYear(yr);
     try {
       const res = await fetch(
-        `/api/credits?userId=${editState.employee.id}&year=${yr}`,
+        `/api/credits?userId=${employeeId}&year=${yr}`,
         { method: "DELETE" }
       );
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "삭제 실패");
       toast.success(`${yr}년 학점 데이터가 삭제되었습니다.`);
+      // 모달 편집 상태에서 연도 제거
       setEditState((prev) => {
         if (!prev) return null;
         const newYearScores = { ...prev.yearScores };
         delete newYearScores[yr];
         return { ...prev, yearScores: newYearScores };
       });
+      // 메인 테이블에도 즉시 반영
+      setEmployees((prev) =>
+        prev.map((e) => {
+          if (e.id !== employeeId) return e;
+          const newYearData = { ...e.yearData };
+          delete newYearData[yr];
+          return { ...e, yearData: newYearData };
+        })
+      );
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "삭제 중 오류가 발생했습니다.");
     } finally {
@@ -399,29 +410,8 @@ export default function CreditsPage() {
         const body = await res.json();
         throw new Error(body.error ?? "저장 실패");
       }
-      const result = await res.json();
-
-      // 테이블 낙관적 업데이트
-      setEmployees((prev) =>
-        prev.map((e) => {
-          if (e.id !== emp.id) return e;
-          const newYearData = { ...e.yearData };
-          for (const ys of yearScores) {
-            newYearData[ys.year] = {
-              score: ys.score,
-              isAutoFill: false,
-              isRetroactive: ys.year < 2025,
-            };
-          }
-          return {
-            ...e,
-            yearData: newYearData,
-            cumulative: result.cumulative,
-            isMet: result.isMet,
-          };
-        })
-      );
       setEditState(null);
+      fetchCredits(lastParams, page);
     } catch (e) {
       setSaveError(e instanceof Error ? e.message : "저장 중 오류가 발생했습니다.");
     } finally {
