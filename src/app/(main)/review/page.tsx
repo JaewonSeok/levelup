@@ -194,15 +194,18 @@ export default function ReviewPage() {
   const isDeptHead = currentUser?.role === "DEPT_HEAD";
   const isAdmin = currentUser?.role === "SYSTEM_ADMIN";
 
-  // 타본부소속 + 본부장: L4, L5만 표시 (API 필터 + 프론트 이중 보장)
-  const displayCandidates =
-    isDeptHead && query.targetType === "other"
-      ? candidates.filter((c) => c.level === "L4" || c.level === "L5")
-      : candidates;
-  const displayTotal =
-    isDeptHead && query.targetType === "other"
-      ? displayCandidates.length
-      : total;
+  // 본부장: 전체/타본부소속 필터 (API 필터 + 프론트 이중 보장)
+  const currentDeptName = currentUser?.department ?? "";
+  const displayCandidates = isDeptHead
+    ? candidates.filter((c) => {
+        if (query.targetType === "other")
+          return c.department !== currentDeptName && (c.level === "L4" || c.level === "L5");
+        if (query.targetType === "all")
+          return c.department === currentDeptName || c.level === "L4" || c.level === "L5";
+        return true; // "own": API가 이미 소속 본부만 필터링
+      })
+    : candidates;
+  const displayTotal = isDeptHead ? displayCandidates.length : total;
 
   // 의견 저장 성공 콜백 — 서버가 확정한 값 + Review 업데이트 여부 수신
   const handleOpinionSaved = (
