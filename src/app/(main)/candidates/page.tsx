@@ -163,9 +163,8 @@ export default function CandidatesPage() {
   const [deleteTarget, setDeleteTarget] = useState<{ candidateId: string; name: string } | null>(null);
   const [deleting, setDeleting] = useState(false);
 
-  // Admin: auto-select
-  const [autoSelectConfirmOpen, setAutoSelectConfirmOpen] = useState(false);
-  const [autoSelecting, setAutoSelecting] = useState(false);
+  // Admin: refresh
+  const handleRefresh = () => setQuery((q) => ({ ...q }));
 
   // ── Fetch ──────────────────────────────────────────────────
 
@@ -289,26 +288,6 @@ export default function CandidatesPage() {
     }
   };
 
-  const handleAutoSelect = async () => {
-    setAutoSelecting(true);
-    try {
-      const res = await fetch("/api/candidates/auto-select", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ year: query.year }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "자동 선정 실패");
-      toast.success(`${data.added}명의 대상자가 자동 선정되었습니다. (총 충족 ${data.total}명)`);
-      setAutoSelectConfirmOpen(false);
-      setQuery((q) => ({ ...q }));
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "자동 선정 중 오류가 발생했습니다.");
-    } finally {
-      setAutoSelecting(false);
-    }
-  };
-
   const formatDate = (iso: string | null) => {
     if (!iso) return "-";
     return iso.slice(0, 10);
@@ -324,10 +303,11 @@ export default function CandidatesPage() {
           <div className="flex items-center gap-2">
             <Button
               size="sm"
-              className="bg-green-600 hover:bg-green-700 text-white"
-              onClick={() => setAutoSelectConfirmOpen(true)}
+              variant="outline"
+              onClick={handleRefresh}
+              disabled={loading}
             >
-              자동 선정
+              목록 갱신
             </Button>
             <Button size="sm" onClick={() => setAddModalOpen(true)}>
               + 대상자 추가
@@ -748,33 +728,6 @@ export default function CandidatesPage() {
             <Button variant="outline" onClick={() => setAddModalOpen(false)} disabled={addSubmitting}>취소</Button>
             <Button onClick={handleAddCandidate} disabled={addSubmitting}>
               {addSubmitting ? "추가 중..." : "추가"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* ── 자동 선정 확인 다이얼로그 (admin) ────────────────── */}
-      <Dialog open={autoSelectConfirmOpen} onOpenChange={(o) => !o && setAutoSelectConfirmOpen(false)}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle>대상자 자동 선정</DialogTitle>
-            <DialogDescription>
-              {query.year}년 기준 설정을 기반으로 포인트 또는 학점을 충족한 직원을
-              대상자로 자동 선정합니다.
-              <br />
-              기존 대상자는 덮어쓰지 않습니다.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setAutoSelectConfirmOpen(false)} disabled={autoSelecting}>
-              취소
-            </Button>
-            <Button
-              className="bg-green-600 hover:bg-green-700"
-              onClick={handleAutoSelect}
-              disabled={autoSelecting}
-            >
-              {autoSelecting ? "선정 중..." : "자동 선정 실행"}
             </Button>
           </DialogFooter>
         </DialogContent>
