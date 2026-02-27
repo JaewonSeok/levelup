@@ -13,8 +13,12 @@ const GRADE_YEARS = [2021, 2022, 2023, 2024, 2025];
 export async function autoSelectCandidates(
   year: number
 ): Promise<{ added: number; total: number }> {
-  // 1. LevelCriteria 로드
-  const criteriaList = await prisma.levelCriteria.findMany({ where: { year } });
+  // 1. LevelCriteria 로드 — 요청 연도 없으면 최신 연도 폴백
+  let criteriaList = await prisma.levelCriteria.findMany({ where: { year } });
+  if (criteriaList.length === 0) {
+    const latest = await prisma.levelCriteria.findFirst({ orderBy: { year: "desc" }, select: { year: true } });
+    if (latest) criteriaList = await prisma.levelCriteria.findMany({ where: { year: latest.year } });
+  }
   if (criteriaList.length === 0) return { added: 0, total: 0 };
   const criteriaMap = new Map(criteriaList.map((c) => [c.level, c]));
 
@@ -22,18 +26,20 @@ export async function autoSelectCandidates(
 
   // 2. GradeCriteria 로드 (등급→포인트 변환)
   const allGradeCriteria = await prisma.gradeCriteria.findMany();
-  const gradePointsMap = new Map<string, number>();
-  for (const gc of allGradeCriteria) {
-    gradePointsMap.set(`${gc.grade}:${gc.yearRange}`, gc.points);
-  }
-
-  function getYearRange(yr: number): string {
-    return yr <= 2024 ? "2021-2024" : "2025";
-  }
-
   function gradeToPoints(grade: string, yr: number): number {
     if (!grade) return 0;
-    return gradePointsMap.get(`${grade}:${getYearRange(yr)}`) ?? 0;
+    for (const gc of allGradeCriteria) {
+      if (gc.grade !== grade) continue;
+      const range = gc.yearRange;
+      if (range === String(yr)) return gc.points;
+      const parts = range.split("-");
+      if (parts.length === 2) {
+        const from = Number(parts[0]);
+        const to = Number(parts[1]);
+        if (!isNaN(from) && !isNaN(to) && yr >= from && yr <= to) return gc.points;
+      }
+    }
+    return 0;
   }
 
   // 3. 활성 비-DEPT_HEAD 직원 조회 (grades + credits 포함)

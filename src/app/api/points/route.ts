@@ -127,9 +127,10 @@ export async function GET(req: NextRequest) {
       select: { userId: true, cumulative: true },
     }),
     prisma.gradeCriteria.findMany(),
+    // year 필터 없이 전체 로드 후 최신 연도 기준 사용 (2025 저장 데이터도 2026에서 활용)
     prisma.levelCriteria.findMany({
-      where: { year: CURRENT_YEAR },
-      select: { level: true, minTenure: true, requiredPoints: true },
+      select: { level: true, minTenure: true, requiredPoints: true, year: true },
+      orderBy: { year: "desc" },
     }),
   ]);
 
@@ -140,12 +141,30 @@ export async function GET(req: NextRequest) {
   }
   const creditMap = new Map(latestCredits.map((c) => [c.userId, c.cumulative]));
 
-  // 등급 → 포인트 변환 맵 (실시간 계산용)
-  const gradePointsMap = new Map<string, number>();
-  for (const gc of gradeCriteriaAll) {
-    gradePointsMap.set(`${gc.grade}:${gc.yearRange}`, gc.points);
+  // 등급→포인트: yearRange 문자열 형식(예: "2021-2024","2022-2024","2025")에 무관하게 연도 포함 여부로 판정
+  function findGradePoints(grade: string, year: number): number {
+    if (!grade) return 0;
+    for (const gc of gradeCriteriaAll) {
+      if (gc.grade !== grade) continue;
+      const range = gc.yearRange;
+      if (range === String(year)) return gc.points;
+      const parts = range.split("-");
+      if (parts.length === 2) {
+        const from = Number(parts[0]);
+        const to = Number(parts[1]);
+        if (!isNaN(from) && !isNaN(to) && year >= from && year <= to) return gc.points;
+      }
+    }
+    return 0;
   }
-  const lcMap = new Map(levelCriteriaAll.map((c) => [c.level as string, c]));
+
+  // LevelCriteria: level별 최신 연도 기준 사용
+  const lcMap = new Map<string, { minTenure: number | null; requiredPoints: number | null }>();
+  for (const c of levelCriteriaAll) {
+    if (!lcMap.has(c.level as string)) {
+      lcMap.set(c.level as string, { minTenure: c.minTenure, requiredPoints: c.requiredPoints });
+    }
+  }
   const MAX_DATA_YEAR = 2025;
 
   // 가감점 일괄 조회
@@ -218,9 +237,7 @@ export async function GET(req: NextRequest) {
         const yr = MAX_DATA_YEAR - i;
         if (yr < 2021) break;
         const grade = userGrades[yr] ?? "";
-        if (!grade) continue;
-        const yearRange = yr <= 2024 ? "2021-2024" : "2025";
-        windowSum += gradePointsMap.get(`${grade}:${yearRange}`) ?? 0;
+        windowSum += findGradePoints(grade, yr);
       }
       cumulative = windowSum + totalMerit - totalPenalty;
     } else {
@@ -413,22 +430,81 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: `저장 실패: ${msg}` }, { status: 500 });
   }
 
-  // 저장 후 최신 데이터 반환
-  const updatedPoints = await prisma.point.findMany({
-    where: { userId },
-    orderBy: { year: "asc" },
-  });
+  // 저장 후 window 합산 cumulative 재계산 (GET과 동일 로직)
+  const [savedGrades, savedGradeCriteria, savedLevelCriteria, bpSum] = await Promise.all([
+    prisma.performanceGrade.findMany({
+      where: { userId, year: { in: [2021, 2022, 2023, 2024, 2025] } },
+      select: { year: true, grade: true },
+    }),
+    prisma.gradeCriteria.findMany(),
+    prisma.levelCriteria.findMany({
+      select: { level: true, minTenure: true, requiredPoints: true, year: true },
+      orderBy: { year: "desc" },
+    }),
+    prisma.bonusPenalty.findMany({
+      where: { userId },
+      select: { points: true },
+    }),
+  ]);
 
-  const latestPoint = updatedPoints[updatedPoints.length - 1];
+  function findGradePointsPost(grade: string, yr: number): number {
+    if (!grade) return 0;
+    for (const gc of savedGradeCriteria) {
+      if (gc.grade !== grade) continue;
+      const range = gc.yearRange;
+      if (range === String(yr)) return gc.points;
+      const parts = range.split("-");
+      if (parts.length === 2) {
+        const from = Number(parts[0]);
+        const to = Number(parts[1]);
+        if (!isNaN(from) && !isNaN(to) && yr >= from && yr <= to) return gc.points;
+      }
+    }
+    return 0;
+  }
+
+  const savedLcMap = new Map<string, { minTenure: number | null; requiredPoints: number | null }>();
+  for (const c of savedLevelCriteria) {
+    if (!savedLcMap.has(c.level as string)) {
+      savedLcMap.set(c.level as string, { minTenure: c.minTenure, requiredPoints: c.requiredPoints });
+    }
+  }
+
+  const savedUserLc = user.level ? savedLcMap.get(user.level as string) : null;
+  const savedYearsOfService = (await prisma.user.findUnique({ where: { id: userId }, select: { yearsOfService: true } }))?.yearsOfService ?? 0;
+  const savedMinTenure = savedUserLc?.minTenure ?? 0;
+  const savedGradeMap = new Map(savedGrades.map((g) => [g.year, g.grade]));
+  const savedGradeCount = savedGrades.filter((g) => !!g.grade).length;
+  const savedTenureRange =
+    savedMinTenure > 0 && savedYearsOfService > 0
+      ? Math.min(savedYearsOfService, savedMinTenure)
+      : savedYearsOfService > 0
+        ? savedYearsOfService
+        : savedGradeCount;
+
+  let savedWindowSum = 0;
+  for (let i = 0; i < savedTenureRange; i++) {
+    const yr = 2025 - i;
+    if (yr < 2021) break;
+    savedWindowSum += findGradePointsPost(savedGradeMap.get(yr) ?? "", yr);
+  }
+
+  const savedAdjustment = bpSum.reduce((s, b) => s + b.points, 0);
+  const savedCumulative = savedWindowSum + totalMerit - totalPenalty;
+  const savedTotalPoints = savedCumulative + savedAdjustment;
+  const savedIsMet = savedUserLc?.requiredPoints != null
+    ? savedTotalPoints >= savedUserLc.requiredPoints
+    : false;
 
   return NextResponse.json({
     success: true,
     userId,
-    totalMerit: latestPoint?.merit ?? 0,
-    totalPenalty: latestPoint?.penalty ?? 0,
-    cumulative: latestPoint?.cumulative ?? 0,
-    isMet: updatedPoints.some((p) => p.isMet),
-    points: updatedPoints,
+    totalMerit,
+    totalPenalty,
+    cumulative: savedCumulative,
+    totalPoints: savedTotalPoints,
+    adjustment: savedAdjustment,
+    isMet: savedIsMet,
   });
 }
 

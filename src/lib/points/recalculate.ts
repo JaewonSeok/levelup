@@ -18,24 +18,28 @@ export async function recalculatePointsFromGrades(
   const allGradeCriteria = await prisma.gradeCriteria.findMany();
   if (allGradeCriteria.length === 0) return { updated: 0 };
 
-  const gradePointsMap = new Map<string, number>();
-  for (const gc of allGradeCriteria) {
-    gradePointsMap.set(`${gc.grade}:${gc.yearRange}`, gc.points);
-  }
-
-  function getYearRange(year: number): string {
-    return year <= 2024 ? "2021-2024" : "2025";
-  }
-
   function gradeToPoints(grade: string, year: number): number {
     if (!grade) return 0;
-    return gradePointsMap.get(`${grade}:${getYearRange(year)}`) ?? 0;
+    for (const gc of allGradeCriteria) {
+      if (gc.grade !== grade) continue;
+      const range = gc.yearRange;
+      if (range === String(year)) return gc.points;
+      const parts = range.split("-");
+      if (parts.length === 2) {
+        const from = Number(parts[0]);
+        const to = Number(parts[1]);
+        if (!isNaN(from) && !isNaN(to) && year >= from && year <= to) return gc.points;
+      }
+    }
+    return 0;
   }
 
-  // 2. LevelCriteria 로드 (minTenure, requiredPoints)
-  const levelCriteriaList = await prisma.levelCriteria.findMany({
-    where: { year: CURRENT_YEAR },
-  });
+  // 2. LevelCriteria 로드 — 최신 연도 폴백
+  let levelCriteriaList = await prisma.levelCriteria.findMany({ where: { year: CURRENT_YEAR } });
+  if (levelCriteriaList.length === 0) {
+    const latest = await prisma.levelCriteria.findFirst({ orderBy: { year: "desc" }, select: { year: true } });
+    if (latest) levelCriteriaList = await prisma.levelCriteria.findMany({ where: { year: latest.year } });
+  }
   const criteriaMap = new Map(levelCriteriaList.map((c) => [c.level, c]));
 
   // 3. 대상 직원 조회

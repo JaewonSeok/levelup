@@ -35,9 +35,13 @@ export async function GET(req: NextRequest) {
   const page = Math.max(1, Number(searchParams.get("page") ?? "1"));
   const pageSize = Math.min(100, Math.max(1, Number(searchParams.get("pageSize") ?? "20")));
 
-  // ── LevelCriteria 로드 (충족여부 직접 계산) ─────────────────
+  // ── LevelCriteria 로드 — 최신 연도 폴백 ──────────────────────
   const currentYear = getCurrentYear();
-  const criteriaList = await prisma.levelCriteria.findMany({ where: { year: currentYear } });
+  let criteriaList = await prisma.levelCriteria.findMany({ where: { year: currentYear } });
+  if (criteriaList.length === 0) {
+    const latest = await prisma.levelCriteria.findFirst({ orderBy: { year: "desc" }, select: { year: true } });
+    if (latest) criteriaList = await prisma.levelCriteria.findMany({ where: { year: latest.year } });
+  }
   const criteriaMap = new Map(criteriaList.map((c) => [c.level as string, c]));
 
   // ── 필터 조건 구성 ──────────────────────────────────────────

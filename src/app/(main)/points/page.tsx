@@ -585,6 +585,8 @@ export default function PointsPage() {
             totalMerit: result.totalMerit,
             totalPenalty: result.totalPenalty,
             cumulative: result.cumulative,
+            totalPoints: result.totalPoints ?? result.cumulative + e.adjustment,
+            adjustment: result.adjustment ?? e.adjustment,
             isMet: result.isMet,
           };
         })
