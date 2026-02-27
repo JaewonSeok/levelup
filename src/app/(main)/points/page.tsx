@@ -167,6 +167,7 @@ interface AddEmployeeForm {
   team: string;
   level: string;
   yearsOfService: string;
+  grade2021: string;
   grade2022: string;
   grade2023: string;
   grade2024: string;
@@ -351,7 +352,7 @@ export default function PointsPage() {
   // ── 직원 추가 모달 ────────────────────────────────────────
   const DEFAULT_ADD_FORM: AddEmployeeForm = {
     name: "", department: "", team: "", level: "", yearsOfService: "",
-    grade2022: "", grade2023: "", grade2024: "", grade2025: "", pointScore: "0",
+    grade2021: "", grade2022: "", grade2023: "", grade2024: "", grade2025: "", pointScore: "0",
   };
   const [addEmpOpen, setAddEmpOpen] = useState(false);
   const [addEmpForm, setAddEmpForm] = useState<AddEmployeeForm>(DEFAULT_ADD_FORM);
@@ -373,6 +374,7 @@ export default function PointsPage() {
           team: addEmpForm.team,
           level: addEmpForm.level || null,
           yearsOfService: addEmpForm.yearsOfService !== "" ? Number(addEmpForm.yearsOfService) : null,
+          grade2021: addEmpForm.grade2021 || null,
           grade2022: addEmpForm.grade2022 || null,
           grade2023: addEmpForm.grade2023 || null,
           grade2024: addEmpForm.grade2024 || null,
@@ -1064,9 +1066,9 @@ export default function PointsPage() {
               </div>
             </div>
             <div className="border-t pt-3">
-              <p className="text-xs text-muted-foreground mb-2">평가등급 (2022~2024: S/A/B/C, 2025: S/O/E/G/N/U)</p>
-              <div className="grid grid-cols-4 gap-2">
-                {([2022, 2023, 2024] as const).map((yr) => {
+              <p className="text-xs text-muted-foreground mb-2">평가등급 (2021~2024: S/A/B/C, 2025: S/O/E/G/N/U)</p>
+              <div className="grid grid-cols-5 gap-2">
+                {([2021, 2022, 2023, 2024] as const).map((yr) => {
                   const key = `grade${yr}` as keyof AddEmployeeForm;
                   return (
                     <div key={yr}>

@@ -7,7 +7,7 @@ import { Role, Level, EmploymentType } from "@prisma/client";
 const ALLOWED_ROLES: Role[] = [Role.HR_TEAM, Role.SYSTEM_ADMIN];
 
 // POST /api/points/add-employee
-// Body: { name, department, team, level?, yearsOfService?, grade2022?, grade2023?, grade2024?, grade2025?, pointScore? }
+// Body: { name, department, team, level?, yearsOfService?, grade2021?, grade2022?, grade2023?, grade2024?, grade2025?, pointScore? }
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session) {
@@ -25,6 +25,7 @@ export async function POST(req: NextRequest) {
     team: string;
     level?: string | null;
     yearsOfService?: number | null;
+    grade2021?: string | null;
     grade2022?: string | null;
     grade2023?: string | null;
     grade2024?: string | null;
@@ -37,7 +38,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "요청 파싱 실패" }, { status: 400 });
   }
 
-  const { name, department, team, level, yearsOfService, grade2022, grade2023, grade2024, grade2025, pointScore } = body;
+  const { name, department, team, level, yearsOfService, grade2021, grade2022, grade2023, grade2024, grade2025, pointScore } = body;
 
   if (!name || !department || !team) {
     return NextResponse.json({ error: "이름, 본부, 팀은 필수입니다." }, { status: 400 });
@@ -66,6 +67,7 @@ export async function POST(req: NextRequest) {
 
   // 평가등급 저장
   const gradeEntries: { userId: string; year: number; grade: string }[] = [];
+  if (grade2021) gradeEntries.push({ userId: user.id, year: 2021, grade: grade2021 });
   if (grade2022) gradeEntries.push({ userId: user.id, year: 2022, grade: grade2022 });
   if (grade2023) gradeEntries.push({ userId: user.id, year: 2023, grade: grade2023 });
   if (grade2024) gradeEntries.push({ userId: user.id, year: 2024, grade: grade2024 });
