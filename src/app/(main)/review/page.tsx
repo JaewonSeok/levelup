@@ -194,6 +194,16 @@ export default function ReviewPage() {
   const isDeptHead = currentUser?.role === "DEPT_HEAD";
   const isAdmin = currentUser?.role === "SYSTEM_ADMIN";
 
+  // 타본부소속 + 본부장: L4, L5만 표시 (API 필터 + 프론트 이중 보장)
+  const displayCandidates =
+    isDeptHead && query.targetType === "other"
+      ? candidates.filter((c) => c.level === "L4" || c.level === "L5")
+      : candidates;
+  const displayTotal =
+    isDeptHead && query.targetType === "other"
+      ? displayCandidates.length
+      : total;
+
   // 의견 저장 성공 콜백 — 서버가 확정한 값 + Review 업데이트 여부 수신
   const handleOpinionSaved = (
     _reviewerRole: string,
@@ -450,7 +460,7 @@ export default function ReviewPage() {
         <Button onClick={handleSearch} disabled={loading} size="sm" className="h-8">
           검색
         </Button>
-        <span className="text-sm text-muted-foreground">총 {total}명</span>
+        <span className="text-sm text-muted-foreground">총 {displayTotal}명</span>
 
         {/* 최종 제출 버튼 (본부장만) */}
         {isDeptHead && !isSubmitted && (
@@ -494,14 +504,14 @@ export default function ReviewPage() {
                   불러오는 중...
                 </td>
               </tr>
-            ) : candidates.length === 0 ? (
+            ) : displayCandidates.length === 0 ? (
               <tr>
                 <td colSpan={COL_COUNT} className="text-center py-10 text-muted-foreground">
                   심사 대상자가 없습니다.
                 </td>
               </tr>
             ) : (
-              candidates.map((c, idx) => {
+              displayCandidates.map((c, idx) => {
                 const rowDeptSubmitted = submittedDepts.has(c.department);
 
                 return (
