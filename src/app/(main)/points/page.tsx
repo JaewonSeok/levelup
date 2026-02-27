@@ -535,11 +535,12 @@ export default function PointsPage() {
     setSaveError(null);
 
     const emp = editState.employee;
+    const empHireYear = emp.hireDate ? new Date(emp.hireDate).getFullYear() : emp.startYear;
     const yearScores: { year: number; score: number }[] = [];
     const yearGradesPayload: { year: number; grade: string }[] = [];
 
     for (const yr of GRADE_YEARS) {
-      if (yr < emp.startYear) continue;
+      if (yr < empHireYear) continue;
       const grade = editState.yearGrades[yr] ?? "";
       const score = getPointsForGrade(grade, yr);
       yearScores.push({ year: yr, score });
@@ -815,7 +816,8 @@ export default function PointsPage() {
                     </thead>
                     <tbody>
                       {GRADE_YEARS.map((yr) => {
-                        const isDisabled = yr < editState.employee.startYear;
+                        const editHireYear = editState.employee.hireDate ? new Date(editState.employee.hireDate).getFullYear() : editState.employee.startYear;
+                        const isDisabled = yr < editHireYear;
                         const grade = editState.yearGrades[yr] ?? "";
                         const points = getPointsForGrade(grade, yr);
                         const gradeOptions =
@@ -926,11 +928,14 @@ export default function PointsPage() {
                 <span className="font-bold text-lg">{editCalc.cumulative.toFixed(1)}</span>
               </div>
 
-              {editState.employee.startYear > 2021 && (
-                <div className="text-xs text-muted-foreground bg-muted/30 rounded p-2 border">
-                  * 입사 전 연도({editState.employee.startYear - 1}년 이전)는 편집 불가합니다.
-                </div>
-              )}
+              {(() => {
+                const footerHireYear = editState.employee.hireDate ? new Date(editState.employee.hireDate).getFullYear() : editState.employee.startYear;
+                return footerHireYear > 2021 && (
+                  <div className="text-xs text-muted-foreground bg-muted/30 rounded p-2 border">
+                    * 입사 전 연도({footerHireYear - 1}년 이전)는 편집 불가합니다.
+                  </div>
+                );
+              })()}
 
               {saveError && (
                 <div className="text-red-600 text-sm p-2 bg-red-50 rounded">{saveError}</div>
