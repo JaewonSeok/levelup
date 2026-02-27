@@ -205,6 +205,15 @@ export default function ReviewPage() {
         return true; // "own": API가 이미 소속 본부만 필터링
       })
     : candidates;
+  // 본부장 "전체" 선택 시 본인 소속 먼저, 타본부 뒤에 정렬
+  const sortedCandidates = isDeptHead && query.targetType === "all"
+    ? [...displayCandidates].sort((a, b) => {
+        const aOwn = a.department === currentDeptName ? 0 : 1;
+        const bOwn = b.department === currentDeptName ? 0 : 1;
+        if (aOwn !== bOwn) return aOwn - bOwn;
+        return a.department.localeCompare(b.department, "ko");
+      })
+    : displayCandidates;
   const displayTotal = isDeptHead ? displayCandidates.length : total;
 
   // 의견 저장 성공 콜백 — 서버가 확정한 값 + Review 업데이트 여부 수신
@@ -507,14 +516,14 @@ export default function ReviewPage() {
                   불러오는 중...
                 </td>
               </tr>
-            ) : displayCandidates.length === 0 ? (
+            ) : sortedCandidates.length === 0 ? (
               <tr>
                 <td colSpan={COL_COUNT} className="text-center py-10 text-muted-foreground">
                   심사 대상자가 없습니다.
                 </td>
               </tr>
             ) : (
-              displayCandidates.map((c, idx) => {
+              sortedCandidates.map((c, idx) => {
                 const rowDeptSubmitted = submittedDepts.has(c.department);
 
                 return (
