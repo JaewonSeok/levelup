@@ -107,7 +107,7 @@ const NAV_SECTIONS: NavSection[] = [
         href: "/dashboard",
         label: "통계 대시보드",
         icon: BarChart3,
-        allowedRoles: [Role.CEO, Role.SYSTEM_ADMIN],
+        allowedRoles: [Role.CEO, Role.HR_TEAM, Role.SYSTEM_ADMIN],
       },
       {
         href: "/settings",

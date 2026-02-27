@@ -361,13 +361,7 @@ function EmployeeFormModal({
                   className="h-8"
                   type="date"
                   value={form.hireDate}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    const autoYears = val
-                      ? String(new Date().getFullYear() - new Date(val).getFullYear())
-                      : form.yearsOfService;
-                    setForm((prev) => ({ ...prev, hireDate: val, yearsOfService: autoYears }));
-                  }}
+                  onChange={(e) => set("hireDate", e.target.value)}
                 />
               </div>
               <div>
