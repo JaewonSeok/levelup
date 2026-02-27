@@ -31,7 +31,13 @@ export async function GET(req: NextRequest) {
   if (department) userConditions.push({ department: { contains: department, mode: "insensitive" } });
   if (team) userConditions.push({ team: { contains: team, mode: "insensitive" } });
   if (targetType === "own") userConditions.push({ department: currentDept });
-  else if (targetType === "other") userConditions.push({ NOT: { department: currentDept } });
+  else if (targetType === "other") {
+    userConditions.push({ NOT: { department: currentDept } });
+    // 타본부장은 L4, L5 승진 심사만 담당 (L1~L3은 소속 본부장만 평가)
+    if (session.user.role === Role.DEPT_HEAD) {
+      userConditions.push({ level: { in: [Level.L4, Level.L5] } });
+    }
+  }
 
   const candidateWhere: Prisma.CandidateWhereInput = {
     year,
