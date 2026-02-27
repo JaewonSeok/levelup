@@ -102,7 +102,7 @@ export async function GET(req: NextRequest) {
 
   // ── 쿼리 ──────────────────────────────────────────────────
   try {
-    const [total, rawEmployees, metaDepts, metaTeams] = await Promise.all([
+    const [total, rawEmployees, metaDepts, metaTeams, gradeCriteriaAll, levelCriteriaAll] = await Promise.all([
       prisma.user.count({ where }),
       prisma.user.findMany({
         where,
@@ -140,9 +140,48 @@ export async function GET(req: NextRequest) {
         select: { team: true },
         orderBy: { team: "asc" },
       }),
+      prisma.gradeCriteria.findMany(),
+      prisma.levelCriteria.findMany({ orderBy: { year: "desc" } }),
     ]);
 
-    // 평가등급 맵 + 학점 누적값 변환
+    // BonusPenalty (총점 계산용)
+    const empIds = rawEmployees.map((e) => e.id);
+    const bpRecordsEmp = await prisma.bonusPenalty.findMany({
+      where: { userId: { in: empIds } },
+      select: { userId: true, points: true },
+    });
+    const bpMapEmp = new Map<string, number>();
+    for (const bp of bpRecordsEmp) {
+      bpMapEmp.set(bp.userId, (bpMapEmp.get(bp.userId) ?? 0) + bp.points);
+    }
+
+    // LevelCriteria — 레벨별 최신 minTenure
+    const lcMap = new Map<string, { minTenure: number | null }>();
+    for (const c of levelCriteriaAll) {
+      if (!lcMap.has(c.level as string)) {
+        lcMap.set(c.level as string, { minTenure: c.minTenure });
+      }
+    }
+
+    // 등급 → 포인트 변환 (yearRange 범위 매칭)
+    const EMP_MAX_YEAR = 2025;
+    const findGradePointsEmp = (grade: string, year: number): number => {
+      if (!grade) return 0;
+      for (const gc of gradeCriteriaAll) {
+        if (gc.grade !== grade) continue;
+        const range = gc.yearRange;
+        if (range === String(year)) return gc.points;
+        const parts = range.split("-");
+        if (parts.length === 2) {
+          const from = Number(parts[0]);
+          const to = Number(parts[1]);
+          if (!isNaN(from) && !isNaN(to) && year >= from && year <= to) return gc.points;
+        }
+      }
+      return 0;
+    };
+
+    // 평가등급 맵 + 학점 누적값 + 총점 변환
     const employees = rawEmployees.map((emp) => {
       const { performanceGrades, credits, ...rest } = emp;
       const grades: Record<string, string> = {};
@@ -150,7 +189,31 @@ export async function GET(req: NextRequest) {
         grades[String(g.year)] = g.grade;
       }
       const creditTotal = credits[0]?.cumulative ?? null;
-      return { ...rest, grades, creditTotal };
+
+      // 총점 계산 (등급 기반 윈도우 합산)
+      let totalPoints: number | null = null;
+      if (performanceGrades.length > 0 && gradeCriteriaAll.length > 0) {
+        const lc = emp.level ? lcMap.get(emp.level as string) : null;
+        const minTenure = lc?.minTenure ?? 0;
+        const yearsOfService = emp.yearsOfService ?? 0;
+        const tenureRange =
+          minTenure > 0 && yearsOfService > 0
+            ? Math.min(yearsOfService, minTenure)
+            : yearsOfService > 0
+              ? yearsOfService
+              : performanceGrades.length;
+        const gradesByYear = new Map(performanceGrades.map((g) => [g.year, g.grade]));
+        let windowSum = 0;
+        for (let i = 0; i < tenureRange; i++) {
+          const yr = EMP_MAX_YEAR - i;
+          if (yr < 2021) break;
+          windowSum += findGradePointsEmp(gradesByYear.get(yr) ?? "", yr);
+        }
+        const adjustment = bpMapEmp.get(emp.id) ?? 0;
+        totalPoints = windowSum + adjustment;
+      }
+
+      return { ...rest, grades, creditTotal, totalPoints };
     });
 
     return NextResponse.json({

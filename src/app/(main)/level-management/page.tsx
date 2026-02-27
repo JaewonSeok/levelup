@@ -54,6 +54,7 @@ interface Employee {
   role: string;
   grades: Record<string, string>;
   creditTotal: number | null;
+  totalPoints: number | null;
 }
 
 interface EmployeeResponse {
@@ -454,16 +455,6 @@ function EmployeeFormModal({
                 <label className="text-xs text-muted-foreground block mb-1">레벨업연도</label>
                 <Input className="h-8" type="number" value={form.levelUpYear} onChange={(e) => set("levelUpYear", e.target.value)} placeholder="예: 2026" />
               </div>
-              <div className="flex items-center gap-2 col-span-2">
-                <label className="text-xs text-muted-foreground">재직여부</label>
-                <input
-                  type="checkbox"
-                  checked={form.isActive}
-                  onChange={(e) => set("isActive", e.target.checked)}
-                  className="w-4 h-4"
-                />
-                <span className="text-xs">{form.isActive ? "재직" : "퇴직"}</span>
-              </div>
             </div>
           )}
         </div>
@@ -823,6 +814,7 @@ export default function LevelManagementPage() {
               {GRADE_YEARS.map((y) => (
                 <TableHead key={y} className="text-center text-xs whitespace-nowrap">{y}등급</TableHead>
               ))}
+              <TableHead className="text-center text-xs whitespace-nowrap">총점</TableHead>
               <TableHead className="text-center text-xs whitespace-nowrap">학점</TableHead>
               {isAdmin && <TableHead className="text-center text-xs whitespace-nowrap">관리</TableHead>}
             </TableRow>
@@ -831,7 +823,7 @@ export default function LevelManagementPage() {
             {loading ? (
               <TableRow>
                 <TableCell
-                  colSpan={isAdmin ? 15 : 14}
+                  colSpan={isAdmin ? 16 : 15}
                   className="text-center py-16 text-muted-foreground text-sm"
                 >
                   로딩 중...
@@ -840,7 +832,7 @@ export default function LevelManagementPage() {
             ) : employees.length === 0 ? (
               <TableRow>
                 <TableCell
-                  colSpan={isAdmin ? 15 : 14}
+                  colSpan={isAdmin ? 16 : 15}
                   className="text-center py-16 text-muted-foreground text-sm"
                 >
                   검색 결과가 없습니다.
@@ -905,6 +897,10 @@ export default function LevelManagementPage() {
                         )}
                       </TableCell>
                     ))}
+                    {/* ── 총점 컬럼 ── */}
+                    <TableCell className="text-center text-sm">
+                      {emp.totalPoints != null ? emp.totalPoints.toFixed(1) : "-"}
+                    </TableCell>
                     {/* ── 학점 컬럼 ── */}
                     <TableCell className="text-center text-sm">
                       {emp.creditTotal != null ? emp.creditTotal.toFixed(1) : "-"}

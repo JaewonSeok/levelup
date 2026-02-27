@@ -109,9 +109,9 @@ export async function GET(req: NextRequest) {
     }),
   ]);
 
-  // 평가등급 + 가감점 일괄 조회 (2021~2025)
+  // 평가등급 + 가감점 + 등급기준 일괄 조회 (2021~2025)
   const userIds = users.map((u) => u.id);
-  const [allGrades, bonusPenaltyRecords] = await Promise.all([
+  const [allGrades, bonusPenaltyRecords, gradeCriteriaAll] = await Promise.all([
     prisma.performanceGrade.findMany({
       where: { userId: { in: userIds }, year: { in: [2021, 2022, 2023, 2024, 2025] } },
       select: { userId: true, year: true, grade: true },
@@ -120,6 +120,7 @@ export async function GET(req: NextRequest) {
       where: { userId: { in: userIds } },
       select: { userId: true, type: true, points: true },
     }),
+    prisma.gradeCriteria.findMany(),
   ]);
   const gradeMap = new Map<string, Record<number, string>>();
   for (const g of allGrades) {
@@ -134,24 +135,63 @@ export async function GET(req: NextRequest) {
     else entry.penaltyTotal += Math.abs(bp.points);
   }
 
+  // 등급 → 포인트 변환 (yearRange 범위 매칭)
+  const CAND_MAX_YEAR = 2025;
+  const findGradePoints = (grade: string, year: number): number => {
+    if (!grade) return 0;
+    for (const gc of gradeCriteriaAll) {
+      if (gc.grade !== grade) continue;
+      const range = gc.yearRange;
+      if (range === String(year)) return gc.points;
+      const parts = range.split("-");
+      if (parts.length === 2) {
+        const from = Number(parts[0]);
+        const to = Number(parts[1]);
+        if (!isNaN(from) && !isNaN(to) && year >= from && year <= to) return gc.points;
+      }
+    }
+    return 0;
+  };
+
   // ── 직원별 데이터 가공 + Candidate 레코드 생성/업데이트 ──────
   // 수동 추가(기존 Candidate 보유) 여부를 별도 Set으로 관리
   const hasExistingCandidateSet = new Set<string>();
 
   const allEmployeesData = await Promise.all(
     users.map(async (user) => {
-      const latestPoint = user.points[user.points.length - 1];
       const latestCredit = user.credits[user.credits.length - 1];
-      const baseCumulative = latestPoint?.cumulative ?? 0;
       const creditCumulative = latestCredit?.cumulative ?? 0;
 
-      // 가감점 반영 총점
+      // 가감점
       const { bonusTotal = 0, penaltyTotal = 0 } = bpMap.get(user.id) ?? {};
       const adjustment = bonusTotal - penaltyTotal;
-      const pointCumulative = baseCumulative + adjustment;
 
-      // ★ isMet 필드 대신 cumulative vs LevelCriteria로 직접 계산 (가감점 반영)
+      // 등급 기반 포인트 재계산 (DB 누적값 대신 정확한 윈도우 계산)
       const criteria = user.level ? criteriaMap.get(user.level) : null;
+      const minTenureCalc = criteria?.minTenure ?? 0;
+      const yearsOfServiceCalc = user.yearsOfService ?? 0;
+      const tenureRangeCalc =
+        minTenureCalc > 0 && yearsOfServiceCalc > 0
+          ? Math.min(yearsOfServiceCalc, minTenureCalc)
+          : yearsOfServiceCalc > 0
+            ? yearsOfServiceCalc
+            : 0;
+      const userGrades = gradeMap.get(user.id) ?? {};
+      let windowSum = 0;
+      if (gradeCriteriaAll.length > 0) {
+        for (let i = 0; i < tenureRangeCalc; i++) {
+          const yr = CAND_MAX_YEAR - i;
+          if (yr < 2021) break;
+          windowSum += findGradePoints(userGrades[yr] ?? "", yr);
+        }
+      } else {
+        // GradeCriteria 미설정 시 DB 누적값 사용
+        const latestPoint = user.points[user.points.length - 1];
+        windowSum = latestPoint?.cumulative ?? 0;
+      }
+      const pointCumulative = windowSum + adjustment;
+
+      // LevelCriteria 기준으로 충족 여부 판정
       const pointMet = criteria != null ? pointCumulative >= criteria.requiredPoints : false;
       const creditMet = criteria != null ? creditCumulative >= criteria.requiredCredits : false;
 
@@ -180,8 +220,6 @@ export async function GET(req: NextRequest) {
               data: { userId: user.id, year, pointMet, creditMet, source: "auto", promotionType },
             })
           : null;
-
-      const userGrades = gradeMap.get(user.id) ?? {};
 
       return {
         candidateId: candidate?.id ?? null,
