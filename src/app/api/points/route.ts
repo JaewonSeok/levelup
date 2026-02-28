@@ -4,7 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Role, Level, EmploymentType, Prisma } from "@prisma/client";
 import { recalculatePointsFromGrades } from "@/lib/points/recalculate";
-import { calculatePointSum, calculateFinalPoints, getNextLevel } from "@/lib/pointCalculation";
+import { calculateFinalPoints, getNextLevel } from "@/lib/pointCalculation";
 
 const ALLOWED_ROLES: Role[] = [Role.HR_TEAM, Role.SYSTEM_ADMIN];
 
