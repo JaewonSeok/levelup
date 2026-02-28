@@ -11,6 +11,11 @@ const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 
 const ALLOWED_ROLES: Role[] = [Role.HR_TEAM, Role.SYSTEM_ADMIN];
 
+// 날짜 비교 키 (로컬 시간 기준 — 원본 findFirst 로직과 동일)
+function hireDateKey(d: Date): string {
+  return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+}
+
 export async function POST(req: NextRequest) {
   // ── 1. 인증 / 권한 ────────────────────────────────────────
   const session = await getServerSession(authOptions);
@@ -88,150 +93,240 @@ export async function POST(req: NextRequest) {
     });
   }
 
-  // ── 5. DB 저장 (행별 개별 저장 — Supabase PgBouncer 호환) ──
+  // ── 5. DB 저장 (배치 처리 — 순차 쿼리 대신 일괄/병렬) ────
   let successCount = 0;
   let skipCount = 0;
   const saveErrors: Array<{ row: number; sheet: string; name: string; errors: string[] }> = [];
-
-  // 포인트/학점 저장 시 사용할 기준값 맵 (level_year → criteria)
-  const criteriaList = await prisma.levelCriteria.findMany();
-  const criteriaMap = new Map(criteriaList.map((c) => [`${c.level}_${c.year}`, c]));
   const CURRENT_YEAR = new Date().getFullYear();
 
+  // 포인트/학점 저장 시 사용할 기준값 맵
+  const criteriaList = await prisma.levelCriteria.findMany();
+  const criteriaMap = new Map(criteriaList.map((c) => [`${c.level}_${c.year}`, c]));
+
+  // 5-1. 기존 사용자 일괄 조회 (275번 findFirst → 1번 findMany)
+  const uploadedNames = [...new Set(validRows.map((r) => r.name))];
+  const existingUsersList = await prisma.user.findMany({
+    where: { name: { in: uploadedNames } },
+    select: { id: true, name: true, hireDate: true },
+  });
+  const existingMap = new Map<string, string>(); // "name_dateKey" → userId
+  for (const u of existingUsersList) {
+    existingMap.set(`${u.name}_${hireDateKey(u.hireDate)}`, u.id);
+  }
+
+  // 5-2. 행 분류: 신규 생성 / 업데이트 / 스킵
+  type ParsedRow = (typeof validRows)[0];
+  const toCreate: ParsedRow[] = [];
+  const toUpdate: { row: ParsedRow; existingId: string }[] = [];
+
   for (const row of validRows) {
+    const key = `${row.name}_${hireDateKey(row.hireDate!)}`;
+    const existingId = existingMap.get(key);
+    if (existingId) {
+      if (duplicatePolicy === "skip") {
+        skipCount++;
+      } else {
+        toUpdate.push({ row, existingId });
+      }
+    } else {
+      toCreate.push(row);
+    }
+  }
+
+  // savedRows: grade/point/credit 저장 대상 (신규 + 업데이트)
+  const savedRows: { row: ParsedRow; userId: string }[] = [];
+
+  // 5-3. 신규 사용자 일괄 생성 (createMany → ID 재조회)
+  if (toCreate.length > 0) {
     try {
-      const hireDate = row.hireDate!;
-
-      // 중복 검사: 이름 + 입사일자 (같은 날짜)
-      const dayStart = new Date(hireDate.getFullYear(), hireDate.getMonth(), hireDate.getDate());
-      const dayEnd = new Date(hireDate.getFullYear(), hireDate.getMonth(), hireDate.getDate() + 1);
-
-      const existing = await prisma.user.findFirst({
-        where: {
+      await prisma.user.createMany({
+        data: toCreate.map((row) => ({
           name: row.name,
-          hireDate: { gte: dayStart, lt: dayEnd },
-        },
-        select: { id: true },
+          department: row.department,
+          team: row.team,
+          level: row.level as Level,
+          position: row.position || null,
+          employmentType: "REGULAR" as EmploymentType,
+          hireDate: row.hireDate!,
+          yearsOfService: row.yearsOfService,
+          competencyLevel: row.competencyLevel || null,
+          levelUpYear: row.levelUpYear ?? null,
+          isActive: true,
+        })),
+        skipDuplicates: true,
       });
 
-      const userData = {
-        name: row.name,
-        department: row.department,
-        team: row.team,
-        level: row.level as Level,
-        position: row.position || null,
-        employmentType: "REGULAR" as EmploymentType,
-        hireDate,
-        yearsOfService: row.yearsOfService,
-        competencyLevel: row.competencyLevel || null,
-        levelUpYear: row.levelUpYear ?? null,
-        isActive: true,
-      };
+      // 생성된 ID 재조회 (createMany는 ID를 반환하지 않으므로)
+      const createdUsers = await prisma.user.findMany({
+        where: { name: { in: toCreate.map((r) => r.name) } },
+        select: { id: true, name: true, hireDate: true },
+      });
+      const createdMap = new Map<string, string>();
+      for (const u of createdUsers) {
+        createdMap.set(`${u.name}_${hireDateKey(u.hireDate)}`, u.id);
+      }
 
-      let savedUserId: string | null = null;
-
-      if (existing) {
-        if (duplicatePolicy === "skip") {
-          skipCount++;
-        } else {
-          // update: 인사 정보만 업데이트 (email/password/role 유지)
-          await prisma.user.update({
-            where: { id: existing.id },
-            data: userData,
-          });
-          savedUserId = existing.id;
+      for (const row of toCreate) {
+        const userId = createdMap.get(`${row.name}_${hireDateKey(row.hireDate!)}`);
+        if (userId) {
+          savedRows.push({ row, userId });
           successCount++;
-        }
-      } else {
-        const created = await prisma.user.create({ data: userData });
-        savedUserId = created.id;
-        successCount++;
-      }
-
-      // 업데이트 모드: 기존 평가등급/학점 삭제 후 재저장
-      if (savedUserId && duplicatePolicy === "update" && existing) {
-        await prisma.performanceGrade.deleteMany({ where: { userId: savedUserId } });
-        await prisma.credit.deleteMany({ where: { userId: savedUserId } });
-      }
-
-      // 평가등급 upsert (등급이 있는 연도만)
-      if (savedUserId) {
-        const gradeEntries: { year: number; grade: string }[] = [
-          { year: 2021, grade: row.grade2021 ?? "" },
-          { year: 2022, grade: row.grade2022 ?? "" },
-          { year: 2023, grade: row.grade2023 ?? "" },
-          { year: 2024, grade: row.grade2024 ?? "" },
-          { year: 2025, grade: row.grade2025 ?? "" },
-        ].filter((e) => e.grade !== "");
-
-        for (const entry of gradeEntries) {
-          await prisma.performanceGrade.upsert({
-            where: { userId_year: { userId: savedUserId, year: entry.year } },
-            create: { userId: savedUserId, year: entry.year, grade: entry.grade },
-            update: { grade: entry.grade },
-          });
-        }
-
-        // 포인트 upsert (최대 연도: 2025)
-        if (row.pointScore != null) {
-          const pointYear = Math.min(row.levelUpYear ?? CURRENT_YEAR, 2025);
-          const pointCriteria = row.level ? criteriaMap.get(`${row.level}_${pointYear}`) : null;
-          const isMet = pointCriteria ? row.pointScore >= pointCriteria.requiredPoints : false;
-          await prisma.point.upsert({
-            where: { userId_year: { userId: savedUserId, year: pointYear } },
-            create: {
-              userId: savedUserId,
-              year: pointYear,
-              score: row.pointScore,
-              merit: 0,
-              penalty: 0,
-              cumulative: row.pointScore,
-              isMet,
-            },
-            update: {
-              score: row.pointScore,
-              cumulative: row.pointScore,
-              isMet,
-            },
-          });
-        }
-
-        // 학점 upsert (최대 연도: 2025, 크레딧 화면 MAX_CREDIT_YEAR=2025 기준)
-        if (row.creditScore != null) {
-          const creditYear = Math.min(row.levelUpYear ?? CURRENT_YEAR, 2025);
-          const creditCriteria = row.level ? criteriaMap.get(`${row.level}_${creditYear}`) : null;
-          const isMet = creditCriteria ? row.creditScore >= creditCriteria.requiredCredits : false;
-          await prisma.credit.upsert({
-            where: { userId_year: { userId: savedUserId, year: creditYear } },
-            create: {
-              userId: savedUserId,
-              year: creditYear,
-              score: row.creditScore,
-              cumulative: row.creditScore,
-              isMet,
-            },
-            update: {
-              score: row.creditScore,
-              cumulative: row.creditScore,
-              isMet,
-            },
+        } else {
+          saveErrors.push({
+            row: row.rowIndex,
+            sheet: row.sheet,
+            name: row.name || "(없음)",
+            errors: ["생성 후 ID 조회 실패"],
           });
         }
       }
     } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      console.error(`[upload] 행 저장 오류 (${row.name}, 행 ${row.rowIndex}):`, msg);
-      saveErrors.push({
-        row: row.rowIndex,
-        sheet: row.sheet,
-        name: row.name || "(없음)",
-        errors: [msg],
-      });
+      // createMany 실패 시 개별 생성으로 폴백
+      for (const row of toCreate) {
+        try {
+          const created = await prisma.user.create({
+            data: {
+              name: row.name,
+              department: row.department,
+              team: row.team,
+              level: row.level as Level,
+              position: row.position || null,
+              employmentType: "REGULAR" as EmploymentType,
+              hireDate: row.hireDate!,
+              yearsOfService: row.yearsOfService,
+              competencyLevel: row.competencyLevel || null,
+              levelUpYear: row.levelUpYear ?? null,
+              isActive: true,
+            },
+          });
+          savedRows.push({ row, userId: created.id });
+          successCount++;
+        } catch (createErr) {
+          const msg = createErr instanceof Error ? createErr.message : String(createErr);
+          console.error(`[upload] 신규 생성 오류 (${row.name}, 행 ${row.rowIndex}):`, msg);
+          saveErrors.push({
+            row: row.rowIndex,
+            sheet: row.sheet,
+            name: row.name || "(없음)",
+            errors: [msg],
+          });
+        }
+      }
     }
   }
 
+  // 5-4. 기존 사용자 병렬 업데이트
+  if (toUpdate.length > 0) {
+    const updateResults = await Promise.allSettled(
+      toUpdate.map(({ row, existingId }) =>
+        prisma.user.update({
+          where: { id: existingId },
+          data: {
+            name: row.name,
+            department: row.department,
+            team: row.team,
+            level: row.level as Level,
+            position: row.position || null,
+            employmentType: "REGULAR" as EmploymentType,
+            hireDate: row.hireDate!,
+            yearsOfService: row.yearsOfService,
+            competencyLevel: row.competencyLevel || null,
+            levelUpYear: row.levelUpYear ?? null,
+            isActive: true,
+          },
+        })
+      )
+    );
+
+    for (let i = 0; i < toUpdate.length; i++) {
+      const result = updateResults[i];
+      const { row, existingId } = toUpdate[i];
+      if (result.status === "fulfilled") {
+        savedRows.push({ row, userId: existingId });
+        successCount++;
+      } else {
+        const msg =
+          result.reason instanceof Error ? result.reason.message : String(result.reason);
+        console.error(`[upload] 업데이트 오류 (${row.name}, 행 ${row.rowIndex}):`, msg);
+        saveErrors.push({
+          row: row.rowIndex,
+          sheet: row.sheet,
+          name: row.name || "(없음)",
+          errors: [msg],
+        });
+      }
+    }
+  }
+
+  // 5-5. 업데이트 모드: 기존 평가등급 + 학점 일괄 삭제
+  if (duplicatePolicy === "update" && toUpdate.length > 0) {
+    const updatedIds = toUpdate.map(({ existingId }) => existingId);
+    await Promise.all([
+      prisma.performanceGrade.deleteMany({ where: { userId: { in: updatedIds } } }),
+      prisma.credit.deleteMany({ where: { userId: { in: updatedIds } } }),
+    ]);
+  }
+
+  // 5-6. 평가등급 일괄 저장 (N×5 upsert → 1 createMany)
+  const gradeData: { userId: string; year: number; grade: string }[] = [];
+  for (const { row, userId } of savedRows) {
+    const entries = [
+      { year: 2021, grade: row.grade2021 ?? "" },
+      { year: 2022, grade: row.grade2022 ?? "" },
+      { year: 2023, grade: row.grade2023 ?? "" },
+      { year: 2024, grade: row.grade2024 ?? "" },
+      { year: 2025, grade: row.grade2025 ?? "" },
+    ].filter((e) => e.grade !== "");
+    for (const e of entries) {
+      gradeData.push({ userId, year: e.year, grade: e.grade });
+    }
+  }
+  if (gradeData.length > 0) {
+    await prisma.performanceGrade.createMany({
+      data: gradeData,
+      skipDuplicates: true,
+    });
+  }
+
+  // 5-7. 포인트 병렬 upsert
+  const pointOps = savedRows
+    .filter(({ row }) => row.pointScore != null)
+    .map(({ row, userId }) => {
+      const pointYear = Math.min(row.levelUpYear ?? CURRENT_YEAR, 2025);
+      const pointCriteria = row.level ? criteriaMap.get(`${row.level}_${pointYear}`) : null;
+      const isMet = pointCriteria ? row.pointScore! >= pointCriteria.requiredPoints : false;
+      return prisma.point.upsert({
+        where: { userId_year: { userId, year: pointYear } },
+        create: { userId, year: pointYear, score: row.pointScore!, merit: 0, penalty: 0, cumulative: row.pointScore!, isMet },
+        update: { score: row.pointScore!, cumulative: row.pointScore!, isMet },
+      });
+    });
+  if (pointOps.length > 0) {
+    await Promise.all(pointOps);
+  }
+
+  // 5-8. 학점 병렬 upsert
+  const creditOps = savedRows
+    .filter(({ row }) => row.creditScore != null)
+    .map(({ row, userId }) => {
+      const creditYear = Math.min(row.levelUpYear ?? CURRENT_YEAR, 2025);
+      const creditCriteria = row.level ? criteriaMap.get(`${row.level}_${creditYear}`) : null;
+      const isMet = creditCriteria ? row.creditScore! >= creditCriteria.requiredCredits : false;
+      return prisma.credit.upsert({
+        where: { userId_year: { userId, year: creditYear } },
+        create: { userId, year: creditYear, score: row.creditScore!, cumulative: row.creditScore!, isMet },
+        update: { score: row.creditScore!, cumulative: row.creditScore!, isMet },
+      });
+    });
+  if (creditOps.length > 0) {
+    await Promise.all(creditOps);
+  }
+
   // ── 6. 업로드 이력 기록 ───────────────────────────────────
-  const allErrors = [...errorRows.map((r) => ({ row: r.rowIndex, sheet: r.sheet, name: r.name || "(없음)", errors: r.errors })), ...saveErrors];
+  const allErrors = [
+    ...errorRows.map((r) => ({ row: r.rowIndex, sheet: r.sheet, name: r.name || "(없음)", errors: r.errors })),
+    ...saveErrors,
+  ];
   const overallStatus =
     allErrors.length === 0 && skipCount === 0
       ? "success"
