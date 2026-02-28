@@ -358,6 +358,20 @@ export default function CreditsPage() {
     }
   }
 
+  // ── 직원 삭제 (숨김) ─────────────────────────────────────
+  async function handleDeleteEmployee(emp: { id: string; name: string }) {
+    if (!window.confirm(`"${emp.name}" 직원을 비활성화하시겠습니까?\n(레벨관리·포인트·학점 모든 화면에서 숨김 처리됩니다)`)) return;
+    try {
+      const res = await fetch(`/api/employees/${emp.id}`, { method: "DELETE" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "삭제 실패");
+      toast.success(`"${emp.name}" 직원이 비활성화되었습니다.`);
+      fetchCredits(lastParams, page);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "삭제 중 오류가 발생했습니다.");
+    }
+  }
+
   // ── 연도 추가 (admin) ─────────────────────────────────────
   function handleAddYear() {
     const yr = Number(newYear);
@@ -641,14 +655,27 @@ export default function CreditsPage() {
                     </Badge>
                   </TableCell>
                   <TableCell className="text-center">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="h-6 px-2 text-xs"
-                      onClick={() => openEdit(emp)}
-                    >
-                      수정
-                    </Button>
+                    <div className="flex items-center justify-center gap-1">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-6 px-2 text-xs"
+                        onClick={() => openEdit(emp)}
+                      >
+                        수정
+                      </Button>
+                      {isAdmin && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 w-6 p-0 text-red-500 hover:text-red-700 hover:bg-red-50"
+                          onClick={() => handleDeleteEmployee(emp)}
+                          title="비활성화"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </Button>
+                      )}
+                    </div>
                   </TableCell>
                 </TableRow>
               ))

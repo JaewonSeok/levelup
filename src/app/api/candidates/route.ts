@@ -47,6 +47,7 @@ export async function GET(req: NextRequest) {
   // ── 필터 조건 구성 ──────────────────────────────────────────
   const conditions: Prisma.UserWhereInput[] = [
     { role: { not: Role.DEPT_HEAD } },
+    { isActive: true },
   ];
 
   if (department) conditions.push({ department: { contains: department, mode: "insensitive" } });
@@ -138,7 +139,7 @@ export async function GET(req: NextRequest) {
   // 등급 → 포인트 변환 (yearRange 범위 매칭)
   const CAND_MAX_YEAR = 2025;
   const findGradePoints = (grade: string, year: number): number => {
-    if (!grade) return 0;
+    if (!grade) return 2;
     for (const gc of gradeCriteriaAll) {
       if (gc.grade !== grade) continue;
       const range = gc.yearRange;
@@ -150,7 +151,7 @@ export async function GET(req: NextRequest) {
         if (!isNaN(from) && !isNaN(to) && year >= from && year <= to) return gc.points;
       }
     }
-    return 0;
+    return 2;
   };
 
   // ── 직원별 데이터 가공 + Candidate 레코드 생성/업데이트 ──────
@@ -159,23 +160,14 @@ export async function GET(req: NextRequest) {
 
   const allEmployeesData = await Promise.all(
     users.map(async (user) => {
-      const latestCredit = user.credits[user.credits.length - 1];
-      const creditCumulative = latestCredit?.cumulative ?? 0;
-
       // 가감점
       const { bonusTotal = 0, penaltyTotal = 0 } = bpMap.get(user.id) ?? {};
       const adjustment = bonusTotal - penaltyTotal;
 
       // 등급 기반 포인트 재계산 (DB 누적값 대신 정확한 윈도우 계산)
       const criteria = user.level ? criteriaMap.get(user.level) : null;
-      const minTenureCalc = criteria?.minTenure ?? 0;
       const yearsOfServiceCalc = user.yearsOfService ?? 0;
-      const tenureRangeCalc =
-        minTenureCalc > 0 && yearsOfServiceCalc > 0
-          ? Math.min(yearsOfServiceCalc, minTenureCalc)
-          : yearsOfServiceCalc > 0
-            ? yearsOfServiceCalc
-            : 0;
+      const tenureRangeCalc = Math.min(yearsOfServiceCalc, 5);
       const userGrades = gradeMap.get(user.id) ?? {};
       let windowSum = 0;
       if (gradeCriteriaAll.length > 0) {
@@ -191,9 +183,20 @@ export async function GET(req: NextRequest) {
       }
       const pointCumulative = windowSum + adjustment;
 
-      // LevelCriteria 기준으로 충족 여부 판정
-      const pointMet = criteria != null ? pointCumulative >= criteria.requiredPoints : false;
-      const creditMet = criteria != null ? creditCumulative >= criteria.requiredCredits : false;
+      // 학점 윈도우 합산 (최근 tenureRangeCalc년)
+      const creditScoreMap = new Map(user.credits.map((c) => [c.year, c.score]));
+      let creditWindowSum = 0;
+      for (let i = 0; i < tenureRangeCalc; i++) {
+        const yr = CAND_MAX_YEAR - i;
+        if (yr < 2021) break;
+        creditWindowSum += creditScoreMap.get(yr) ?? 0;
+      }
+      const creditCumulative = creditWindowSum;
+
+      // 합산 판정 (포인트 + 학점 + 가감점)
+      const finalPoints = pointCumulative + creditCumulative;
+      const pointMet = criteria != null ? finalPoints >= criteria.requiredPoints : false;
+      const creditMet = pointMet;
 
       // 체류 연수 계산 (yearsOfService 우선 사용 — 날짜 연도 빼기는 월 미반영으로 부정확)
       const tenure = user.levelStartDate

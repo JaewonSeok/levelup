@@ -27,6 +27,7 @@ export async function GET(req: NextRequest) {
 
   const userConditions: Prisma.UserWhereInput[] = [
     { role: { not: Role.DEPT_HEAD } },
+    { isActive: true },
   ];
   if (department) userConditions.push({ department: { contains: department, mode: "insensitive" } });
   if (team) userConditions.push({ team: { contains: team, mode: "insensitive" } });

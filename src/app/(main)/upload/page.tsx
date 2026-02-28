@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback, useRef, useMemo } from "react";
+import { useSession } from "next-auth/react";
 import { parseExcelFile, type ParsedEmployee } from "@/lib/excel/parse";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -13,6 +14,7 @@ import {
   CheckCircle2,
   AlertTriangle,
   AlertCircle,
+  Trash2,
 } from "lucide-react";
 
 // ─────────────────────────────────────────
@@ -62,6 +64,9 @@ function displayValue(row: ParsedEmployee, key: string): string {
 // ─────────────────────────────────────────
 
 export default function UploadPage() {
+  const { data: session } = useSession();
+  const isAdmin = session?.user?.role === "SYSTEM_ADMIN";
+
   const [dragOver, setDragOver] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [parsedRows, setParsedRows] = useState<ParsedEmployee[] | null>(null);
@@ -70,6 +75,7 @@ export default function UploadPage() {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [result, setResult] = useState<UploadResult | null>(null);
+  const [isResetting, setIsResetting] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -181,6 +187,31 @@ export default function UploadPage() {
     }
   }, [file, validRows.length, duplicatePolicy]);
 
+  // ── 전체 데이터 초기화 ──────────────────────────────────────
+
+  const handleDataReset = useCallback(async () => {
+    if (!window.confirm(
+      "⚠️ 전체 직원 데이터를 초기화하시겠습니까?\n\n" +
+      "• 모든 직원 계정 (일반/팀장/실장) 삭제\n" +
+      "• 포인트 / 학점 / 평가등급 / 가감점 삭제\n" +
+      "• 대상자 / 심사 / 확정 데이터 삭제\n" +
+      "• 업로드 이력 삭제\n\n" +
+      "시스템 계정(인사팀/대표이사/본부장)은 유지됩니다.\n" +
+      "이 작업은 되돌릴 수 없습니다."
+    )) return;
+    setIsResetting(true);
+    try {
+      const res = await fetch("/api/upload/reset", { method: "DELETE" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "초기화 실패");
+      alert("전체 직원 데이터가 초기화되었습니다.\n엑셀을 다시 업로드해주세요.");
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "초기화 중 오류가 발생했습니다.");
+    } finally {
+      setIsResetting(false);
+    }
+  }, []);
+
   // ─────────────────────────────────────────
   // 렌더링
   // ─────────────────────────────────────────
@@ -196,12 +227,26 @@ export default function UploadPage() {
             본부/팀별 직원 데이터를 .xlsx 파일로 업로드합니다. (인사팀 전용)
           </p>
         </div>
-        <a href="/api/upload/template" download="levelup_upload_template.xlsx">
-          <Button variant="outline" size="sm">
-            <Download className="mr-2 h-4 w-4" />
-            템플릿 다운로드
-          </Button>
-        </a>
+        <div className="flex items-center gap-2">
+          {isAdmin && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="border-red-300 text-red-600 hover:bg-red-50"
+              onClick={handleDataReset}
+              disabled={isResetting}
+            >
+              <Trash2 className="mr-2 h-4 w-4" />
+              {isResetting ? "초기화 중..." : "전체 데이터 초기화"}
+            </Button>
+          )}
+          <a href="/api/upload/template" download="levelup_upload_template.xlsx">
+            <Button variant="outline" size="sm">
+              <Download className="mr-2 h-4 w-4" />
+              템플릿 다운로드
+            </Button>
+          </a>
+        </div>
       </div>
 
       {/* ── 드롭존 (파일 미선택 상태) ──────────── */}

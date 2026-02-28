@@ -39,6 +39,7 @@ export async function GET(req: NextRequest) {
   // ── 필터 조건 구성 ─────────────────────────────────────────
   const conditions: Prisma.UserWhereInput[] = [
     { role: { not: Role.DEPT_HEAD } },
+    { isActive: true },
   ];
 
   if (department) conditions.push({ department: { contains: department, mode: "insensitive" } });
@@ -161,14 +162,8 @@ export async function GET(req: NextRequest) {
     const userLevelCriteria = user.level
       ? levelCriteriaMap.get(user.level as string)
       : null;
-    const minTenure = userLevelCriteria?.minTenure ?? 0;
     const yearsOfService = user.yearsOfService ?? 0;
-    const tenureRange =
-      minTenure > 0 && yearsOfService > 0
-        ? Math.min(yearsOfService, minTenure)
-        : yearsOfService > 0
-          ? yearsOfService
-          : 0;
+    const tenureRange = Math.min(yearsOfService, 5);
 
     let cumulative = 0;
     if (tenureRange > 0) {

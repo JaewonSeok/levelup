@@ -44,6 +44,7 @@ export async function GET(req: NextRequest) {
   // ── 필터 조건 구성 ─────────────────────────────────────────
   const conditions: Prisma.UserWhereInput[] = [
     { role: { not: Role.DEPT_HEAD } },
+    { isActive: true },
   ];
 
   if (department) conditions.push({ department: { contains: department, mode: "insensitive" } });
@@ -129,7 +130,7 @@ export async function GET(req: NextRequest) {
     prisma.gradeCriteria.findMany(),
     // year 필터 없이 전체 로드 후 최신 연도 기준 사용 (2025 저장 데이터도 2026에서 활용)
     prisma.levelCriteria.findMany({
-      select: { level: true, minTenure: true, requiredPoints: true, year: true },
+      select: { level: true, requiredPoints: true, year: true },
       orderBy: { year: "desc" },
     }),
   ]);
@@ -143,7 +144,7 @@ export async function GET(req: NextRequest) {
 
   // 등급→포인트: yearRange 문자열 형식(예: "2021-2024","2022-2024","2025")에 무관하게 연도 포함 여부로 판정
   function findGradePoints(grade: string, year: number): number {
-    if (!grade) return 0;
+    if (!grade) return 2;
     for (const gc of gradeCriteriaAll) {
       if (gc.grade !== grade) continue;
       const range = gc.yearRange;
@@ -155,14 +156,14 @@ export async function GET(req: NextRequest) {
         if (!isNaN(from) && !isNaN(to) && year >= from && year <= to) return gc.points;
       }
     }
-    return 0;
+    return 2;
   }
 
   // LevelCriteria: level별 최신 연도 기준 사용
-  const lcMap = new Map<string, { minTenure: number | null; requiredPoints: number | null }>();
+  const lcMap = new Map<string, { requiredPoints: number | null }>();
   for (const c of levelCriteriaAll) {
     if (!lcMap.has(c.level as string)) {
-      lcMap.set(c.level as string, { minTenure: c.minTenure, requiredPoints: c.requiredPoints });
+      lcMap.set(c.level as string, { requiredPoints: c.requiredPoints });
     }
   }
   const MAX_DATA_YEAR = 2025;
@@ -223,15 +224,8 @@ export async function GET(req: NextRequest) {
     let cumulative: number;
     if (gradeCriteriaAll.length > 0) {
       // 등급 기준이 설정된 경우: 최근 N년 window 합산
-      const minTenure = userLc?.minTenure ?? 0;
       const yearsOfService = user.yearsOfService ?? 0;
-      const gradeCount = Object.values(userGrades).filter((g) => !!g).length;
-      const tenureRange =
-        minTenure > 0 && yearsOfService > 0
-          ? Math.min(yearsOfService, minTenure)
-          : yearsOfService > 0
-            ? yearsOfService
-            : gradeCount;
+      const tenureRange = Math.min(yearsOfService, 5);
       let windowSum = 0;
       for (let i = 0; i < tenureRange; i++) {
         const yr = MAX_DATA_YEAR - i;
@@ -438,7 +432,7 @@ export async function POST(req: NextRequest) {
     }),
     prisma.gradeCriteria.findMany(),
     prisma.levelCriteria.findMany({
-      select: { level: true, minTenure: true, requiredPoints: true, year: true },
+      select: { level: true, requiredPoints: true, year: true },
       orderBy: { year: "desc" },
     }),
     prisma.bonusPenalty.findMany({
@@ -448,7 +442,7 @@ export async function POST(req: NextRequest) {
   ]);
 
   function findGradePointsPost(grade: string, yr: number): number {
-    if (!grade) return 0;
+    if (!grade) return 2;
     for (const gc of savedGradeCriteria) {
       if (gc.grade !== grade) continue;
       const range = gc.yearRange;
@@ -460,27 +454,20 @@ export async function POST(req: NextRequest) {
         if (!isNaN(from) && !isNaN(to) && yr >= from && yr <= to) return gc.points;
       }
     }
-    return 0;
+    return 2;
   }
 
-  const savedLcMap = new Map<string, { minTenure: number | null; requiredPoints: number | null }>();
+  const savedLcMap = new Map<string, { requiredPoints: number | null }>();
   for (const c of savedLevelCriteria) {
     if (!savedLcMap.has(c.level as string)) {
-      savedLcMap.set(c.level as string, { minTenure: c.minTenure, requiredPoints: c.requiredPoints });
+      savedLcMap.set(c.level as string, { requiredPoints: c.requiredPoints });
     }
   }
 
   const savedUserLc = user.level ? savedLcMap.get(user.level as string) : null;
   const savedYearsOfService = (await prisma.user.findUnique({ where: { id: userId }, select: { yearsOfService: true } }))?.yearsOfService ?? 0;
-  const savedMinTenure = savedUserLc?.minTenure ?? 0;
   const savedGradeMap = new Map(savedGrades.map((g) => [g.year, g.grade]));
-  const savedGradeCount = savedGrades.filter((g) => !!g.grade).length;
-  const savedTenureRange =
-    savedMinTenure > 0 && savedYearsOfService > 0
-      ? Math.min(savedYearsOfService, savedMinTenure)
-      : savedYearsOfService > 0
-        ? savedYearsOfService
-        : savedGradeCount;
+  const savedTenureRange = Math.min(savedYearsOfService, 5);
 
   let savedWindowSum = 0;
   for (let i = 0; i < savedTenureRange; i++) {

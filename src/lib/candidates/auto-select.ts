@@ -27,7 +27,7 @@ export async function autoSelectCandidates(
   // 2. GradeCriteria 로드 (등급→포인트 변환)
   const allGradeCriteria = await prisma.gradeCriteria.findMany();
   function gradeToPoints(grade: string, yr: number): number {
-    if (!grade) return 0;
+    if (!grade) return 2;
     for (const gc of allGradeCriteria) {
       if (gc.grade !== grade) continue;
       const range = gc.yearRange;
@@ -39,7 +39,7 @@ export async function autoSelectCandidates(
         if (!isNaN(from) && !isNaN(to) && yr >= from && yr <= to) return gc.points;
       }
     }
-    return 0;
+    return 2;
   }
 
   // 3. 활성 비-DEPT_HEAD 직원 조회 (grades + credits 포함)
@@ -95,15 +95,10 @@ export async function autoSelectCandidates(
     const minTenure = criteria.minTenure ?? 0;
     const yearsOfService = user.yearsOfService ?? tenure;
 
-    // tenureRange = min(연차, 기준연한)
-    const tenureRange =
-      minTenure > 0 && yearsOfService > 0
-        ? Math.min(yearsOfService, minTenure)
-        : yearsOfService > 0
-          ? yearsOfService
-          : 0;
+    // tenureRange = min(연차, 5) — 최근 N년만 합산
+    const tenureRange = Math.min(yearsOfService, 5);
 
-    // 6. 포인트 윈도우 합산 (최근 tenureRange년, 포인트만)
+    // 6. 포인트 윈도우 합산 (최근 tenureRange년)
     const gradeMap = new Map(user.performanceGrades.map((pg) => [pg.year, pg.grade]));
     let windowPointSum = 0;
     for (let i = 0; i < tenureRange; i++) {
@@ -113,9 +108,8 @@ export async function autoSelectCandidates(
       windowPointSum += gradeToPoints(grade, yr);
     }
     const adjustment = bpMap.get(user.id) ?? 0;
-    const totalPoints = windowPointSum + adjustment;
 
-    // 7. 학점 윈도우 합산 (최근 tenureRange년, 학점만 — 포인트와 완전히 별개)
+    // 7. 학점 윈도우 합산 (최근 tenureRange년)
     const creditMap = new Map(user.credits.map((c) => [c.year, c.score]));
     let windowCreditSum = 0;
     for (let i = 0; i < tenureRange; i++) {
@@ -124,16 +118,12 @@ export async function autoSelectCandidates(
       windowCreditSum += creditMap.get(yr) ?? 0;
     }
 
-    // 8. 각각 별도 판정
-    const pointMet =
-      criteria.requiredPoints > 0 ? totalPoints >= criteria.requiredPoints : true;
-    const creditMet =
-      (criteria.requiredCredits ?? 0) > 0
-        ? windowCreditSum >= criteria.requiredCredits
-        : true;
-
-    // 포인트 AND 학점 둘 다 충족해야 대상자
-    if (!pointMet || !creditMet) continue;
+    // 8. 합산 판정 (포인트 + 학점 + 가감점)
+    const finalPoints = windowPointSum + windowCreditSum + adjustment;
+    const qualified = criteria.requiredPoints > 0 ? finalPoints >= criteria.requiredPoints : false;
+    if (!qualified) continue;
+    const pointMet = qualified;
+    const creditMet = qualified;
 
     // 연차 충족 여부 → 승진 유형
     const tenureMet = tenure >= minTenure;

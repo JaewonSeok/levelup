@@ -148,6 +148,12 @@ export async function POST(req: NextRequest) {
         successCount++;
       }
 
+      // 업데이트 모드: 기존 평가등급/학점 삭제 후 재저장
+      if (savedUserId && duplicatePolicy === "update" && existing) {
+        await prisma.performanceGrade.deleteMany({ where: { userId: savedUserId } });
+        await prisma.credit.deleteMany({ where: { userId: savedUserId } });
+      }
+
       // 평가등급 upsert (등급이 있는 연도만)
       if (savedUserId) {
         const gradeEntries: { year: number; grade: string }[] = [
@@ -166,9 +172,9 @@ export async function POST(req: NextRequest) {
           });
         }
 
-        // 포인트 upsert
+        // 포인트 upsert (최대 연도: 2025)
         if (row.pointScore != null) {
-          const pointYear = row.levelUpYear ?? CURRENT_YEAR;
+          const pointYear = Math.min(row.levelUpYear ?? CURRENT_YEAR, 2025);
           const pointCriteria = row.level ? criteriaMap.get(`${row.level}_${pointYear}`) : null;
           const isMet = pointCriteria ? row.pointScore >= pointCriteria.requiredPoints : false;
           await prisma.point.upsert({
@@ -190,9 +196,9 @@ export async function POST(req: NextRequest) {
           });
         }
 
-        // 학점 upsert
+        // 학점 upsert (최대 연도: 2025, 크레딧 화면 MAX_CREDIT_YEAR=2025 기준)
         if (row.creditScore != null) {
-          const creditYear = row.levelUpYear ?? CURRENT_YEAR;
+          const creditYear = Math.min(row.levelUpYear ?? CURRENT_YEAR, 2025);
           const creditCriteria = row.level ? criteriaMap.get(`${row.level}_${creditYear}`) : null;
           const isMet = creditCriteria ? row.creditScore >= creditCriteria.requiredCredits : false;
           await prisma.credit.upsert({

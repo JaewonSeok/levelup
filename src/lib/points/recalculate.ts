@@ -19,7 +19,7 @@ export async function recalculatePointsFromGrades(
   if (allGradeCriteria.length === 0) return { updated: 0 };
 
   function gradeToPoints(grade: string, year: number): number {
-    if (!grade) return 0;
+    if (!grade) return 2;
     for (const gc of allGradeCriteria) {
       if (gc.grade !== grade) continue;
       const range = gc.yearRange;
@@ -31,7 +31,7 @@ export async function recalculatePointsFromGrades(
         if (!isNaN(from) && !isNaN(to) && year >= from && year <= to) return gc.points;
       }
     }
-    return 0;
+    return 2;
   }
 
   // 2. LevelCriteria 로드 — 최신 연도 폴백
@@ -66,16 +66,9 @@ export async function recalculatePointsFromGrades(
     if (user.performanceGrades.length === 0) continue;
 
     const criteria = user.level ? criteriaMap.get(user.level) : null;
-    const minTenure = criteria?.minTenure ?? 0;
-    const yearsOfService = user.yearsOfService ?? 0;
 
-    // tenureRange = min(연차, 기준연한) — 최근 N년만 합산
-    const tenureRange =
-      minTenure > 0 && yearsOfService > 0
-        ? Math.min(yearsOfService, minTenure)
-        : yearsOfService > 0
-          ? yearsOfService
-          : user.performanceGrades.length;
+    // tenureRange = min(연차, 5) — 최근 N년만 합산
+    const tenureRange = Math.min(user.yearsOfService ?? 0, 5);
 
     // merit/penalty 합산
     const totalMerit = user.points.reduce((s, p) => s + p.merit, 0);

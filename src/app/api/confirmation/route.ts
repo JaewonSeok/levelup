@@ -36,6 +36,7 @@ export async function GET(req: NextRequest) {
   // 부서 필터 구성
   const userWhere: Prisma.UserWhereInput = {
     role: { not: Role.DEPT_HEAD },
+    isActive: true,
   };
   if (department) {
     userWhere.department = { contains: department, mode: "insensitive" };

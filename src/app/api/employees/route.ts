@@ -102,7 +102,7 @@ export async function GET(req: NextRequest) {
 
   // ── 쿼리 ──────────────────────────────────────────────────
   try {
-    const [total, rawEmployees, metaDepts, metaTeams, gradeCriteriaAll, levelCriteriaAll] = await Promise.all([
+    const [total, rawEmployees, metaDepts, metaTeams, gradeCriteriaAll] = await Promise.all([
       prisma.user.count({ where }),
       prisma.user.findMany({
         where,
@@ -141,7 +141,6 @@ export async function GET(req: NextRequest) {
         orderBy: { team: "asc" },
       }),
       prisma.gradeCriteria.findMany(),
-      prisma.levelCriteria.findMany({ orderBy: { year: "desc" } }),
     ]);
 
     // BonusPenalty (총점 계산용)
@@ -155,18 +154,10 @@ export async function GET(req: NextRequest) {
       bpMapEmp.set(bp.userId, (bpMapEmp.get(bp.userId) ?? 0) + bp.points);
     }
 
-    // LevelCriteria — 레벨별 최신 minTenure
-    const lcMap = new Map<string, { minTenure: number | null }>();
-    for (const c of levelCriteriaAll) {
-      if (!lcMap.has(c.level as string)) {
-        lcMap.set(c.level as string, { minTenure: c.minTenure });
-      }
-    }
-
     // 등급 → 포인트 변환 (yearRange 범위 매칭)
     const EMP_MAX_YEAR = 2025;
     const findGradePointsEmp = (grade: string, year: number): number => {
-      if (!grade) return 0;
+      if (!grade) return 2;
       for (const gc of gradeCriteriaAll) {
         if (gc.grade !== grade) continue;
         const range = gc.yearRange;
@@ -178,7 +169,7 @@ export async function GET(req: NextRequest) {
           if (!isNaN(from) && !isNaN(to) && year >= from && year <= to) return gc.points;
         }
       }
-      return 0;
+      return 2;
     };
 
     // 평가등급 맵 + 학점 누적값 + 총점 변환
@@ -193,15 +184,8 @@ export async function GET(req: NextRequest) {
       // 총점 계산 (등급 기반 윈도우 합산)
       let totalPoints: number | null = null;
       if (performanceGrades.length > 0 && gradeCriteriaAll.length > 0) {
-        const lc = emp.level ? lcMap.get(emp.level as string) : null;
-        const minTenure = lc?.minTenure ?? 0;
         const yearsOfService = emp.yearsOfService ?? 0;
-        const tenureRange =
-          minTenure > 0 && yearsOfService > 0
-            ? Math.min(yearsOfService, minTenure)
-            : yearsOfService > 0
-              ? yearsOfService
-              : performanceGrades.length;
+        const tenureRange = Math.min(yearsOfService, 5);
         const gradesByYear = new Map(performanceGrades.map((g) => [g.year, g.grade]));
         let windowSum = 0;
         for (let i = 0; i < tenureRange; i++) {
