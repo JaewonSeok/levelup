@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Role, Level, Prisma } from "@prisma/client";
+import { calculatePointSum } from "@/lib/pointCalculation";
 
 const REVIEW_ROLES: Role[] = [Role.DEPT_HEAD, Role.HR_TEAM, Role.CEO, Role.SYSTEM_ADMIN];
 
@@ -128,8 +129,8 @@ export async function GET(req: NextRequest) {
     for (const r of newReviews) reviewMap.set(r.candidateId, r);
   }
 
-  // Fetch level criteria, latest points, latest credits, grades, bonus-penalty
-  const [criteriaList, latestPoints, latestCredits, allGrades, bonusPenaltyRecords] = await Promise.all([
+  // Fetch level criteria, latest points(fallback), credits(2025), grades, bonus-penalty, gradeCriteria
+  const [criteriaList, latestPoints, latestCredits, allGrades, bonusPenaltyRecords, gradeCriteriaAll] = await Promise.all([
     levels.length > 0
       ? prisma.levelCriteria.findMany({ where: { year, level: { in: levels } } })
       : Promise.resolve([]),
@@ -137,11 +138,11 @@ export async function GET(req: NextRequest) {
       where: { userId: { in: userIds } },
       orderBy: { year: "desc" },
       distinct: ["userId"],
+      select: { userId: true, cumulative: true },
     }),
     prisma.credit.findMany({
-      where: { userId: { in: userIds } },
-      orderBy: { year: "desc" },
-      distinct: ["userId"],
+      where: { userId: { in: userIds }, year: 2025 },
+      select: { userId: true, score: true },
     }),
     prisma.performanceGrade.findMany({
       where: { userId: { in: userIds }, year: { in: [2021, 2022, 2023, 2024, 2025] } },
@@ -151,6 +152,7 @@ export async function GET(req: NextRequest) {
       where: { userId: { in: userIds } },
       select: { userId: true, type: true, points: true },
     }),
+    prisma.gradeCriteria.findMany(),
   ]);
 
   const gradeMap = new Map<string, Record<number, string>>();
@@ -160,8 +162,8 @@ export async function GET(req: NextRequest) {
   }
 
   const criteriaMap = new Map(criteriaList.map((c) => [c.level as string, c]));
-  const pointMap = new Map(latestPoints.map((p) => [p.userId, p.cumulative]));
-  const creditMap = new Map(latestCredits.map((c) => [c.userId, c.cumulative]));
+  const pointMap = new Map(latestPoints.map((p) => [p.userId, p.cumulative])); // GradeCriteria 미설정 시 fallback
+  const creditMap = new Map(latestCredits.map((c) => [c.userId, c.score])); // 2025년 Credit.score
   const bpMap = new Map<string, { bonusTotal: number; penaltyTotal: number }>();
   for (const bp of bonusPenaltyRecords) {
     if (!bpMap.has(bp.userId)) bpMap.set(bp.userId, { bonusTotal: 0, penaltyTotal: 0 });
@@ -187,8 +189,12 @@ export async function GET(req: NextRequest) {
 
     const userGrades = gradeMap.get(candidate.userId) ?? {};
     const { bonusTotal = 0, penaltyTotal = 0 } = bpMap.get(candidate.userId) ?? {};
-    const adjustment = bonusTotal - penaltyTotal;
-    const baseCumulative = pointMap.get(candidate.userId) ?? 0;
+
+    // 포인트 관리 페이지와 동일한 계산 — calculatePointSum (실시간 등급 윈도우 합산)
+    const yearsOfService = candidate.user.yearsOfService ?? 0;
+    const pointCumulative = gradeCriteriaAll.length > 0
+      ? calculatePointSum(userGrades, gradeCriteriaAll, year, yearsOfService)
+      : (pointMap.get(candidate.userId) ?? 0); // GradeCriteria 미설정 시 DB fallback
 
     return {
       candidateId: candidate.id,
@@ -201,7 +207,7 @@ export async function GET(req: NextRequest) {
       hireDate: candidate.user.hireDate?.toISOString() ?? null,
       yearsOfService: candidate.user.yearsOfService,
       competencyLevel: candidate.user.competencyLevel,
-      pointCumulative: baseCumulative + adjustment,
+      pointCumulative,
       creditCumulative: creditMap.get(candidate.userId) ?? 0,
       bonusTotal,
       penaltyTotal,
