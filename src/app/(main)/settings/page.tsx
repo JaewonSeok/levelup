@@ -62,7 +62,7 @@ type EditValues = Record<
 >;
 
 const CURRENT_YEAR = new Date().getFullYear();
-const ALL_LEVELS = ["L1", "L2", "L3", "L4", "L5"];
+const ALL_LEVELS = ["L0", "L1", "L2", "L3", "L4", "L5"];
 const GRADES_2022_2024 = ["S", "A", "B", "C"] as const;
 const GRADES_2025 = ["S", "O", "E", "G", "N", "U"] as const;
 

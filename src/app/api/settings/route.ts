@@ -14,7 +14,7 @@ const READ_ROLES: Role[] = [
   Role.SYSTEM_ADMIN,
 ];
 
-const ALL_LEVELS: Level[] = [Level.L1, Level.L2, Level.L3, Level.L4, Level.L5];
+const ALL_LEVELS: Level[] = [Level.L0, Level.L1, Level.L2, Level.L3, Level.L4, Level.L5];
 
 function getCurrentYear() {
   return new Date().getFullYear();

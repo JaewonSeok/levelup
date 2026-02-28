@@ -88,7 +88,7 @@ interface EditState {
 // ─────────────────────────────────────────
 
 const PAGE_SIZE = 20;
-const LEVELS = ["L1", "L2", "L3", "L4", "L5"] as const;
+const LEVELS = ["L0", "L1", "L2", "L3", "L4", "L5"] as const;
 
 interface AddEmployeeForm {
   name: string;

@@ -40,7 +40,7 @@ const COLUMN_ALIASES: Record<string, string> = {
 // 공개 타입
 // ─────────────────────────────────────────
 
-export type ParsedLevel = "L1" | "L2" | "L3" | "L4" | "L5";
+export type ParsedLevel = "L0" | "L1" | "L2" | "L3" | "L4" | "L5";
 
 export interface ParsedEmployee {
   sheet: string;          // 시트명
@@ -71,7 +71,7 @@ export interface ParsedEmployee {
 // 내부 파싱 헬퍼
 // ─────────────────────────────────────────
 
-const VALID_LEVELS = new Set<string>(["L1", "L2", "L3", "L4", "L5"]);
+const VALID_LEVELS = new Set<string>(["L0", "L1", "L2", "L3", "L4", "L5"]);
 const VALID_GRADES_2022_2024 = new Set(["S", "A", "B", "C"]);
 const VALID_GRADES_2025 = new Set(["S", "O", "E", "G", "N", "U"]);
 

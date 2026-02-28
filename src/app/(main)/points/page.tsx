@@ -163,7 +163,7 @@ const PENALTY_ITEMS = [
 
 const PAGE_SIZE = 20;
 const GRADE_YEARS = [2021, 2022, 2023, 2024, 2025] as const;
-const LEVELS = ["L1", "L2", "L3", "L4", "L5"] as const;
+const LEVELS = ["L0", "L1", "L2", "L3", "L4", "L5"] as const;
 const GRADES_2022_2024 = ["S", "A", "B", "C"] as const;
 const GRADES_2025 = ["S", "O", "E", "G", "N", "U"] as const;
 

@@ -42,7 +42,7 @@ export interface SearchAreasProps {
 // 내부 서브 컴포넌트
 // ─────────────────────────────────────────
 
-const LEVELS = ["L1", "L2", "L3", "L4", "L5"];
+const LEVELS = ["L0", "L1", "L2", "L3", "L4", "L5"];
 const POSITIONS = ["팀원", "팀장", "실장", "본부장"];
 
 function IsMetRadio({

@@ -699,7 +699,7 @@ export default function CandidatesPage() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="__none__">선택</SelectItem>
-                  {["L1", "L2", "L3", "L4", "L5"].map((l) => <SelectItem key={l} value={l}>{l}</SelectItem>)}
+                  {["L0", "L1", "L2", "L3", "L4", "L5"].map((l) => <SelectItem key={l} value={l}>{l}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>

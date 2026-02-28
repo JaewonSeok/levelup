@@ -52,6 +52,7 @@ const DEFAULT_GRADE_CRITERIA = [
 ];
 
 const DEFAULT_LEVEL_CRITERIA = [
+  { level: Level.L0, year: 2026, requiredPoints: 4,  requiredCredits: 0,  minTenure: 2 },
   { level: Level.L1, year: 2026, requiredPoints: 4,  requiredCredits: 8,  minTenure: 2 },
   { level: Level.L2, year: 2026, requiredPoints: 4,  requiredCredits: 20, minTenure: 3 },
   { level: Level.L3, year: 2026, requiredPoints: 11, requiredCredits: 15, minTenure: 4 },
