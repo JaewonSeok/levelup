@@ -12,7 +12,8 @@ const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 const ALLOWED_ROLES: Role[] = [Role.HR_TEAM, Role.SYSTEM_ADMIN];
 
 // 날짜 비교 키 (로컬 시간 기준 — 원본 findFirst 로직과 동일)
-function hireDateKey(d: Date): string {
+function hireDateKey(d: Date | null): string {
+  if (!d) return "null";
   return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
 }
 
@@ -104,7 +105,7 @@ export async function POST(req: NextRequest) {
   const criteriaMap = new Map(criteriaList.map((c) => [`${c.level}_${c.year}`, c]));
 
   // 5-1. 기존 사용자 일괄 조회 (275번 findFirst → 1번 findMany)
-  const uploadedNames = [...new Set(validRows.map((r) => r.name))];
+  const uploadedNames = Array.from(new Set(validRows.map((r) => r.name)));
   const existingUsersList = await prisma.user.findMany({
     where: { name: { in: uploadedNames } },
     select: { id: true, name: true, hireDate: true },
@@ -180,7 +181,7 @@ export async function POST(req: NextRequest) {
           });
         }
       }
-    } catch (e) {
+    } catch {
       // createMany 실패 시 개별 생성으로 폴백
       for (const row of toCreate) {
         try {
