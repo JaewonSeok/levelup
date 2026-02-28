@@ -3,19 +3,12 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Role, Level, EmploymentType, Prisma } from "@prisma/client";
+import { calculatePointSum, getNextLevel } from "@/lib/pointCalculation";
 
 const ALLOWED_ROLES: Role[] = [Role.HR_TEAM, Role.SYSTEM_ADMIN];
 
 function getCurrentYear() {
   return new Date().getFullYear();
-}
-
-function getNextLevel(currentLevel: string | null): string | null {
-  if (!currentLevel) return null;
-  const order = ["L0", "L1", "L2", "L3", "L4", "L5"];
-  const idx = order.indexOf(currentLevel);
-  if (idx === -1 || idx >= order.length - 1) return null;
-  return order[idx + 1];
 }
 
 // ── GET /api/candidates ──────────────────────────────────────────
@@ -144,26 +137,8 @@ export async function GET(req: NextRequest) {
     else entry.penaltyTotal += Math.abs(bp.points);
   }
 
-  // 등급 → 포인트 변환 (yearRange 범위 매칭)
-  // 심사연도 기준으로 역산: 2026년 심사 → 2025부터 역산
+  // 심사연도 기준으로 역산: 2026년 심사 → 2025부터 역산 (calculatePointSum의 baseYear로 전달)
   const GRADE_CALC_BASE = year - 1;
-  const findGradePoints = (grade: string, gradeYear: number): number => {
-    // 빈 등급·대시·NI → 기본값 2 (엑셀 IFERROR와 동일)
-    if (!grade || grade === "-" || grade.trim() === "" || grade.trim().toUpperCase() === "NI") return 2;
-    const g = grade.trim().toUpperCase();
-    for (const gc of gradeCriteriaAll) {
-      if (gc.grade !== g) continue;
-      const range = gc.yearRange;
-      if (range === String(gradeYear)) return gc.points;
-      const parts = range.split("-");
-      if (parts.length === 2) {
-        const from = Number(parts[0]);
-        const to = Number(parts[1]);
-        if (!isNaN(from) && !isNaN(to) && gradeYear >= from && gradeYear <= to) return gc.points;
-      }
-    }
-    return 2; // 매칭 안되면 기본값 2
-  };
 
   // ── 직원별 데이터 가공 + Candidate 레코드 생성/업데이트 ──────
   // 수동 추가(기존 Candidate 보유) 여부를 별도 Set으로 관리
@@ -175,31 +150,25 @@ export async function GET(req: NextRequest) {
       const { bonusTotal = 0, penaltyTotal = 0 } = bpMap.get(user.id) ?? {};
       const adjustment = bonusTotal - penaltyTotal;
 
-      // 등급 기반 포인트 재계산 (DB 누적값 대신 정확한 윈도우 계산)
+      // 등급 기반 포인트 재계산 (공통 모듈 사용 — 포인트 관리 페이지와 동일 로직)
       const criteria = user.level ? criteriaMap.get(getNextLevel(user.level) ?? "") : null;
-      const yearsOfServiceCalc = user.yearsOfService ?? 0;
-      const tenureRangeCalc = Math.min(yearsOfServiceCalc, 5);
       const userGrades = gradeMap.get(user.id) ?? {};
-      let windowSum = 0;
+      let windowSum: number;
       if (gradeCriteriaAll.length > 0) {
-        for (let i = 0; i < tenureRangeCalc; i++) {
-          const yr = GRADE_CALC_BASE - i;
-          if (yr < 2021) break;
-          windowSum += findGradePoints(userGrades[yr] ?? "", yr);
-        }
+        windowSum = calculatePointSum(userGrades, gradeCriteriaAll, year, user.yearsOfService ?? 0);
       } else {
         // GradeCriteria 미설정 시 DB 누적값 사용
         const latestPoint = user.points[user.points.length - 1];
         windowSum = latestPoint?.cumulative ?? 0;
       }
-      const pointCumulative = windowSum + adjustment; // 등급포인트 + 가감점
+      const pointCumulative = windowSum; // 포인트 관리 페이지와 동일한 값 (adjustment 미포함)
 
       // 학점 = 2025년 값만 사용 (2025년 신규 도입, 이전 연도 없음)
       const creditScoreMap = new Map(user.credits.map((c) => [c.year, c.score]));
       const creditCumulative = creditScoreMap.get(GRADE_CALC_BASE) ?? 0;
 
-      // 최종포인트 = 등급포인트합 + 학점합 + 가감점
-      const finalPoints = pointCumulative + creditCumulative;
+      // 최종포인트 = 등급포인트합 + 학점합 + 가감점 (충족 판정용, 표시값과 별도)
+      const finalPoints = pointCumulative + creditCumulative + adjustment;
 
       // 체류 연수 계산 (yearsOfService 우선 사용)
       const tenure = user.levelStartDate

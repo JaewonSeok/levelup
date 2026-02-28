@@ -3,19 +3,12 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Role, Level, EmploymentType, Prisma } from "@prisma/client";
+import { getNextLevel } from "@/lib/pointCalculation";
 
 const ALLOWED_ROLES: Role[] = [Role.HR_TEAM, Role.SYSTEM_ADMIN];
 
 function getCurrentYear() {
   return new Date().getFullYear();
-}
-
-function getNextLevel(currentLevel: string | null): string | null {
-  if (!currentLevel) return null;
-  const order = ["L0", "L1", "L2", "L3", "L4", "L5"];
-  const idx = order.indexOf(currentLevel);
-  if (idx === -1 || idx >= order.length - 1) return null;
-  return order[idx + 1];
 }
 
 // ── GET /api/credits ───────────────────────────────────────────

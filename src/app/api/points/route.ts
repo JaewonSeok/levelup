@@ -4,19 +4,12 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Role, Level, EmploymentType, Prisma } from "@prisma/client";
 import { recalculatePointsFromGrades } from "@/lib/points/recalculate";
+import { calculatePointSum, getNextLevel } from "@/lib/pointCalculation";
 
 const ALLOWED_ROLES: Role[] = [Role.HR_TEAM, Role.SYSTEM_ADMIN];
 
 function getCurrentYear() {
   return new Date().getFullYear();
-}
-
-function getNextLevel(currentLevel: string | null): string | null {
-  if (!currentLevel) return null;
-  const order = ["L0", "L1", "L2", "L3", "L4", "L5"];
-  const idx = order.indexOf(currentLevel);
-  if (idx === -1 || idx >= order.length - 1) return null;
-  return order[idx + 1];
 }
 
 // ── GET /api/points ────────────────────────────────────────────
@@ -133,23 +126,6 @@ export async function GET(req: NextRequest) {
   }
   const creditMap = new Map(latestCredits.map((c) => [c.userId, c.score]));
 
-  // 등급→포인트: yearRange 문자열 형식(예: "2021-2024","2022-2024","2025")에 무관하게 연도 포함 여부로 판정
-  function findGradePoints(grade: string, year: number): number {
-    if (!grade) return 2;
-    for (const gc of gradeCriteriaAll) {
-      if (gc.grade !== grade) continue;
-      const range = gc.yearRange;
-      if (range === String(year)) return gc.points;
-      const parts = range.split("-");
-      if (parts.length === 2) {
-        const from = Number(parts[0]);
-        const to = Number(parts[1]);
-        if (!isNaN(from) && !isNaN(to) && year >= from && year <= to) return gc.points;
-      }
-    }
-    return 2;
-  }
-
   // LevelCriteria: level별 최신 연도 기준 사용
   const lcMap = new Map<string, { requiredPoints: number | null }>();
   for (const c of levelCriteriaAll) {
@@ -157,8 +133,6 @@ export async function GET(req: NextRequest) {
       lcMap.set(c.level as string, { requiredPoints: c.requiredPoints });
     }
   }
-  const MAX_DATA_YEAR = 2025;
-
   // 가감점 일괄 조회
   const bonusPenaltyRecords = await prisma.bonusPenalty.findMany({
     where: { userId: { in: allUserIds } },
@@ -214,17 +188,8 @@ export async function GET(req: NextRequest) {
 
     let cumulative: number;
     if (gradeCriteriaAll.length > 0) {
-      // 등급 기준이 설정된 경우: 최근 N년 window 합산
-      const yearsOfService = user.yearsOfService ?? 0;
-      const tenureRange = Math.min(yearsOfService, 5);
-      let windowSum = 0;
-      for (let i = 0; i < tenureRange; i++) {
-        const yr = MAX_DATA_YEAR - i;
-        if (yr < 2021) break;
-        const grade = userGrades[yr] ?? "";
-        windowSum += findGradePoints(grade, yr);
-      }
-      cumulative = windowSum + totalMerit - totalPenalty;
+      // 등급 기준이 설정된 경우: 공통 모듈로 window 합산
+      cumulative = calculatePointSum(userGrades, gradeCriteriaAll, CURRENT_YEAR, user.yearsOfService ?? 0);
     } else {
       // GradeCriteria 미설정 시 DB Point 값 fallback
       const latestPoint = user.points[user.points.length - 1];
