@@ -87,7 +87,7 @@ export async function recalculatePointsFromGrades(
     }
 
     const cumulative = windowSum + totalMerit - totalPenalty;
-    const isMet = criteria ? cumulative >= criteria.requiredPoints : false;
+    const isMet = criteria && criteria.requiredPoints != null && criteria.requiredPoints > 0 ? cumulative >= criteria.requiredPoints : false;
 
     // 연도별 Point 레코드 upsert (각 연도별 score + 공통 cumulative/isMet)
     for (const pg of user.performanceGrades) {

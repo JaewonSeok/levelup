@@ -108,13 +108,44 @@ export async function GET(req: NextRequest) {
     }),
     prisma.levelCriteria.findMany({
       where: { year: CURRENT_YEAR },
-      select: { level: true, minTenure: true, requiredCredits: true },
+      select: { level: true, minTenure: true, requiredCredits: true, requiredPoints: true },
     }),
   ]);
 
   const levelCriteriaMap = new Map(
     levelCriteriaList.map((c) => [c.level as string, c])
   );
+
+  // 평가등급 + 등급기준 (충족 판정 계산용)
+  const userIds = users.map((u) => u.id);
+  const [allGrades, gradeCriteriaAll] = await Promise.all([
+    prisma.performanceGrade.findMany({
+      where: { userId: { in: userIds }, year: { in: [2021, 2022, 2023, 2024, 2025] } },
+      select: { userId: true, year: true, grade: true },
+    }),
+    prisma.gradeCriteria.findMany(),
+  ]);
+  const perfGradeMap = new Map<string, Record<number, string>>();
+  for (const g of allGrades) {
+    if (!perfGradeMap.has(g.userId)) perfGradeMap.set(g.userId, {});
+    perfGradeMap.get(g.userId)![g.year] = g.grade;
+  }
+  function findCreditGradePoints(grade: string, gradeYear: number): number {
+    if (!grade || grade === "-" || grade.trim() === "" || grade.trim().toUpperCase() === "NI") return 2;
+    const g = grade.trim().toUpperCase();
+    for (const gc of gradeCriteriaAll) {
+      if (gc.grade !== g) continue;
+      const range = gc.yearRange;
+      if (range === String(gradeYear)) return gc.points;
+      const parts = range.split("-");
+      if (parts.length === 2) {
+        const from = Number(parts[0]);
+        const to = Number(parts[1]);
+        if (!isNaN(from) && !isNaN(to) && gradeYear >= from && gradeYear <= to) return gc.points;
+      }
+    }
+    return 2;
+  }
 
   // ── 학점 데이터 가공 ───────────────────────────────────────
   const allYearsSet = new Set<number>();
@@ -158,29 +189,39 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // 학점 누적 = 최근 tenureRange년 합산 (포인트와 완전히 별개)
     const userLevelCriteria = user.level
       ? levelCriteriaMap.get(user.level as string)
       : null;
     const yearsOfService = user.yearsOfService ?? 0;
     const tenureRange = Math.min(yearsOfService, 5);
 
-    let cumulative = 0;
-    if (tenureRange > 0) {
+    // 누적 학점 = 2025년 학점만 (2025년 신규 도입, 이전 연도 없음)
+    const credit2025Entry = user.credits.find((c) => c.year === 2025);
+    const cumulative = credit2025Entry?.score ?? 0;
+
+    // 포인트합 (등급 기준 윈도우 — 충족 판정용)
+    const userPerfGrades = perfGradeMap.get(user.id) ?? {};
+    let pointSum = 0;
+    if (gradeCriteriaAll.length > 0) {
       for (let i = 0; i < tenureRange; i++) {
         const yr = MAX_CREDIT_YEAR - i;
         if (yr < 2021) break;
-        const d = yearData[yr];
-        cumulative += d?.score ?? 0;
+        pointSum += findCreditGradePoints(userPerfGrades[yr] ?? "", yr);
       }
-    } else {
-      // 기준 없음: 전체 합산 (fallback)
-      cumulative = Object.values(yearData).reduce((s, d) => s + (d.score ?? 0), 0);
     }
 
-    const isMet = userLevelCriteria
-      ? cumulative >= (userLevelCriteria.requiredCredits ?? 0)
-      : user.credits.some((c) => c.isMet);
+    // 최종포인트 = 포인트합 + 학점, 충족 판정
+    const finalPoints = pointSum + cumulative;
+    let isMet = false;
+    if (user.level && user.level !== "L5" && userLevelCriteria) {
+      if (!userLevelCriteria.requiredPoints) {
+        // L0: 포인트 기준 없음 → 연차 기준만
+        const minTenure = userLevelCriteria.minTenure ?? 999;
+        isMet = minTenure > 0 ? yearsOfService >= minTenure : false;
+      } else {
+        isMet = finalPoints >= userLevelCriteria.requiredPoints;
+      }
+    }
 
     return {
       id: user.id,
@@ -271,7 +312,7 @@ export async function POST(req: NextRequest) {
       for (const { year, score } of sortedYears) {
         running += score;
         // 충족: 누적 학점 >= 기준 학점
-        const isMet = criteria ? running >= criteria.requiredCredits : false;
+        const isMet = criteria && criteria.requiredCredits != null && criteria.requiredCredits > 0 ? running >= criteria.requiredCredits : false;
 
         await tx.credit.upsert({
           where: { userId_year: { userId, year } },

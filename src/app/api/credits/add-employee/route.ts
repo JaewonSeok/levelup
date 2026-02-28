@@ -81,7 +81,7 @@ export async function POST(req: NextRequest) {
     let running = 0;
     for (const { year, score } of creditScores) {
       running += score;
-      const isMet = criteria ? running >= criteria.requiredCredits : false;
+      const isMet = criteria && criteria.requiredCredits != null && criteria.requiredCredits > 0 ? running >= criteria.requiredCredits : false;
       await prisma.credit.create({
         data: { userId: user.id, year, score, cumulative: running, isMet },
       });

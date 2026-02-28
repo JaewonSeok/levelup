@@ -122,10 +122,8 @@ export async function GET(req: NextRequest) {
       select: { userId: true, year: true, grade: true },
     }),
     prisma.credit.findMany({
-      where: { userId: { in: allUserIds } },
-      orderBy: { year: "desc" },
-      distinct: ["userId"],
-      select: { userId: true, cumulative: true },
+      where: { userId: { in: allUserIds }, year: 2025 },
+      select: { userId: true, score: true },
     }),
     prisma.gradeCriteria.findMany(),
     // year 필터 없이 전체 로드 후 최신 연도 기준 사용 (2025 저장 데이터도 2026에서 활용)
@@ -140,7 +138,7 @@ export async function GET(req: NextRequest) {
     if (!gradeMap.has(g.userId)) gradeMap.set(g.userId, {});
     gradeMap.get(g.userId)![g.year] = g.grade;
   }
-  const creditMap = new Map(latestCredits.map((c) => [c.userId, c.cumulative]));
+  const creditMap = new Map(latestCredits.map((c) => [c.userId, c.score]));
 
   // 등급→포인트: yearRange 문자열 형식(예: "2021-2024","2022-2024","2025")에 무관하게 연도 포함 여부로 판정
   function findGradePoints(grade: string, year: number): number {
@@ -251,7 +249,7 @@ export async function GET(req: NextRequest) {
     const creditCumulative = creditMap.get(user.id) ?? 0;
     const { bonusTotal = 0, penaltyTotal = 0 } = bpMap.get(user.id) ?? {};
     const adjustment = bonusTotal - penaltyTotal;
-    const totalPoints = cumulative + adjustment;
+    const totalPoints = cumulative + creditCumulative; // 포인트합 + 학점
 
     return {
       id: user.id,
@@ -384,7 +382,7 @@ export async function POST(req: NextRequest) {
         const merit = isLatest ? totalMerit : 0;
         const penalty = isLatest ? totalPenalty : 0;
         const cumulativeAtYear = running + (isLatest ? totalMerit - totalPenalty : 0);
-        const isMet = criteria ? cumulativeAtYear >= criteria.requiredPoints : false;
+        const isMet = criteria && criteria.requiredPoints != null && criteria.requiredPoints > 0 ? cumulativeAtYear >= criteria.requiredPoints : false;
 
         await tx.point.upsert({
           where: { userId_year: { userId, year } },

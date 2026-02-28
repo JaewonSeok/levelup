@@ -295,7 +295,7 @@ export async function POST(req: NextRequest) {
     .map(({ row, userId }) => {
       const pointYear = Math.min(row.levelUpYear ?? CURRENT_YEAR, 2025);
       const pointCriteria = row.level ? criteriaMap.get(`${row.level}_${pointYear}`) : null;
-      const isMet = pointCriteria ? row.pointScore! >= pointCriteria.requiredPoints : false;
+      const isMet = pointCriteria && pointCriteria.requiredPoints != null && pointCriteria.requiredPoints > 0 ? row.pointScore! >= pointCriteria.requiredPoints : false;
       return prisma.point.upsert({
         where: { userId_year: { userId, year: pointYear } },
         create: { userId, year: pointYear, score: row.pointScore!, merit: 0, penalty: 0, cumulative: row.pointScore!, isMet },
@@ -312,7 +312,7 @@ export async function POST(req: NextRequest) {
     .map(({ row, userId }) => {
       const creditYear = Math.min(row.levelUpYear ?? CURRENT_YEAR, 2025);
       const creditCriteria = row.level ? criteriaMap.get(`${row.level}_${creditYear}`) : null;
-      const isMet = creditCriteria ? row.creditScore! >= creditCriteria.requiredCredits : false;
+      const isMet = creditCriteria && creditCriteria.requiredCredits != null && creditCriteria.requiredCredits > 0 ? row.creditScore! >= creditCriteria.requiredCredits : false;
       return prisma.credit.upsert({
         where: { userId_year: { userId, year: creditYear } },
         create: { userId, year: creditYear, score: row.creditScore!, cumulative: row.creditScore!, isMet },

@@ -139,9 +139,9 @@ export interface ReviewRow {
   yearsOfService: number;
   hireDate: Date | null;
   pointCumulative: number;
-  requiredPoints: number;  // LevelCriteria.requiredPoints
+  requiredPoints: number | null;  // LevelCriteria.requiredPoints
   creditCumulative: number;
-  requiredCredits: number; // LevelCriteria.requiredCredits
+  requiredCredits: number | null; // LevelCriteria.requiredCredits
   competencyScore: number | null;
   competencyEval: number | null;
   opinionFilled: boolean;  // 소속본부장 의견 저장 여부

@@ -276,6 +276,7 @@ export default function PointsPage() {
   const [bpLoading, setBpLoading] = useState(false);
   const [bpSaving, setBpSaving] = useState(false);
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   async function openBonusPenalty(emp: EmployeePoint) {
     setBpEmployee(emp);
     setBpChecked(new Set());
@@ -654,7 +655,6 @@ export default function PointsPage() {
                 </TableHead>
               ))}
               <TableHead className="text-center text-xs font-bold">포인트</TableHead>
-              <TableHead className="text-center text-xs">가감점</TableHead>
               <TableHead className="text-center text-xs font-bold">총점</TableHead>
               <TableHead className="text-center text-xs font-bold">충족</TableHead>
               <TableHead className="text-center text-xs">편집</TableHead>
@@ -664,7 +664,7 @@ export default function PointsPage() {
             {loading ? (
               <TableRow>
                 <TableCell
-                  colSpan={6 + GRADE_YEARS.length + 5}
+                  colSpan={6 + GRADE_YEARS.length + 4}
                   className="text-center py-16 text-muted-foreground text-sm"
                 >
                   로딩 중...
@@ -673,7 +673,7 @@ export default function PointsPage() {
             ) : employees.length === 0 ? (
               <TableRow>
                 <TableCell
-                  colSpan={6 + GRADE_YEARS.length + 5}
+                  colSpan={6 + GRADE_YEARS.length + 4}
                   className="text-center py-16 text-muted-foreground text-sm"
                 >
                   검색 결과가 없습니다.
@@ -713,20 +713,6 @@ export default function PointsPage() {
 
                   <TableCell className="text-center text-sm">
                     {emp.cumulative.toFixed(1)}
-                  </TableCell>
-                  <TableCell className="text-center">
-                    <button
-                      className={`text-xs px-1.5 py-0.5 rounded border transition-colors cursor-pointer ${
-                        emp.adjustment > 0
-                          ? "text-blue-700 bg-blue-50 border-blue-200 hover:bg-blue-100"
-                          : emp.adjustment < 0
-                          ? "text-red-700 bg-red-50 border-red-200 hover:bg-red-100"
-                          : "text-gray-500 bg-gray-50 border-gray-200 hover:bg-gray-100"
-                      }`}
-                      onClick={() => openBonusPenalty(emp)}
-                    >
-                      {emp.adjustment > 0 ? `+${emp.adjustment.toFixed(1)}` : emp.adjustment < 0 ? emp.adjustment.toFixed(1) : "0"}
-                    </button>
                   </TableCell>
                   <TableCell className="text-center text-sm font-bold">
                     {emp.totalPoints.toFixed(1)}

@@ -109,25 +109,30 @@ export async function autoSelectCandidates(
     }
     const adjustment = bpMap.get(user.id) ?? 0;
 
-    // 7. 학점 윈도우 합산 (최근 tenureRange년)
+    // 7. 학점 = 2025년 값만 사용 (2025년 신규 도입, 이전 연도 없음)
     const creditMap = new Map(user.credits.map((c) => [c.year, c.score]));
-    let windowCreditSum = 0;
-    for (let i = 0; i < tenureRange; i++) {
-      const yr = MAX_DATA_YEAR - i;
-      if (yr < 2021) break;
-      windowCreditSum += creditMap.get(yr) ?? 0;
-    }
+    const windowCreditSum = creditMap.get(MAX_DATA_YEAR) ?? 0;
 
     // 8. 합산 판정 (포인트 + 학점 + 가감점)
     const finalPoints = windowPointSum + windowCreditSum + adjustment;
-    const qualified = criteria.requiredPoints > 0 ? finalPoints >= criteria.requiredPoints : false;
-    if (!qualified) continue;
-    const pointMet = qualified;
-    const creditMet = qualified;
+    const reqPts = criteria.requiredPoints ?? 0;
 
-    // 연차 충족 여부 → 승진 유형
-    const tenureMet = tenure >= minTenure;
-    const promotionType = tenureMet ? "normal" : "special";
+    // AQ: 연차 충족
+    const tenureMet = minTenure > 0 ? tenure >= minTenure : false;
+
+    // AR: 일반 승진 자격 (연차 충족 + 포인트 충족)
+    let qualificationMet = false;
+    if (tenureMet) {
+      qualificationMet = reqPts <= 0 ? true : finalPoints >= reqPts; // reqPts=0 → L0 (포인트 기준 없음)
+    }
+
+    // AS: 특진 자격 (연차 미충족 + 포인트 충족)
+    const isSpecialPromotion = !tenureMet && reqPts > 0 && finalPoints >= reqPts;
+
+    if (!qualificationMet && !isSpecialPromotion) continue;
+    const pointMet = qualificationMet;
+    const creditMet = qualificationMet;
+    const promotionType = isSpecialPromotion ? "special" : "normal";
 
     total++;
 

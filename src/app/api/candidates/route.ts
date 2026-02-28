@@ -137,21 +137,24 @@ export async function GET(req: NextRequest) {
   }
 
   // 등급 → 포인트 변환 (yearRange 범위 매칭)
-  const CAND_MAX_YEAR = 2025;
-  const findGradePoints = (grade: string, year: number): number => {
-    if (!grade) return 2;
+  // 심사연도 기준으로 역산: 2026년 심사 → 2025부터 역산
+  const GRADE_CALC_BASE = year - 1;
+  const findGradePoints = (grade: string, gradeYear: number): number => {
+    // 빈 등급·대시·NI → 기본값 2 (엑셀 IFERROR와 동일)
+    if (!grade || grade === "-" || grade.trim() === "" || grade.trim().toUpperCase() === "NI") return 2;
+    const g = grade.trim().toUpperCase();
     for (const gc of gradeCriteriaAll) {
-      if (gc.grade !== grade) continue;
+      if (gc.grade !== g) continue;
       const range = gc.yearRange;
-      if (range === String(year)) return gc.points;
+      if (range === String(gradeYear)) return gc.points;
       const parts = range.split("-");
       if (parts.length === 2) {
         const from = Number(parts[0]);
         const to = Number(parts[1]);
-        if (!isNaN(from) && !isNaN(to) && year >= from && year <= to) return gc.points;
+        if (!isNaN(from) && !isNaN(to) && gradeYear >= from && gradeYear <= to) return gc.points;
       }
     }
-    return 2;
+    return 2; // 매칭 안되면 기본값 2
   };
 
   // ── 직원별 데이터 가공 + Candidate 레코드 생성/업데이트 ──────
@@ -172,7 +175,7 @@ export async function GET(req: NextRequest) {
       let windowSum = 0;
       if (gradeCriteriaAll.length > 0) {
         for (let i = 0; i < tenureRangeCalc; i++) {
-          const yr = CAND_MAX_YEAR - i;
+          const yr = GRADE_CALC_BASE - i;
           if (yr < 2021) break;
           windowSum += findGradePoints(userGrades[yr] ?? "", yr);
         }
@@ -181,24 +184,16 @@ export async function GET(req: NextRequest) {
         const latestPoint = user.points[user.points.length - 1];
         windowSum = latestPoint?.cumulative ?? 0;
       }
-      const pointCumulative = windowSum + adjustment;
+      const pointCumulative = windowSum + adjustment; // 등급포인트 + 가감점
 
-      // 학점 윈도우 합산 (최근 tenureRangeCalc년)
+      // 학점 = 2025년 값만 사용 (2025년 신규 도입, 이전 연도 없음)
       const creditScoreMap = new Map(user.credits.map((c) => [c.year, c.score]));
-      let creditWindowSum = 0;
-      for (let i = 0; i < tenureRangeCalc; i++) {
-        const yr = CAND_MAX_YEAR - i;
-        if (yr < 2021) break;
-        creditWindowSum += creditScoreMap.get(yr) ?? 0;
-      }
-      const creditCumulative = creditWindowSum;
+      const creditCumulative = creditScoreMap.get(GRADE_CALC_BASE) ?? 0;
 
-      // 합산 판정 (포인트 + 학점 + 가감점)
+      // 최종포인트 = 등급포인트합 + 학점합 + 가감점
       const finalPoints = pointCumulative + creditCumulative;
-      const pointMet = criteria != null && criteria.requiredPoints > 0 ? finalPoints >= criteria.requiredPoints : false;
-      const creditMet = pointMet;
 
-      // 체류 연수 계산 (yearsOfService 우선 사용 — 날짜 연도 빼기는 월 미반영으로 부정확)
+      // 체류 연수 계산 (yearsOfService 우선 사용)
       const tenure = user.levelStartDate
         ? currentYear - new Date(user.levelStartDate).getFullYear()
         : user.yearsOfService != null
@@ -206,8 +201,27 @@ export async function GET(req: NextRequest) {
           : user.hireDate
             ? currentYear - new Date(user.hireDate).getFullYear()
             : 0;
-      const tenureMet = criteria != null ? tenure >= criteria.minTenure : true;
-      const promotionType = (pointMet && creditMet && !tenureMet) ? "special" : "normal";
+
+      // ===== 확정 스펙 판정 =====
+      const minTenure = criteria?.minTenure ?? 0;
+      const reqPts = criteria?.requiredPoints ?? 0;
+
+      // AQ: 연차 충족 (기준연한 > 0인 경우만)
+      const tenureMet = minTenure > 0 ? tenure >= minTenure : false;
+
+      // AR: 일반 승진 자격 (연차 충족 + 포인트 충족)
+      let qualificationMet = false;
+      if (tenureMet) {
+        qualificationMet = reqPts <= 0 ? true : finalPoints >= reqPts; // reqPts=0 → L0 (포인트 기준 없음)
+      }
+
+      // AS: 특진 자격 (연차 미충족 + 포인트 충족)
+      const isSpecialPromotion = !tenureMet && reqPts > 0 && finalPoints >= reqPts;
+
+      // DB 저장용 (기존 Candidate 필드 재사용)
+      const pointMet = qualificationMet;
+      const creditMet = qualificationMet;
+      const promotionType = isSpecialPromotion ? "special" : "normal";
 
       // 기존 Candidate 레코드 업데이트 or 신규 생성 (충족 시에만)
       const existingCandidate = user.candidates[0];
@@ -218,7 +232,7 @@ export async function GET(req: NextRequest) {
             where: { id: existingCandidate.id },
             data: { pointMet, creditMet, promotionType },
           })
-        : (pointMet || creditMet)
+        : (qualificationMet || isSpecialPromotion)
           ? await prisma.candidate.create({
               data: { userId: user.id, year, pointMet, creditMet, source: "auto", promotionType },
             })
@@ -260,7 +274,7 @@ export async function GET(req: NextRequest) {
   // ── meetType + promotionType 필터 (JS에서 처리) ─────────────
   const filteredEmployees = allEmployeesData.filter((emp) => {
     const isManual = emp.source === "manual";
-    const isQualified = emp.pointMet || emp.creditMet;
+    const isQualified = emp.pointMet || emp.creditMet || emp.promotionType === "special";
     // 자격 미충족 + 수동 추가 아닌 경우 제외 (이것이 231→47 버그의 핵심 수정)
     if (!isQualified && !isManual) return false;
 
@@ -273,8 +287,8 @@ export async function GET(req: NextRequest) {
   });
 
   // 구분별 집계 (자격 충족자만 카운트)
-  const normalCount = allEmployeesData.filter((e) => e.promotionType === "normal" && e.pointMet && e.creditMet).length;
-  const specialCount = allEmployeesData.filter((e) => e.promotionType === "special" && (e.pointMet || e.creditMet)).length;
+  const normalCount = allEmployeesData.filter((e) => e.promotionType === "normal" && e.pointMet).length;
+  const specialCount = allEmployeesData.filter((e) => e.promotionType === "special").length;
 
   // ── 페이지네이션 ─────────────────────────────────────────────
   const total = filteredEmployees.length;
@@ -380,10 +394,10 @@ export async function POST(req: NextRequest) {
     const criteria = await prisma.levelCriteria.findFirst({
       where: { level: level as Level, year },
     });
-    const pointMet = criteria && pointCumulative != null
+    const pointMet = criteria && criteria.requiredPoints != null && criteria.requiredPoints > 0 && pointCumulative != null
       ? pointCumulative >= criteria.requiredPoints
       : false;
-    const creditMet = criteria && creditCumulative != null
+    const creditMet = criteria && criteria.requiredCredits != null && criteria.requiredCredits > 0 && creditCumulative != null
       ? creditCumulative >= criteria.requiredCredits
       : false;
 

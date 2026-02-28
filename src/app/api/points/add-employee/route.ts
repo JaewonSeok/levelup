@@ -82,7 +82,7 @@ export async function POST(req: NextRequest) {
     const criteria = validLevel
       ? await prisma.levelCriteria.findFirst({ where: { level: validLevel, year: CURRENT_YEAR } })
       : null;
-    const isMet = criteria ? pointScore >= criteria.requiredPoints : false;
+    const isMet = criteria && criteria.requiredPoints != null && criteria.requiredPoints > 0 ? pointScore >= criteria.requiredPoints : false;
 
     await prisma.point.create({
       data: {

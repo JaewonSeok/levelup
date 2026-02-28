@@ -315,9 +315,9 @@ model LevelCriteria {
   level Level
   year  Int
 
-  requiredPoints  Float // 승격 필요 누적 포인트
-  requiredCredits Float // 승격 필요 누적 학점
-  minTenure       Int   // 최소 체류 연수 (연차)
+  requiredPoints  Float? // 승격 필요 누적 포인트 (null = 포인트 기준 없음)
+  requiredCredits Float? // 승격 필요 누적 학점 (null = 학점 기준 없음)
+  minTenure       Int?   // 최소 체류 연수 (null = 연차 기준 없음)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

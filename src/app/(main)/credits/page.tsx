@@ -647,12 +647,16 @@ export default function CreditsPage() {
                     {emp.cumulative.toFixed(1)}
                   </TableCell>
                   <TableCell className="text-center">
-                    <Badge
-                      variant={emp.isMet ? "default" : "outline"}
-                      className="text-xs"
-                    >
-                      {emp.isMet ? "충족" : "미충족"}
-                    </Badge>
+                    {emp.level === "L5" ? (
+                      <span className="text-xs text-muted-foreground">-</span>
+                    ) : (
+                      <Badge
+                        variant={emp.isMet ? "default" : "outline"}
+                        className="text-xs"
+                      >
+                        {emp.isMet ? "충족" : "미충족"}
+                      </Badge>
+                    )}
                   </TableCell>
                   <TableCell className="text-center">
                     <div className="flex items-center justify-center gap-1">
