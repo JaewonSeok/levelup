@@ -58,23 +58,11 @@ export async function GET(req: NextRequest) {
     if (hireDateTo) hireDateFilter.lte = new Date(hireDateTo);
     conditions.push({ hireDate: hireDateFilter });
   }
-  if (isMetFilter === "Y") {
-    conditions.push({ credits: { some: { isMet: true } } });
-  } else if (isMetFilter === "N") {
-    conditions.push({
-      OR: [
-        { credits: { none: {} } },
-        { credits: { every: { isMet: false } } },
-      ],
-    });
-  }
-
   const where: Prisma.UserWhereInput =
     conditions.length > 0 ? { AND: conditions } : {};
 
-  // ── 쿼리 ──────────────────────────────────────────────────
-  const [total, users, metaDepts, metaTeams, levelCriteriaList] = await Promise.all([
-    prisma.user.count({ where }),
+  // ── 쿼리 (isMet 필터는 JS에서 처리) ──────────────────────
+  const [users, metaDepts, metaTeams, levelCriteriaList] = await Promise.all([
     prisma.user.findMany({
       where,
       select: {
@@ -93,8 +81,6 @@ export async function GET(req: NextRequest) {
         credits: { orderBy: { year: "asc" } },
       },
       orderBy: [{ department: "asc" }, { team: "asc" }, { name: "asc" }],
-      skip: (page - 1) * pageSize,
-      take: pageSize,
     }),
     prisma.user.findMany({
       distinct: ["department"],
@@ -153,7 +139,7 @@ export async function GET(req: NextRequest) {
   const employeesData = users.map((user) => {
     const years = user.yearsOfService ?? 0;
     const startYear = Math.max(years > 0 ? CURRENT_YEAR - years + 1 : CURRENT_YEAR, 2021);
-    const hireYear = user.hireDate ? new Date(user.hireDate).getFullYear() : null;
+
 
     const creditsByYear = new Map(user.credits.map((c) => [c.year, c]));
 
@@ -164,19 +150,12 @@ export async function GET(req: NextRequest) {
       allYearsSet.add(yr);
       const credit = creditsByYear.get(yr);
 
-      // 신규입사자 처리: hireYear보다 이전 연도에 학점 없으면 G기준 2점 자동부여
-      const isPreHire = hireYear !== null && yr < hireYear;
-      const shouldAutoFill = isPreHire && !credit;
       // 2025년 이전 연도 소급 적용 여부 (2025년부터 도입된 제도)
       const isRetroactive = yr < 2025 && !!credit;
 
       yearData[yr] = {
-        score: credit
-          ? credit.score
-          : shouldAutoFill
-            ? 2
-            : null,
-        isAutoFill: shouldAutoFill,
+        score: credit ? credit.score : null,
+        isAutoFill: false,
         isRetroactive,
       };
     }
@@ -245,8 +224,17 @@ export async function GET(req: NextRequest) {
 
   const yearColumns = Array.from(allYearsSet).sort((a, b) => a - b);
 
+  // isMet JS 필터링 + 페이지네이션
+  const filteredData = isMetFilter === "Y"
+    ? employeesData.filter((e) => e.isMet)
+    : isMetFilter === "N"
+      ? employeesData.filter((e) => !e.isMet)
+      : employeesData;
+  const total = filteredData.length;
+  const pagedData = filteredData.slice((page - 1) * pageSize, page * pageSize);
+
   return NextResponse.json({
-    employees: employeesData,
+    employees: pagedData,
     total,
     page,
     pageSize,

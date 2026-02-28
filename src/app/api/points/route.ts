@@ -63,24 +63,11 @@ export async function GET(req: NextRequest) {
     if (hireDateTo) hireDateFilter.lte = new Date(hireDateTo);
     conditions.push({ hireDate: hireDateFilter });
   }
-  // 충족 필터 (Point.isMet 기반)
-  if (isMetFilter === "Y") {
-    conditions.push({ points: { some: { isMet: true } } });
-  } else if (isMetFilter === "N") {
-    conditions.push({
-      OR: [
-        { points: { none: {} } },
-        { points: { every: { isMet: false } } },
-      ],
-    });
-  }
-
   const where: Prisma.UserWhereInput =
     conditions.length > 0 ? { AND: conditions } : {};
 
-  // ── 쿼리 ──────────────────────────────────────────────────
-  const [total, users, metaDepts, metaTeams] = await Promise.all([
-    prisma.user.count({ where }),
+  // ── 쿼리 (isMet 필터는 JS에서 처리) ──────────────────────
+  const [users, metaDepts, metaTeams] = await Promise.all([
     prisma.user.findMany({
       where,
       select: {
@@ -99,8 +86,6 @@ export async function GET(req: NextRequest) {
         points: { orderBy: { year: "asc" } },
       },
       orderBy: [{ department: "asc" }, { team: "asc" }, { name: "asc" }],
-      skip: (page - 1) * pageSize,
-      take: pageSize,
     }),
     prisma.user.findMany({
       distinct: ["department"],
@@ -287,8 +272,17 @@ export async function GET(req: NextRequest) {
 
   const yearColumns = Array.from(allYearsSet).sort((a, b) => a - b);
 
+  // isMet JS 필터링 + 페이지네이션
+  const filteredData = isMetFilter === "Y"
+    ? employeesData.filter((e) => e.isMet)
+    : isMetFilter === "N"
+      ? employeesData.filter((e) => !e.isMet)
+      : employeesData;
+  const total = filteredData.length;
+  const pagedData = filteredData.slice((page - 1) * pageSize, page * pageSize);
+
   return NextResponse.json({
-    employees: employeesData,
+    employees: pagedData,
     total,
     page,
     pageSize,
