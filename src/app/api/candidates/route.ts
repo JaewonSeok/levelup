@@ -195,7 +195,7 @@ export async function GET(req: NextRequest) {
 
       // 합산 판정 (포인트 + 학점 + 가감점)
       const finalPoints = pointCumulative + creditCumulative;
-      const pointMet = criteria != null ? finalPoints >= criteria.requiredPoints : false;
+      const pointMet = criteria != null && criteria.requiredPoints > 0 ? finalPoints >= criteria.requiredPoints : false;
       const creditMet = pointMet;
 
       // 체류 연수 계산 (yearsOfService 우선 사용 — 날짜 연도 빼기는 월 미반영으로 부정확)
@@ -259,17 +259,22 @@ export async function GET(req: NextRequest) {
 
   // ── meetType + promotionType 필터 (JS에서 처리) ─────────────
   const filteredEmployees = allEmployeesData.filter((emp) => {
-    if (meetType === "point") { if (!(emp.pointMet || hasExistingCandidateSet.has(emp.userId))) return false; }
-    else if (meetType === "credit") { if (!(emp.creditMet || hasExistingCandidateSet.has(emp.userId))) return false; }
+    const isManual = emp.source === "manual";
+    const isQualified = emp.pointMet || emp.creditMet;
+    // 자격 미충족 + 수동 추가 아닌 경우 제외 (이것이 231→47 버그의 핵심 수정)
+    if (!isQualified && !isManual) return false;
+
+    if (meetType === "point") { if (!emp.pointMet && !isManual) return false; }
+    else if (meetType === "credit") { if (!emp.creditMet && !isManual) return false; }
     else if (meetType === "both") { if (!(emp.pointMet && emp.creditMet)) return false; }
     if (promotionFilter === "normal") return emp.promotionType === "normal";
     if (promotionFilter === "special") return emp.promotionType === "special";
     return true;
   });
 
-  // 구분별 집계 (전체 대상에서 계산)
+  // 구분별 집계 (자격 충족자만 카운트)
   const normalCount = allEmployeesData.filter((e) => e.promotionType === "normal" && e.pointMet && e.creditMet).length;
-  const specialCount = allEmployeesData.filter((e) => e.promotionType === "special").length;
+  const specialCount = allEmployeesData.filter((e) => e.promotionType === "special" && (e.pointMet || e.creditMet)).length;
 
   // ── 페이지네이션 ─────────────────────────────────────────────
   const total = filteredEmployees.length;
