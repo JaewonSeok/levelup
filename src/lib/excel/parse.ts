@@ -244,15 +244,18 @@ export function parseExcelFile(buffer: ArrayBuffer): ParsedEmployee[] {
       const creditScore = parseNumberOrNull(mapped.creditScore);
 
       // 연도별 평가등급 (선택) — 유효성 검증 포함
+      // 일부 시스템에서 "N" → "NI" 등으로 표기하는 경우를 위한 별칭 맵
+      const GRADE_ALIASES: Record<string, string> = { NI: "N" };
       const parseGradeField = (raw: unknown, validSet: Set<string>, label: string): string | null => {
         if (raw == null || raw === "") return null;
         const s = String(raw).trim().toUpperCase();
         if (!s || s === "-") return null; // 빈칸·"-"는 평가 없음(정상)
-        if (!validSet.has(s)) {
-          errors.push(`${label} 평가등급 오류 (${Array.from(validSet).join("/")}): "${s}"`);
-          return null;
-        }
-        return s;
+        if (validSet.has(s)) return s;
+        // 별칭 처리 (예: NI → N)
+        const aliased = GRADE_ALIASES[s];
+        if (aliased && validSet.has(aliased)) return aliased;
+        errors.push(`${label} 평가등급 오류 (${Array.from(validSet).join("/")}): "${s}"`);
+        return null;
       };
       const grade2021 = parseGradeField(mapped.grade2021, VALID_GRADES_2022_2024, "2021년");
       const grade2022 = parseGradeField(mapped.grade2022, VALID_GRADES_2022_2024, "2022년");
