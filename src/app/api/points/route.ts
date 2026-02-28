@@ -4,7 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Role, Level, EmploymentType, Prisma } from "@prisma/client";
 import { recalculatePointsFromGrades } from "@/lib/points/recalculate";
-import { calculatePointSum, getNextLevel } from "@/lib/pointCalculation";
+import { calculatePointSum, calculateFinalPoints, getNextLevel } from "@/lib/pointCalculation";
 
 const ALLOWED_ROLES: Role[] = [Role.HR_TEAM, Role.SYSTEM_ADMIN];
 
@@ -191,9 +191,8 @@ export async function GET(req: NextRequest) {
 
     let cumulative: number;
     if (gradeCriteriaAll.length > 0) {
-      // 등급 기준이 설정된 경우: 공통 모듈로 window 합산 + 상점/벌점(Point) + 가감점(BonusPenalty)
-      cumulative = calculatePointSum(userGrades, gradeCriteriaAll, CURRENT_YEAR, user.yearsOfService ?? 0)
-        + totalMerit - totalPenalty + adjustment;
+      // 등급 기준이 설정된 경우: 공통 함수로 grade + merit/penalty + adjustment 합산
+      cumulative = calculateFinalPoints(userGrades, gradeCriteriaAll, CURRENT_YEAR, user.yearsOfService ?? 0, totalMerit, totalPenalty, adjustment);
     } else {
       // GradeCriteria 미설정 시 DB Point 값 fallback (cumulative에 merit/penalty 포함) + 가감점
       const latestPoint = user.points[user.points.length - 1];

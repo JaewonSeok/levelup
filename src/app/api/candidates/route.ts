@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Role, Level, EmploymentType, Prisma } from "@prisma/client";
-import { calculatePointSum, getNextLevel } from "@/lib/pointCalculation";
+import { calculateFinalPoints, getNextLevel } from "@/lib/pointCalculation";
 
 const ALLOWED_ROLES: Role[] = [Role.HR_TEAM, Role.SYSTEM_ADMIN];
 
@@ -155,24 +155,22 @@ export async function GET(req: NextRequest) {
       const userGrades = gradeMap.get(user.id) ?? {};
       const totalMerit = user.points.reduce((s, p) => s + p.merit, 0);
       const totalPenalty = user.points.reduce((s, p) => s + p.penalty, 0);
-      let windowSum: number;
+      let pointCumulative: number;
       if (gradeCriteriaAll.length > 0) {
-        // 등급 window 합 + 상점/벌점(Point.merit/penalty)
-        windowSum = calculatePointSum(userGrades, gradeCriteriaAll, year, user.yearsOfService ?? 0)
-          + totalMerit - totalPenalty;
+        // 공통 함수: grade window 합 + merit/penalty + adjustment (포인트 관리 페이지와 동일)
+        pointCumulative = calculateFinalPoints(userGrades, gradeCriteriaAll, year, user.yearsOfService ?? 0, totalMerit, totalPenalty, adjustment);
       } else {
-        // GradeCriteria 미설정 시 DB 누적값 사용 (recalculate.ts에서 merit/penalty 포함 저장)
+        // GradeCriteria 미설정 시 DB 누적값(merit/penalty 포함) + adjustment
         const latestPoint = user.points[user.points.length - 1];
-        windowSum = latestPoint?.cumulative ?? 0;
+        pointCumulative = (latestPoint?.cumulative ?? 0) + adjustment;
       }
-      const pointCumulative = windowSum; // 등급포인트 + 상점/벌점(Point) — adjustment 별도
 
       // 학점 = 2025년 값만 사용 (2025년 신규 도입, 이전 연도 없음)
       const creditScoreMap = new Map(user.credits.map((c) => [c.year, c.score]));
       const creditCumulative = creditScoreMap.get(GRADE_CALC_BASE) ?? 0;
 
-      // 최종포인트 = 등급포인트합 + 학점합 + 가감점 (충족 판정용, 표시값과 별도)
-      const finalPoints = pointCumulative + creditCumulative + adjustment;
+      // 최종포인트 = pointCumulative(adjustment 포함) + 학점합 (충족 판정용)
+      const finalPoints = pointCumulative + creditCumulative;
 
       // 체류 연수 계산 (yearsOfService 우선 사용)
       const tenure = user.levelStartDate

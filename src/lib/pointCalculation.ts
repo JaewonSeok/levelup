@@ -59,6 +59,24 @@ export function calculatePointSum(
 }
 
 /**
+ * 최종 포인트 계산: 등급 window 합 + Point.merit/penalty + BonusPenalty adjustment.
+ * 포인트 관리 페이지와 레벨업 심사 페이지에서 공통 사용.
+ * fallback(GradeCriteria 미설정) 케이스는 DB cumulative + adjustment를 직접 사용할 것.
+ */
+export function calculateFinalPoints(
+  grades: Record<number, string>,
+  gradeCriteria: GradeCriteriaItem[],
+  baseYear: number,
+  yearsOfService: number,
+  totalMerit: number,
+  totalPenalty: number,
+  adjustment: number
+): number {
+  return calculatePointSum(grades, gradeCriteria, baseYear, yearsOfService)
+    + totalMerit - totalPenalty + adjustment;
+}
+
+/**
  * 학점 점수 조회 (baseYear-1년도 Credit.score).
  * 학점은 2025년부터 도입 — baseYear=2026 → 2025년 값.
  */
