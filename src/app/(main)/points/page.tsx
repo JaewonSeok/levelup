@@ -655,7 +655,6 @@ export default function PointsPage() {
                 </TableHead>
               ))}
               <TableHead className="text-center text-xs font-bold">포인트</TableHead>
-              <TableHead className="text-center text-xs font-bold">총점</TableHead>
               <TableHead className="text-center text-xs font-bold">충족</TableHead>
               <TableHead className="text-center text-xs">편집</TableHead>
             </TableRow>
@@ -664,7 +663,7 @@ export default function PointsPage() {
             {loading ? (
               <TableRow>
                 <TableCell
-                  colSpan={6 + GRADE_YEARS.length + 4}
+                  colSpan={6 + GRADE_YEARS.length + 3}
                   className="text-center py-16 text-muted-foreground text-sm"
                 >
                   로딩 중...
@@ -673,7 +672,7 @@ export default function PointsPage() {
             ) : employees.length === 0 ? (
               <TableRow>
                 <TableCell
-                  colSpan={6 + GRADE_YEARS.length + 4}
+                  colSpan={6 + GRADE_YEARS.length + 3}
                   className="text-center py-16 text-muted-foreground text-sm"
                 >
                   검색 결과가 없습니다.
@@ -713,9 +712,6 @@ export default function PointsPage() {
 
                   <TableCell className="text-center text-sm">
                     {emp.cumulative.toFixed(1)}
-                  </TableCell>
-                  <TableCell className="text-center text-sm font-bold">
-                    {emp.totalPoints.toFixed(1)}
                   </TableCell>
                   <TableCell className="text-center">
                     <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${emp.isMet ? "bg-green-100 text-green-700" : "bg-red-100 text-red-600"}`}>
