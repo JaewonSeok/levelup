@@ -10,6 +10,14 @@ function getCurrentYear() {
   return new Date().getFullYear();
 }
 
+function getNextLevel(currentLevel: string | null): string | null {
+  if (!currentLevel) return null;
+  const order = ["L0", "L1", "L2", "L3", "L4", "L5"];
+  const idx = order.indexOf(currentLevel);
+  if (idx === -1 || idx >= order.length - 1) return null;
+  return order[idx + 1];
+}
+
 // ── GET /api/credits ───────────────────────────────────────────
 export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions);
@@ -102,37 +110,6 @@ export async function GET(req: NextRequest) {
     levelCriteriaList.map((c) => [c.level as string, c])
   );
 
-  // 평가등급 + 등급기준 (충족 판정 계산용)
-  const userIds = users.map((u) => u.id);
-  const [allGrades, gradeCriteriaAll] = await Promise.all([
-    prisma.performanceGrade.findMany({
-      where: { userId: { in: userIds }, year: { in: [2021, 2022, 2023, 2024, 2025] } },
-      select: { userId: true, year: true, grade: true },
-    }),
-    prisma.gradeCriteria.findMany(),
-  ]);
-  const perfGradeMap = new Map<string, Record<number, string>>();
-  for (const g of allGrades) {
-    if (!perfGradeMap.has(g.userId)) perfGradeMap.set(g.userId, {});
-    perfGradeMap.get(g.userId)![g.year] = g.grade;
-  }
-  function findCreditGradePoints(grade: string, gradeYear: number): number {
-    if (!grade || grade === "-" || grade.trim() === "" || grade.trim().toUpperCase() === "NI") return 2;
-    const g = grade.trim().toUpperCase();
-    for (const gc of gradeCriteriaAll) {
-      if (gc.grade !== g) continue;
-      const range = gc.yearRange;
-      if (range === String(gradeYear)) return gc.points;
-      const parts = range.split("-");
-      if (parts.length === 2) {
-        const from = Number(parts[0]);
-        const to = Number(parts[1]);
-        if (!isNaN(from) && !isNaN(to) && gradeYear >= from && gradeYear <= to) return gc.points;
-      }
-    }
-    return 2;
-  }
-
   // ── 학점 데이터 가공 ───────────────────────────────────────
   const allYearsSet = new Set<number>();
 
@@ -169,37 +146,18 @@ export async function GET(req: NextRequest) {
     }
 
     const userLevelCriteria = user.level
-      ? levelCriteriaMap.get(user.level as string)
+      ? levelCriteriaMap.get(getNextLevel(user.level as string) ?? "")
       : null;
-    const yearsOfService = user.yearsOfService ?? 0;
-    const tenureRange = Math.min(yearsOfService, 5);
 
     // 누적 학점 = 2025년 학점만 (2025년 신규 도입, 이전 연도 없음)
     const credit2025Entry = user.credits.find((c) => c.year === 2025);
     const cumulative = credit2025Entry?.score ?? 0;
 
-    // 포인트합 (등급 기준 윈도우 — 충족 판정용)
-    const userPerfGrades = perfGradeMap.get(user.id) ?? {};
-    let pointSum = 0;
-    if (gradeCriteriaAll.length > 0) {
-      for (let i = 0; i < tenureRange; i++) {
-        const yr = MAX_CREDIT_YEAR - i;
-        if (yr < 2021) break;
-        pointSum += findCreditGradePoints(userPerfGrades[yr] ?? "", yr);
-      }
-    }
-
-    // 최종포인트 = 포인트합 + 학점, 충족 판정
-    const finalPoints = pointSum + cumulative;
+    // 학점 충족 판정 = 2025년 학점 >= 다음 레벨의 requiredCredits
     let isMet = false;
-    if (user.level && user.level !== "L5" && userLevelCriteria) {
-      if (!userLevelCriteria.requiredPoints) {
-        // L0: 포인트 기준 없음 → 연차 기준만
-        const minTenure = userLevelCriteria.minTenure ?? 999;
-        isMet = minTenure > 0 ? yearsOfService >= minTenure : false;
-      } else {
-        isMet = finalPoints >= userLevelCriteria.requiredPoints;
-      }
+    if (userLevelCriteria) {
+      const reqCredits = userLevelCriteria.requiredCredits;
+      isMet = reqCredits != null && reqCredits > 0 ? cumulative >= reqCredits : false;
     }
 
     return {

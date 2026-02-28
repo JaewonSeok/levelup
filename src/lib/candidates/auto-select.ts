@@ -2,6 +2,14 @@ import { prisma } from "@/lib/prisma";
 import { Role } from "@prisma/client";
 
 const MAX_DATA_YEAR = 2025;
+
+function getNextLevel(currentLevel: string | null): string | null {
+  if (!currentLevel) return null;
+  const order = ["L0", "L1", "L2", "L3", "L4", "L5"];
+  const idx = order.indexOf(currentLevel);
+  if (idx === -1 || idx >= order.length - 1) return null;
+  return order[idx + 1];
+}
 const GRADE_YEARS = [2021, 2022, 2023, 2024, 2025];
 
 /**
@@ -80,7 +88,7 @@ export async function autoSelectCandidates(
 
   for (const user of users) {
     if (!user.level) continue;
-    const criteria = criteriaMap.get(user.level);
+    const criteria = criteriaMap.get((getNextLevel(user.level as string) ?? "") as typeof user.level);
     if (!criteria) continue;
 
     // 5. 연차 계산 (yearsOfService 우선 — 날짜 빼기는 월 미반영으로 부정확)

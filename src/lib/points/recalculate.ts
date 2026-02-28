@@ -1,6 +1,14 @@
 import { prisma } from "@/lib/prisma";
 
 const MAX_DATA_YEAR = 2025;
+
+function getNextLevel(currentLevel: string | null): string | null {
+  if (!currentLevel) return null;
+  const order = ["L0", "L1", "L2", "L3", "L4", "L5"];
+  const idx = order.indexOf(currentLevel);
+  if (idx === -1 || idx >= order.length - 1) return null;
+  return order[idx + 1];
+}
 const GRADE_YEARS = [2021, 2022, 2023, 2024, 2025];
 
 /**
@@ -65,7 +73,7 @@ export async function recalculatePointsFromGrades(
   for (const user of users) {
     if (user.performanceGrades.length === 0) continue;
 
-    const criteria = user.level ? criteriaMap.get(user.level) : null;
+    const criteria = user.level ? criteriaMap.get((getNextLevel(user.level as string) ?? "") as typeof user.level) : null;
 
     // tenureRange = min(연차, 5) — 최근 N년만 합산
     const tenureRange = Math.min(user.yearsOfService ?? 0, 5);

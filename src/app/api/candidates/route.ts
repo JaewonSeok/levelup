@@ -10,6 +10,14 @@ function getCurrentYear() {
   return new Date().getFullYear();
 }
 
+function getNextLevel(currentLevel: string | null): string | null {
+  if (!currentLevel) return null;
+  const order = ["L0", "L1", "L2", "L3", "L4", "L5"];
+  const idx = order.indexOf(currentLevel);
+  if (idx === -1 || idx >= order.length - 1) return null;
+  return order[idx + 1];
+}
+
 // ── GET /api/candidates ──────────────────────────────────────────
 // 포인트 또는 학점 충족 직원 목록 조회 + Candidate 레코드 자동 생성
 export async function GET(req: NextRequest) {
@@ -168,7 +176,7 @@ export async function GET(req: NextRequest) {
       const adjustment = bonusTotal - penaltyTotal;
 
       // 등급 기반 포인트 재계산 (DB 누적값 대신 정확한 윈도우 계산)
-      const criteria = user.level ? criteriaMap.get(user.level) : null;
+      const criteria = user.level ? criteriaMap.get(getNextLevel(user.level) ?? "") : null;
       const yearsOfServiceCalc = user.yearsOfService ?? 0;
       const tenureRangeCalc = Math.min(yearsOfServiceCalc, 5);
       const userGrades = gradeMap.get(user.id) ?? {};

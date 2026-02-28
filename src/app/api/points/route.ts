@@ -11,6 +11,14 @@ function getCurrentYear() {
   return new Date().getFullYear();
 }
 
+function getNextLevel(currentLevel: string | null): string | null {
+  if (!currentLevel) return null;
+  const order = ["L0", "L1", "L2", "L3", "L4", "L5"];
+  const idx = order.indexOf(currentLevel);
+  if (idx === -1 || idx >= order.length - 1) return null;
+  return order[idx + 1];
+}
+
 // ── GET /api/points ────────────────────────────────────────────
 export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions);
@@ -202,7 +210,7 @@ export async function GET(req: NextRequest) {
     const totalMerit = user.points.reduce((s, p) => s + p.merit, 0);
     const totalPenalty = user.points.reduce((s, p) => s + p.penalty, 0);
     const userGrades = gradeMap.get(user.id) ?? {};
-    const userLc = user.level ? lcMap.get(user.level as string) : null;
+    const userLc = user.level ? lcMap.get(getNextLevel(user.level as string) ?? "") : null;
 
     let cumulative: number;
     if (gradeCriteriaAll.length > 0) {
@@ -229,7 +237,7 @@ export async function GET(req: NextRequest) {
 
     const isMet = userLc
       ? cumulative >= (userLc.requiredPoints ?? 0)
-      : user.points.some((p) => p.isMet);
+      : false;
 
     const creditCumulative = creditMap.get(user.id) ?? 0;
     const { bonusTotal = 0, penaltyTotal = 0 } = bpMap.get(user.id) ?? {};
