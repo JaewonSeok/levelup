@@ -186,18 +186,22 @@ export async function GET(req: NextRequest) {
     const userGrades = gradeMap.get(user.id) ?? {};
     const userLc = user.level ? lcMap.get(getNextLevel(user.level as string) ?? "") : null;
 
+    const { bonusTotal = 0, penaltyTotal = 0 } = bpMap.get(user.id) ?? {};
+    const adjustment = bonusTotal - penaltyTotal;
+
     let cumulative: number;
     if (gradeCriteriaAll.length > 0) {
-      // 등급 기준이 설정된 경우: 공통 모듈로 window 합산
-      cumulative = calculatePointSum(userGrades, gradeCriteriaAll, CURRENT_YEAR, user.yearsOfService ?? 0);
+      // 등급 기준이 설정된 경우: 공통 모듈로 window 합산 + 상점/벌점(Point) + 가감점(BonusPenalty)
+      cumulative = calculatePointSum(userGrades, gradeCriteriaAll, CURRENT_YEAR, user.yearsOfService ?? 0)
+        + totalMerit - totalPenalty + adjustment;
     } else {
-      // GradeCriteria 미설정 시 DB Point 값 fallback
+      // GradeCriteria 미설정 시 DB Point 값 fallback (cumulative에 merit/penalty 포함) + 가감점
       const latestPoint = user.points[user.points.length - 1];
       cumulative =
-        latestPoint?.cumulative ??
+        (latestPoint?.cumulative ??
         Object.values(yearData).reduce((s, d) => s + (d.score ?? 0), 0) +
           totalMerit -
-          totalPenalty;
+          totalPenalty) + adjustment;
     }
 
     const isMet = userLc
@@ -205,8 +209,6 @@ export async function GET(req: NextRequest) {
       : false;
 
     const creditCumulative = creditMap.get(user.id) ?? 0;
-    const { bonusTotal = 0, penaltyTotal = 0 } = bpMap.get(user.id) ?? {};
-    const adjustment = bonusTotal - penaltyTotal;
     const totalPoints = cumulative + creditCumulative; // 포인트합 + 학점
 
     return {
@@ -442,8 +444,9 @@ export async function POST(req: NextRequest) {
   }
 
   const savedAdjustment = bpSum.reduce((s, b) => s + b.points, 0);
-  const savedCumulative = savedWindowSum + totalMerit - totalPenalty;
-  const savedTotalPoints = savedCumulative + savedAdjustment;
+  // GET과 동일하게: grade window 합 + 상점/벌점(Point) + 가감점(BonusPenalty)
+  const savedCumulative = savedWindowSum + totalMerit - totalPenalty + savedAdjustment;
+  const savedTotalPoints = savedCumulative;
   const savedIsMet = savedUserLc?.requiredPoints != null
     ? savedTotalPoints >= savedUserLc.requiredPoints
     : false;

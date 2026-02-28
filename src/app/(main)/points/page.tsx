@@ -341,7 +341,7 @@ export default function PointsPage() {
       setEmployees((prev) =>
         prev.map((e) =>
           e.id === bpEmployee.id
-            ? { ...e, bonusTotal, penaltyTotal, adjustment, totalPoints: e.cumulative + adjustment }
+            ? { ...e, bonusTotal, penaltyTotal, adjustment, cumulative: e.cumulative - e.adjustment + adjustment }
             : e
         )
       );
