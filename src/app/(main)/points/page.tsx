@@ -117,11 +117,6 @@ interface GradeCriteriaItem {
   points: number;
 }
 
-interface LevelCriteriaItem {
-  level: string;
-  minTenure: number | null;
-  requiredPoints: number | null;
-}
 
 interface PointsResponse {
   employees: EmployeePoint[];
@@ -273,25 +268,6 @@ export default function PointsPage() {
     }
   }, [status]);
 
-  const [levelCriteriaData, setLevelCriteriaData] = useState<LevelCriteriaItem[]>([]);
-  useEffect(() => {
-    if (status === "authenticated") {
-      fetch("/api/settings")
-        .then((r) => r.json())
-        .then((d) => {
-          if (Array.isArray(d.criteria)) {
-            setLevelCriteriaData(
-              d.criteria.map((c: { level: string; minTenure: number | null; requiredPoints: number | null }) => ({
-                level: c.level,
-                minTenure: c.minTenure,
-                requiredPoints: c.requiredPoints,
-              }))
-            );
-          }
-        })
-        .catch(() => {});
-    }
-  }, [status]);
 
   // ── 가감점 모달 ───────────────────────────────────────────
   const [bpEmployee, setBpEmployee] = useState<EmployeePoint | null>(null);
