@@ -247,7 +247,7 @@ export function parseExcelFile(buffer: ArrayBuffer): ParsedEmployee[] {
       const parseGradeField = (raw: unknown, validSet: Set<string>, label: string): string | null => {
         if (raw == null || raw === "") return null;
         const s = String(raw).trim().toUpperCase();
-        if (!s) return null;
+        if (!s || s === "-") return null; // 빈칸·"-"는 평가 없음(정상)
         if (!validSet.has(s)) {
           errors.push(`${label} 평가등급 오류 (${Array.from(validSet).join("/")}): "${s}"`);
           return null;
