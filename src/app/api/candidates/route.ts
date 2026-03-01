@@ -165,9 +165,9 @@ export async function GET(req: NextRequest) {
         pointCumulative = (latestPoint?.cumulative ?? 0) + adjustment;
       }
 
-      // 학점 = 2025년 값만 사용 (2025년 신규 도입, 이전 연도 없음)
-      const creditScoreMap = new Map(user.credits.map((c) => [c.year, c.score]));
-      const creditCumulative = creditScoreMap.get(GRADE_CALC_BASE) ?? 0;
+      // 학점 = 2025년 누적(cumulative) — 학점 관리 페이지와 동일한 값
+      const credit2025 = user.credits.find((c) => c.year === GRADE_CALC_BASE);
+      const creditCumulative = credit2025?.cumulative ?? 0;
 
       // 최종포인트 = pointCumulative만 사용 (학점 미포함 — 포인트 단독 판정)
       const finalPoints = pointCumulative;
@@ -197,9 +197,11 @@ export async function GET(req: NextRequest) {
       // AS: 특진 자격 (연차 미충족 + 포인트 충족)
       const isSpecialPromotion = !tenureMet && reqPts > 0 && finalPoints >= reqPts;
 
-      // DB 저장용 (기존 Candidate 필드 재사용)
+      // DB 저장용
       const pointMet = qualificationMet;
-      const creditMet = qualificationMet;
+      // 학점 충족: 실제 학점 vs 다음 레벨 필요 학점 (requiredCredits=0이면 항상 충족 — L4→L5 등)
+      const reqCredits = criteria?.requiredCredits ?? 0;
+      const creditMet = creditCumulative >= reqCredits;
       const promotionType = isSpecialPromotion ? "special" : "normal";
 
       // 기존 Candidate 레코드 업데이트 or 신규 생성 (충족 시에만)
@@ -257,8 +259,8 @@ export async function GET(req: NextRequest) {
   // null = 제외 처리된 대상자 (source="excluded")
   const filteredEmployees = (allEmployeesData.filter(Boolean) as NonNullable<(typeof allEmployeesData)[number]>[]).filter((emp) => {
     const isManual = emp.source === "manual";
-    const isQualified = emp.pointMet || emp.creditMet || emp.promotionType === "special";
-    // 자격 미충족 + 수동 추가 아닌 경우 제외 (이것이 231→47 버그의 핵심 수정)
+    // 후보 선정 기준: 포인트 충족 또는 특진 또는 수동 추가 (학점은 선정 기준 아님 — 표시만)
+    const isQualified = emp.pointMet || emp.promotionType === "special";
     if (!isQualified && !isManual) return false;
 
     if (meetType === "point") { if (!emp.pointMet && !isManual) return false; }
