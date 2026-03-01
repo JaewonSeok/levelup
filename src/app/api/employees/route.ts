@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { Role, Level, EmploymentType, Prisma } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import { randomBytes } from "crypto";
+import { calculateFinalPoints } from "@/lib/pointCalculation";
 
 export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions);
@@ -122,6 +123,7 @@ export async function GET(req: NextRequest) {
           isActive: true,
           role: true,
           performanceGrades: { select: { year: true, grade: true } },
+          points: { select: { merit: true, penalty: true } },
           credits: { select: { cumulative: true }, orderBy: { year: "desc" }, take: 1 },
         },
         orderBy: [{ department: "asc" }, { team: "asc" }, { name: "asc" }],
@@ -154,48 +156,25 @@ export async function GET(req: NextRequest) {
       bpMapEmp.set(bp.userId, (bpMapEmp.get(bp.userId) ?? 0) + bp.points);
     }
 
-    // 등급 → 포인트 변환 (yearRange 범위 매칭)
-    const EMP_MAX_YEAR = 2025;
-    const findGradePointsEmp = (grade: string, year: number): number => {
-      if (!grade) return 2;
-      for (const gc of gradeCriteriaAll) {
-        if (gc.grade !== grade) continue;
-        const range = gc.yearRange;
-        if (range === String(year)) return gc.points;
-        const parts = range.split("-");
-        if (parts.length === 2) {
-          const from = Number(parts[0]);
-          const to = Number(parts[1]);
-          if (!isNaN(from) && !isNaN(to) && year >= from && year <= to) return gc.points;
-        }
-      }
-      return 2;
-    };
-
-    // 평가등급 맵 + 학점 누적값 + 총점 변환
+    // 평가등급 맵 + 학점 누적값 + 포인트 변환 (포인트 관리 페이지와 동일한 공통 함수 사용)
+    const CURRENT_YEAR = new Date().getFullYear();
     const employees = rawEmployees.map((emp) => {
-      const { performanceGrades, credits, ...rest } = emp;
+      const { performanceGrades, credits, points: pointRecords, ...rest } = emp;
       const grades: Record<string, string> = {};
+      const gradesNumeric: Record<number, string> = {};
       for (const g of performanceGrades) {
         grades[String(g.year)] = g.grade;
+        gradesNumeric[g.year] = g.grade;
       }
       const creditTotal = credits[0]?.cumulative ?? null;
 
-      // 총점 계산 (등급 기반 윈도우 합산)
-      let totalPoints: number | null = null;
-      if (performanceGrades.length > 0 && gradeCriteriaAll.length > 0) {
-        const yearsOfService = emp.yearsOfService ?? 0;
-        const tenureRange = Math.min(yearsOfService, 5);
-        const gradesByYear = new Map(performanceGrades.map((g) => [g.year, g.grade]));
-        let windowSum = 0;
-        for (let i = 0; i < tenureRange; i++) {
-          const yr = EMP_MAX_YEAR - i;
-          if (yr < 2021) break;
-          windowSum += findGradePointsEmp(gradesByYear.get(yr) ?? "", yr);
-        }
-        const adjustment = bpMapEmp.get(emp.id) ?? 0;
-        totalPoints = windowSum + adjustment;
-      }
+      // 포인트 계산: grade window 합 + Point.merit/penalty + BonusPenalty adjustment
+      const totalMerit = pointRecords.reduce((s, p) => s + p.merit, 0);
+      const totalPenalty = pointRecords.reduce((s, p) => s + p.penalty, 0);
+      const adjustment = bpMapEmp.get(emp.id) ?? 0;
+      const totalPoints: number | null = gradeCriteriaAll.length > 0
+        ? calculateFinalPoints(gradesNumeric, gradeCriteriaAll, CURRENT_YEAR, emp.yearsOfService ?? 0, totalMerit, totalPenalty, adjustment)
+        : null;
 
       return { ...rest, grades, creditTotal, totalPoints };
     });

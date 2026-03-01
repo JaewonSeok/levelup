@@ -814,7 +814,7 @@ export default function LevelManagementPage() {
               {GRADE_YEARS.map((y) => (
                 <TableHead key={y} className="text-center text-xs whitespace-nowrap">{y}등급</TableHead>
               ))}
-              <TableHead className="text-center text-xs whitespace-nowrap">총점</TableHead>
+              <TableHead className="text-center text-xs whitespace-nowrap">포인트</TableHead>
               <TableHead className="text-center text-xs whitespace-nowrap">학점</TableHead>
               {isAdmin && <TableHead className="text-center text-xs whitespace-nowrap">관리</TableHead>}
             </TableRow>
