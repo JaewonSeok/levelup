@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Role, Level, Prisma } from "@prisma/client";
-import { calculatePointSum } from "@/lib/pointCalculation";
+import { calculateFinalPoints } from "@/lib/pointCalculation";
 
 const REVIEW_ROLES: Role[] = [Role.DEPT_HEAD, Role.HR_TEAM, Role.CEO, Role.SYSTEM_ADMIN];
 
@@ -136,9 +136,8 @@ export async function GET(req: NextRequest) {
       : Promise.resolve([]),
     prisma.point.findMany({
       where: { userId: { in: userIds } },
+      select: { userId: true, cumulative: true, merit: true, penalty: true },
       orderBy: { year: "desc" },
-      distinct: ["userId"],
-      select: { userId: true, cumulative: true },
     }),
     prisma.credit.findMany({
       where: { userId: { in: userIds }, year: 2025 },
@@ -162,7 +161,19 @@ export async function GET(req: NextRequest) {
   }
 
   const criteriaMap = new Map(criteriaList.map((c) => [c.level as string, c]));
-  const pointMap = new Map(latestPoints.map((p) => [p.userId, p.cumulative])); // GradeCriteria 미설정 시 fallback
+  // GradeCriteria 미설정 시 fallback cumulative(최신) + totalMerit/totalPenalty 집계
+  const pointMap = new Map<string, number>();
+  const meritMap = new Map<string, number>();
+  const penaltyMap = new Map<string, number>();
+  const seenPointUsers = new Set<string>();
+  for (const p of latestPoints) {
+    if (!seenPointUsers.has(p.userId)) {
+      pointMap.set(p.userId, p.cumulative); // 최신 연도 cumulative
+      seenPointUsers.add(p.userId);
+    }
+    meritMap.set(p.userId, (meritMap.get(p.userId) ?? 0) + p.merit);
+    penaltyMap.set(p.userId, (penaltyMap.get(p.userId) ?? 0) + p.penalty);
+  }
   const creditMap = new Map(latestCredits.map((c) => [c.userId, c.score])); // 2025년 Credit.score
   const bpMap = new Map<string, { bonusTotal: number; penaltyTotal: number }>();
   for (const bp of bonusPenaltyRecords) {
@@ -190,11 +201,14 @@ export async function GET(req: NextRequest) {
     const userGrades = gradeMap.get(candidate.userId) ?? {};
     const { bonusTotal = 0, penaltyTotal = 0 } = bpMap.get(candidate.userId) ?? {};
 
-    // 포인트 관리 페이지와 동일한 계산 — calculatePointSum (실시간 등급 윈도우 합산)
+    // 포인트 관리·candidates와 동일한 공통 함수 — grade window + merit/penalty + adjustment
     const yearsOfService = candidate.user.yearsOfService ?? 0;
+    const totalMerit = meritMap.get(candidate.userId) ?? 0;
+    const totalPenalty = penaltyMap.get(candidate.userId) ?? 0;
+    const adjustment = bonusTotal - penaltyTotal;
     const pointCumulative = gradeCriteriaAll.length > 0
-      ? calculatePointSum(userGrades, gradeCriteriaAll, year, yearsOfService)
-      : (pointMap.get(candidate.userId) ?? 0); // GradeCriteria 미설정 시 DB fallback
+      ? calculateFinalPoints(userGrades, gradeCriteriaAll, year, yearsOfService, totalMerit, totalPenalty, adjustment)
+      : (pointMap.get(candidate.userId) ?? 0) + adjustment; // GradeCriteria 미설정 시 DB fallback + adjustment
 
     return {
       candidateId: candidate.id,
