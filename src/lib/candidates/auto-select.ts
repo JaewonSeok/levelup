@@ -91,8 +91,6 @@ export async function autoSelectCandidates(
     const nextLevelKey = getNextLevel(user.level as string);
     const criteria = nextLevelKey ? criteriaMap.get(nextLevelKey as typeof user.level) : null;
     if (!criteria) continue;
-    // 특진 기준: 현재 레벨 기준표의 포인트 (일반보다 낮은 별도 기준)
-    const currentLevelCriteria = criteriaMap.get(user.level as typeof user.level);
 
     // 5. 연차 계산 (yearsOfService 우선 — 날짜 빼기는 월 미반영으로 부정확)
     const tenure = user.levelStartDate
@@ -124,27 +122,22 @@ export async function autoSelectCandidates(
     const creditMap = new Map(user.credits.map((c) => [c.year, c.score]));
     const windowCreditSum = creditMap.get(MAX_DATA_YEAR) ?? 0;
 
-    // 8. 합산 판정 (포인트 + 학점 + 가감점)
-    const finalPoints = windowPointSum + windowCreditSum + adjustment;
+    // 8. 포인트와 학점 별도 판정 (일반/특진 동일 기준)
+    const gradePoints = windowPointSum + adjustment; // 포인트 = 등급 합산 + 가감점
+    const creditScore = windowCreditSum;             // 학점 = 2025년 값
     const reqPts = criteria.requiredPoints ?? 0;
+    const reqCredits = criteria.requiredCredits ?? 0;
 
-    // AQ: 연차 충족
+    // 연차 충족 여부
     const tenureMet = minTenure > 0 ? tenure >= minTenure : false;
 
-    // AR: 일반 승진 자격 (연차 충족 + 포인트 충족)
-    let qualificationMet = false;
-    if (tenureMet) {
-      qualificationMet = reqPts <= 0 ? true : finalPoints >= reqPts; // reqPts=0 → L0 (포인트 기준 없음)
-    }
+    // 포인트/학점 충족 (일반·특진 동일 기준)
+    const pointMet = reqPts <= 0 ? true : gradePoints >= reqPts;
+    const creditMet = reqCredits <= 0 ? true : creditScore >= reqCredits;
 
-    // AS: 특진 자격 (연차 미충족 + specialRequiredPoints 충족)
-    const specialReqPts = criteria.specialRequiredPoints ?? 0;
-    const isSpecialPromotion = !tenureMet && specialReqPts > 0 && finalPoints >= specialReqPts;
-
-    if (!qualificationMet && !isSpecialPromotion) continue;
-    const pointMet = qualificationMet;
-    const creditMet = qualificationMet;
-    const promotionType = isSpecialPromotion ? "special" : "normal";
+    // 포인트+학점 모두 충족해야 대상자; 체류연수로 일반/특진 구분
+    if (!pointMet || !creditMet) continue;
+    const promotionType = tenureMet ? "normal" : "special";
 
     total++;
 

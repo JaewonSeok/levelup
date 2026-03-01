@@ -153,8 +153,6 @@ export async function GET(req: NextRequest) {
       // 등급 기반 포인트 재계산 (공통 모듈 사용 — 포인트 관리 페이지와 동일 로직)
       const nextLevel = user.level ? getNextLevel(user.level) : null;
       const criteria = nextLevel ? criteriaMap.get(nextLevel) : null;
-      // 특진 기준: 현재 레벨 기준표의 포인트 (일반 기준보다 낮은 별도 기준)
-      const currentLevelCriteria = user.level ? criteriaMap.get(user.level) : null;
       const userGrades = gradeMap.get(user.id) ?? {};
       const totalMerit = user.points.reduce((s, p) => s + p.merit, 0);
       const totalPenalty = user.points.reduce((s, p) => s + p.penalty, 0);
@@ -187,26 +185,15 @@ export async function GET(req: NextRequest) {
       // ===== 확정 스펙 판정 =====
       const minTenure = criteria?.minTenure ?? 0;
       const reqPts = criteria?.requiredPoints ?? 0;
-
-      // AQ: 연차 충족 (기준연한 > 0인 경우만)
-      const tenureMet = minTenure > 0 ? tenure >= minTenure : false;
-
-      // AR: 일반 승진 자격 (연차 충족 + 포인트 충족)
-      let qualificationMet = false;
-      if (tenureMet) {
-        qualificationMet = reqPts <= 0 ? true : finalPoints >= reqPts; // reqPts=0 → L0 (포인트 기준 없음)
-      }
-
-      // AS: 특진 자격 (연차 미충족 + specialRequiredPoints 충족)
-      // criteria가 없으면 다음 레벨 없음(L5 등) → 특진 불가
-      const specialReqPts = criteria?.specialRequiredPoints ?? 0;
-      const isSpecialPromotion = !tenureMet && specialReqPts > 0 && finalPoints >= specialReqPts;
-
-      // DB 저장용
-      const pointMet = qualificationMet;
-      // 학점 충족: 실제 학점 vs 다음 레벨 필요 학점 (requiredCredits=0이면 항상 충족 — L4→L5 등)
       const reqCredits = criteria?.requiredCredits ?? 0;
-      const creditMet = creditCumulative >= reqCredits;
+
+      // 포인트/학점 충족 (일반·특진 동일 기준)
+      const pointMet = reqPts <= 0 ? true : finalPoints >= reqPts;
+      const creditMet = reqCredits <= 0 ? true : creditCumulative >= reqCredits;
+
+      // 체류연수 충족 여부 → 일반(충족)/특진(미달) 구분
+      const tenureMet = minTenure > 0 ? tenure >= minTenure : false;
+      const isSpecialPromotion = pointMet && creditMet && !tenureMet;
       const promotionType = isSpecialPromotion ? "special" : "normal";
 
       // 기존 Candidate 레코드 업데이트 or 신규 생성 (충족 시에만)
@@ -221,7 +208,7 @@ export async function GET(req: NextRequest) {
             where: { id: existingCandidate.id },
             data: { pointMet, creditMet, promotionType },
           })
-        : (qualificationMet || isSpecialPromotion)
+        : (pointMet && creditMet)
           ? await prisma.candidate.create({
               data: { userId: user.id, year, pointMet, creditMet, source: "auto", promotionType },
             })
@@ -264,8 +251,8 @@ export async function GET(req: NextRequest) {
   // null = 제외 처리된 대상자 (source="excluded")
   const filteredEmployees = (allEmployeesData.filter(Boolean) as NonNullable<(typeof allEmployeesData)[number]>[]).filter((emp) => {
     const isManual = emp.source === "manual";
-    // 후보 선정 기준: 포인트 충족 또는 특진 또는 수동 추가 (학점은 선정 기준 아님 — 표시만)
-    const isQualified = emp.pointMet || emp.promotionType === "special";
+    // 포인트+학점 모두 충족 또는 수동 추가
+    const isQualified = emp.pointMet && emp.creditMet;
     if (!isQualified && !isManual) return false;
 
     if (meetType === "point") { if (!emp.pointMet && !isManual) return false; }
@@ -277,7 +264,7 @@ export async function GET(req: NextRequest) {
   });
 
   // 구분별 집계 (화면에 표시되는 filteredEmployees 기준)
-  const normalCount = filteredEmployees.filter((e) => e.promotionType === "normal" && e.pointMet).length;
+  const normalCount = filteredEmployees.filter((e) => e.promotionType === "normal").length;
   const specialCount = filteredEmployees.filter((e) => e.promotionType === "special").length;
 
   // ── 페이지네이션 ─────────────────────────────────────────────
