@@ -169,8 +169,8 @@ export async function GET(req: NextRequest) {
       const creditScoreMap = new Map(user.credits.map((c) => [c.year, c.score]));
       const creditCumulative = creditScoreMap.get(GRADE_CALC_BASE) ?? 0;
 
-      // 최종포인트 = pointCumulative(adjustment 포함) + 학점합 (충족 판정용)
-      const finalPoints = pointCumulative + creditCumulative;
+      // 최종포인트 = pointCumulative만 사용 (학점 미포함 — 포인트 단독 판정)
+      const finalPoints = pointCumulative;
 
       // 체류 연수 계산 (yearsOfService 우선 사용)
       const tenure = user.levelStartDate
