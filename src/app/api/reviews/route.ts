@@ -57,6 +57,10 @@ export async function GET(req: NextRequest) {
 
   const candidateWhere: Prisma.CandidateWhereInput = {
     year,
+    // 제외 처리된 대상자 미포함 (candidates 페이지와 동일)
+    source: { not: "excluded" },
+    // 자격 충족자 또는 수동 추가만 표시 (candidates 페이지 필터 동일)
+    OR: [{ pointMet: true }, { source: "manual" }],
     ...(userConditions.length > 0 ? { user: { AND: userConditions } } : {}),
   };
 
