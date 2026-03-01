@@ -49,6 +49,7 @@ interface ReviewCandidate {
   penaltyTotal?: number;
   promotionType?: string;
   currentUserOpinionSavedAt: string | null;
+  ownDeptHeadHasOpinion: boolean;
   recommendationStatus: "추천" | "제외" | null;
   grades: GradeMap;
 }
@@ -193,6 +194,7 @@ export default function ReviewPage() {
 
   const isDeptHead = currentUser?.role === "DEPT_HEAD";
   const isAdmin = currentUser?.role === "SYSTEM_ADMIN";
+  const isHROrAdmin = currentUser?.role === "HR_TEAM" || currentUser?.role === "SYSTEM_ADMIN";
 
   // 본부장: 전체/타본부소속 필터 (API 필터 + 프론트 이중 보장)
   const currentDeptName = currentUser?.department ?? "";
@@ -223,7 +225,7 @@ export default function ReviewPage() {
 
   // 의견 저장 성공 콜백 — 서버가 확정한 값 + Review 업데이트 여부 수신
   const handleOpinionSaved = (
-    _reviewerRole: string,
+    reviewerRole: string,
     recommendation: boolean | null,
     reviewUpdated: boolean
   ) => {
@@ -233,14 +235,17 @@ export default function ReviewPage() {
       setCandidates((prev) =>
         prev.map((c) => {
           if (c.reviewId !== targetId) return c;
-          // ① 의견 저장 시 currentUserOpinionSavedAt 즉시 반영
+          // ① 현재 유저의 의견 저장 시각 즉시 반영
           const updates: Partial<typeof c> = { currentUserOpinionSavedAt: nowIso };
-          // ② Review.recommendation이 업데이트된 경우 추천여부도 즉시 반영
-          if (reviewUpdated) {
-            updates.recommendationStatus =
-              recommendation === true ? "추천" :
-              recommendation === false ? "제외" :
-              null;
+          // ② 소속본부장이 저장한 경우 → 의견 컬럼·추천여부 즉시 반영
+          if (reviewerRole === "소속본부장") {
+            updates.ownDeptHeadHasOpinion = true;
+            if (reviewUpdated) {
+              updates.recommendationStatus =
+                recommendation === true ? "추천" :
+                recommendation === false ? "제외" :
+                null;
+            }
           }
           return { ...c, ...updates };
         })
@@ -248,6 +253,39 @@ export default function ReviewPage() {
     }
     // ③ 백그라운드 refetch — 전체 데이터 정확성 보장
     setRefreshKey((k) => k + 1);
+  };
+
+  // ── 추천여부 드롭다운 (HR_TEAM / SYSTEM_ADMIN 전용) ──────────
+  const handleRecommendationChange = async (reviewId: string, value: string) => {
+    const recommendation = value === "true" ? true : value === "false" ? false : null;
+    // Optimistic update
+    setCandidates((prev) =>
+      prev.map((c) =>
+        c.reviewId === reviewId
+          ? {
+              ...c,
+              recommendationStatus:
+                recommendation === true ? "추천" :
+                recommendation === false ? "제외" :
+                null,
+            }
+          : c
+      )
+    );
+    try {
+      const res = await fetch(`/api/reviews/${reviewId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ recommendation }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error ?? "변경 실패");
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "추천여부 변경 실패");
+      setRefreshKey((k) => k + 1); // 실패 시 서버 데이터로 복원
+    }
   };
 
   const handleSubmit = async () => {
@@ -607,7 +645,7 @@ export default function ReviewPage() {
                         disabled={!c.reviewId}
                         className="flex items-center justify-center gap-0.5 w-full cursor-pointer disabled:cursor-default"
                       >
-                        {c.currentUserOpinionSavedAt ? (
+                        {c.ownDeptHeadHasOpinion ? (
                           <span className="flex items-center gap-0.5 text-green-600 text-xs">
                             <CheckCircle2 className="w-3.5 h-3.5" /> 입력완료
                           </span>
@@ -619,9 +657,28 @@ export default function ReviewPage() {
                       </button>
                     </td>
 
-                    {/* 추천여부 (읽기 전용 — 의견 팝업에서만 변경 가능) */}
+                    {/* 추천여부: HR_TEAM/ADMIN은 드롭다운, 나머지는 읽기 전용 */}
                     <td className="border px-2 py-1.5">
-                      {c.recommendationStatus === "추천" ? (
+                      {isHROrAdmin && c.reviewId ? (
+                        <select
+                          value={
+                            c.recommendationStatus === "추천" ? "true" :
+                            c.recommendationStatus === "제외" ? "false" : ""
+                          }
+                          onChange={(e) => handleRecommendationChange(c.reviewId!, e.target.value)}
+                          className={`w-full text-xs rounded border px-1 py-0.5 focus:outline-none ${
+                            c.recommendationStatus === "추천"
+                              ? "border-green-400 text-green-700 bg-green-50"
+                              : c.recommendationStatus === "제외"
+                              ? "border-red-400 text-red-600 bg-red-50"
+                              : "border-gray-300 text-gray-400 bg-white"
+                          }`}
+                        >
+                          <option value="">-</option>
+                          <option value="true">추천</option>
+                          <option value="false">미추천</option>
+                        </select>
+                      ) : c.recommendationStatus === "추천" ? (
                         <span className="flex items-center justify-center gap-0.5 text-green-600 text-xs font-medium">
                           <CheckCircle2 className="w-3.5 h-3.5" /> 추천
                         </span>

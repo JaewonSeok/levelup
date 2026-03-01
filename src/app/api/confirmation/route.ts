@@ -48,11 +48,14 @@ export async function GET(req: NextRequest) {
     userWhere.team = { contains: team, mode: "insensitive" };
   }
 
-  // isReviewTarget=true인 Candidate 조회
+  // isReviewTarget=true 또는 review.recommendation=true인 Candidate 조회
   const candidates = await prisma.candidate.findMany({
     where: {
       year,
-      isReviewTarget: true,
+      OR: [
+        { isReviewTarget: true },
+        { review: { recommendation: true } },
+      ],
       user: userWhere,
     },
     include: {

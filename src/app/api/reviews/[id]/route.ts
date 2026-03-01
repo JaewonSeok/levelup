@@ -4,8 +4,8 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Role } from "@prisma/client";
 
-// recommendation 수정: DEPT_HEAD + SYSTEM_ADMIN
-const REC_ROLES: Role[] = [Role.DEPT_HEAD, Role.SYSTEM_ADMIN];
+// recommendation 수정: DEPT_HEAD + HR_TEAM + SYSTEM_ADMIN
+const REC_ROLES: Role[] = [Role.DEPT_HEAD, Role.HR_TEAM, Role.SYSTEM_ADMIN];
 // 역량점수/레벨평가 수정: HR_TEAM + SYSTEM_ADMIN (기존 데이터 보호용으로 유지)
 const ALLOWED_ROLES: Role[] = [Role.HR_TEAM, Role.DEPT_HEAD, Role.SYSTEM_ADMIN];
 

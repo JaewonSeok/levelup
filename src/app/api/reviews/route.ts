@@ -195,7 +195,10 @@ export async function GET(req: NextRequest) {
 
     const currentUserOpinion = opinions.find((o) => o.reviewerId === session.user.id);
 
-    // 추천여부: review.recommendation 값을 직접 사용
+    // 소속본부장 의견 — "의견" 컬럼 전용 (텍스트 입력 여부 판단)
+    const ownDeptHeadOpinion = opinions.find((o) => o.reviewerRole === "소속본부장");
+    const ownDeptHeadHasOpinion = !!(ownDeptHeadOpinion?.opinionText?.trim());
+    // 추천여부: review.recommendation 사용 (인사팀 드롭다운 최종 결정 / 소속본부장 저장 시 동기화)
     const recommendationStatus: "추천" | "제외" | null =
       review?.recommendation === true ? "추천" :
       review?.recommendation === false ? "제외" :
@@ -236,6 +239,7 @@ export async function GET(req: NextRequest) {
       competencyEval: review?.competencyEval ?? null,
       promotionType: candidate.promotionType ?? "normal",
       currentUserOpinionSavedAt: currentUserOpinion?.savedAt?.toISOString() ?? null,
+      ownDeptHeadHasOpinion,
       recommendationStatus,
       grades: {
         2021: userGrades[2021] ?? null,
