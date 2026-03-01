@@ -21,6 +21,7 @@ export async function GET(req: NextRequest) {
   if (!ALLOWED_ROLES.includes(session.user.role)) {
     return NextResponse.json({ error: "인사팀만 접근할 수 있습니다." }, { status: 403 });
   }
+  try {
 
   const { searchParams } = new URL(req.url);
   const year = Number(searchParams.get("year") ?? getCurrentYear());
@@ -152,7 +153,9 @@ export async function GET(req: NextRequest) {
 
       // 등급 기반 포인트 재계산 (공통 모듈 사용 — 포인트 관리 페이지와 동일 로직)
       const nextLevel = user.level ? getNextLevel(user.level) : null;
-      const criteria = nextLevel ? criteriaMap.get(nextLevel) : null;
+      // L5 등 다음 레벨 없으면 레벨업 대상 아님 → 항상 제외
+      if (!nextLevel) return null;
+      const criteria = criteriaMap.get(nextLevel);
       const userGrades = gradeMap.get(user.id) ?? {};
       const totalMerit = user.points.reduce((s, p) => s + p.merit, 0);
       const totalPenalty = user.points.reduce((s, p) => s + p.penalty, 0);
@@ -192,8 +195,9 @@ export async function GET(req: NextRequest) {
       const creditMet = reqCredits <= 0 ? true : creditCumulative >= reqCredits;
 
       // 체류연수 충족 여부 → 일반(충족)/특진(미달) 구분
+      // criteria 없으면 (L5 등 다음 레벨 없음) 특진/일반 모두 불가
       const tenureMet = minTenure > 0 ? tenure >= minTenure : false;
-      const isSpecialPromotion = pointMet && creditMet && !tenureMet;
+      const isSpecialPromotion = !!criteria && pointMet && creditMet && !tenureMet;
       const promotionType = isSpecialPromotion ? "special" : "normal";
 
       // 기존 Candidate 레코드 업데이트 or 신규 생성 (충족 시에만)
@@ -208,7 +212,7 @@ export async function GET(req: NextRequest) {
             where: { id: existingCandidate.id },
             data: { pointMet, creditMet, promotionType },
           })
-        : (pointMet && creditMet)
+        : (!!criteria && pointMet && creditMet)
           ? await prisma.candidate.create({
               data: { userId: user.id, year, pointMet, creditMet, source: "auto", promotionType },
             })
@@ -285,6 +289,10 @@ export async function GET(req: NextRequest) {
       teams: metaTeams.map((t) => t.team).filter(Boolean),
     },
   });
+  } catch (error) {
+    console.error("[GET /api/candidates] error:", error);
+    return NextResponse.json({ error: String(error) }, { status: 500 });
+  }
 }
 
 
