@@ -103,6 +103,8 @@ export function OpinionModal({
   }, [reviewId]);
 
   const isAdmin = data?.currentUser.role === "SYSTEM_ADMIN";
+  // 본부장은 자기 의견 행만 표시 (HR_TEAM / CEO / SYSTEM_ADMIN은 전체 표시)
+  const isDeptHead = data?.currentUser.role === "DEPT_HEAD";
 
   // 행 편집 가능 여부
   function getEditable(reviewer: Reviewer): boolean {
@@ -237,6 +239,9 @@ export function OpinionModal({
               </h3>
               <div className="space-y-2">
                 {data.reviewers.map((reviewer) => {
+                  // 본부장은 자기 의견 행만 표시
+                  if (isDeptHead && !reviewer.isCurrentUser) return null;
+
                   const isHR = reviewer.reviewerRole === "인사팀장";
                   const isOwn = reviewer.reviewerRole === "소속본부장";
                   const editable = getEditable(reviewer);
@@ -294,14 +299,20 @@ export function OpinionModal({
                         {/* 의견 입력 영역 */}
                         <div className="flex-1">
                           {editable ? (
-                            <textarea
-                              className="w-full text-xs border rounded px-2 py-1.5 resize-none h-[70px] focus:outline-none focus:ring-1 focus:ring-blue-300 bg-white"
-                              value={rs.text}
-                              onChange={(e) =>
-                                handleChange(reviewer.userId, "text", e.target.value)
-                              }
-                              placeholder="의견을 입력하세요."
-                            />
+                            <div>
+                              <textarea
+                                className="w-full text-xs border rounded px-2 py-1.5 resize-none h-[70px] focus:outline-none focus:ring-1 focus:ring-blue-300 bg-white"
+                                value={rs.text}
+                                onChange={(e) =>
+                                  handleChange(reviewer.userId, "text", e.target.value)
+                                }
+                                placeholder="의견을 입력하세요."
+                                maxLength={5000}
+                              />
+                              <div className="text-right text-xs text-gray-400 mt-0.5">
+                                {rs.text.length.toLocaleString()} / 5,000자
+                              </div>
+                            </div>
                           ) : (
                             <div
                               className={`text-xs text-gray-600 min-h-[52px] rounded px-2 py-1.5 border ${

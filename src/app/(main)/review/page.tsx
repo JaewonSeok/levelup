@@ -227,22 +227,26 @@ export default function ReviewPage() {
     recommendation: boolean | null,
     reviewUpdated: boolean
   ) => {
-    // ① Review.recommendation이 실제로 업데이트된 경우에만 즉시 화면 갱신 (optimistic update)
-    if (reviewUpdated && selectedReviewId !== null) {
-      const newStatus: "추천" | "제외" | null =
-        recommendation === true ? "추천" :
-        recommendation === false ? "제외" :
-        null;
+    if (selectedReviewId !== null) {
       const targetId = selectedReviewId;
+      const nowIso = new Date().toISOString();
       setCandidates((prev) =>
-        prev.map((c) =>
-          c.reviewId === targetId
-            ? { ...c, recommendationStatus: newStatus }
-            : c
-        )
+        prev.map((c) => {
+          if (c.reviewId !== targetId) return c;
+          // ① 의견 저장 시 currentUserOpinionSavedAt 즉시 반영
+          const updates: Partial<typeof c> = { currentUserOpinionSavedAt: nowIso };
+          // ② Review.recommendation이 업데이트된 경우 추천여부도 즉시 반영
+          if (reviewUpdated) {
+            updates.recommendationStatus =
+              recommendation === true ? "추천" :
+              recommendation === false ? "제외" :
+              null;
+          }
+          return { ...c, ...updates };
+        })
       );
     }
-    // ② 백그라운드 refetch — 전체 데이터 정확성 보장
+    // ③ 백그라운드 refetch — 전체 데이터 정확성 보장
     setRefreshKey((k) => k + 1);
   };
 
