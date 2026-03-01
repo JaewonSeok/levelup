@@ -216,6 +216,11 @@ export default function ReviewPage() {
     : displayCandidates;
   const displayTotal = isDeptHead ? displayCandidates.length : total;
 
+  // 본부별 제출 현황: 실제 대상자가 있는 본부만 표시
+  const candidateDepartments = Array.from(
+    new Set(candidates.map((c) => c.department).filter(Boolean))
+  ).sort();
+
   // 의견 저장 성공 콜백 — 서버가 확정한 값 + Review 업데이트 여부 수신
   const handleOpinionSaved = (
     _reviewerRole: string,
@@ -323,7 +328,7 @@ export default function ReviewPage() {
             className="w-full flex items-center justify-between px-4 py-2.5 text-sm font-medium hover:bg-gray-50"
             onClick={() => setAdminPanelOpen((o) => !o)}
           >
-            <span>본부별 제출 현황 ({meta.departments.length}개 본부)</span>
+            <span>본부별 제출 현황 ({candidateDepartments.length}개 본부)</span>
             {adminPanelOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
           </button>
           {adminPanelOpen && (
@@ -338,7 +343,7 @@ export default function ReviewPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {meta.departments.map((dept) => {
+                  {candidateDepartments.map((dept) => {
                     const submittedAt = submittedDeptMap.get(dept);
                     const isSubm = !!submittedAt;
                     const isCanceling = cancelingDept === dept;
