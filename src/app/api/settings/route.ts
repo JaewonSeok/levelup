@@ -50,6 +50,7 @@ export async function GET(req: NextRequest) {
       year,
       id: c?.id ?? null,
       requiredPoints: c?.requiredPoints ?? null,
+      specialRequiredPoints: c?.specialRequiredPoints ?? null,
       requiredCredits: c?.requiredCredits ?? null,
       minTenure: c?.minTenure ?? null,
       updatedAt: c?.updatedAt?.toISOString() ?? null,
@@ -86,6 +87,7 @@ export async function POST(req: NextRequest) {
     criteria: {
       level: Level;
       requiredPoints: number;
+      specialRequiredPoints?: number | null;
       requiredCredits: number;
       minTenure: number;
     }[];
@@ -120,11 +122,13 @@ export async function POST(req: NextRequest) {
           level: item.level,
           year,
           requiredPoints: item.requiredPoints,
+          specialRequiredPoints: item.specialRequiredPoints ?? null,
           requiredCredits: item.requiredCredits,
           minTenure: item.minTenure,
         },
         update: {
           requiredPoints: item.requiredPoints,
+          specialRequiredPoints: item.specialRequiredPoints ?? null,
           requiredCredits: item.requiredCredits,
           minTenure: item.minTenure,
         },

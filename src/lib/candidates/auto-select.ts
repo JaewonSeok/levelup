@@ -137,8 +137,8 @@ export async function autoSelectCandidates(
       qualificationMet = reqPts <= 0 ? true : finalPoints >= reqPts; // reqPts=0 → L0 (포인트 기준 없음)
     }
 
-    // AS: 특진 자격 (연차 미충족 + 현재 레벨 기준 포인트 충족)
-    const specialReqPts = currentLevelCriteria?.requiredPoints ?? 0;
+    // AS: 특진 자격 (연차 미충족 + specialRequiredPoints 충족)
+    const specialReqPts = criteria.specialRequiredPoints ?? 0;
     const isSpecialPromotion = !tenureMet && specialReqPts > 0 && finalPoints >= specialReqPts;
 
     if (!qualificationMet && !isSpecialPromotion) continue;
