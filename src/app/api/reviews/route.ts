@@ -29,6 +29,7 @@ export async function GET(req: NextRequest) {
   const userConditions: Prisma.UserWhereInput[] = [
     { role: { not: Role.DEPT_HEAD } },
     { isActive: true },
+    { level: { not: Level.L5 } }, // L5는 최고 레벨 → 레벨업 대상 아님
   ];
   if (department) userConditions.push({ department: { contains: department, mode: "insensitive" } });
   if (team) userConditions.push({ team: { contains: team, mode: "insensitive" } });
@@ -59,8 +60,8 @@ export async function GET(req: NextRequest) {
     year,
     // 제외 처리된 대상자 미포함 (candidates 페이지와 동일)
     source: { not: "excluded" },
-    // 자격 충족자 또는 수동 추가만 표시 (candidates 페이지 필터 동일)
-    OR: [{ pointMet: true }, { source: "manual" }],
+    // 포인트+학점 모두 충족 또는 수동 추가 (candidates 페이지 isQualified와 동일)
+    OR: [{ pointMet: true, creditMet: true }, { source: "manual" }],
     ...(userConditions.length > 0 ? { user: { AND: userConditions } } : {}),
   };
 
