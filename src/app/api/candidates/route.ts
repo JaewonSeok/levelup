@@ -65,11 +65,12 @@ export async function GET(req: NextRequest) {
     conditions.push({ hireDate: hireDateFilter });
   }
 
-  // 포인트/학점 레코드 있거나 해당 연도 대상자인 사용자 — meetType 필터는 JS에서 처리
+  // 포인트/학점/등급 레코드 있거나 해당 연도 대상자인 사용자 — meetType 필터는 JS에서 처리
   conditions.push({
     OR: [
       { points: { some: {} } },
       { credits: { some: {} } },
+      { performanceGrades: { some: {} } },
       { candidates: { some: { year } } },
     ],
   });
@@ -151,7 +152,10 @@ export async function GET(req: NextRequest) {
       const adjustment = bonusTotal - penaltyTotal;
 
       // 등급 기반 포인트 재계산 (공통 모듈 사용 — 포인트 관리 페이지와 동일 로직)
-      const criteria = user.level ? criteriaMap.get(getNextLevel(user.level) ?? "") : null;
+      const nextLevel = user.level ? getNextLevel(user.level) : null;
+      const criteria = nextLevel ? criteriaMap.get(nextLevel) : null;
+      // 특진 기준: 현재 레벨 기준표의 포인트 (일반 기준보다 낮은 별도 기준)
+      const currentLevelCriteria = user.level ? criteriaMap.get(user.level) : null;
       const userGrades = gradeMap.get(user.id) ?? {};
       const totalMerit = user.points.reduce((s, p) => s + p.merit, 0);
       const totalPenalty = user.points.reduce((s, p) => s + p.penalty, 0);
@@ -194,8 +198,10 @@ export async function GET(req: NextRequest) {
         qualificationMet = reqPts <= 0 ? true : finalPoints >= reqPts; // reqPts=0 → L0 (포인트 기준 없음)
       }
 
-      // AS: 특진 자격 (연차 미충족 + 포인트 충족)
-      const isSpecialPromotion = !tenureMet && reqPts > 0 && finalPoints >= reqPts;
+      // AS: 특진 자격 (연차 미충족 + 현재 레벨 기준 포인트 충족)
+      // criteria가 없으면 다음 레벨 없음(L5 등) → 특진 불가
+      const specialReqPts = criteria ? (currentLevelCriteria?.requiredPoints ?? 0) : 0;
+      const isSpecialPromotion = !tenureMet && specialReqPts > 0 && finalPoints >= specialReqPts;
 
       // DB 저장용
       const pointMet = qualificationMet;

@@ -88,8 +88,11 @@ export async function autoSelectCandidates(
 
   for (const user of users) {
     if (!user.level) continue;
-    const criteria = criteriaMap.get((getNextLevel(user.level as string) ?? "") as typeof user.level);
+    const nextLevelKey = getNextLevel(user.level as string);
+    const criteria = nextLevelKey ? criteriaMap.get(nextLevelKey as typeof user.level) : null;
     if (!criteria) continue;
+    // 특진 기준: 현재 레벨 기준표의 포인트 (일반보다 낮은 별도 기준)
+    const currentLevelCriteria = criteriaMap.get(user.level as typeof user.level);
 
     // 5. 연차 계산 (yearsOfService 우선 — 날짜 빼기는 월 미반영으로 부정확)
     const tenure = user.levelStartDate
@@ -134,8 +137,9 @@ export async function autoSelectCandidates(
       qualificationMet = reqPts <= 0 ? true : finalPoints >= reqPts; // reqPts=0 → L0 (포인트 기준 없음)
     }
 
-    // AS: 특진 자격 (연차 미충족 + 포인트 충족)
-    const isSpecialPromotion = !tenureMet && reqPts > 0 && finalPoints >= reqPts;
+    // AS: 특진 자격 (연차 미충족 + 현재 레벨 기준 포인트 충족)
+    const specialReqPts = currentLevelCriteria?.requiredPoints ?? 0;
+    const isSpecialPromotion = !tenureMet && specialReqPts > 0 && finalPoints >= specialReqPts;
 
     if (!qualificationMet && !isSpecialPromotion) continue;
     const pointMet = qualificationMet;
