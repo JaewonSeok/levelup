@@ -95,7 +95,7 @@ export async function GET(req: NextRequest) {
         levelUpYear: true,
         points: { orderBy: { year: "asc" } },
         credits: { orderBy: { year: "asc" } },
-        candidates: { where: { year } },
+        candidates: { where: { year }, select: { id: true, pointMet: true, creditMet: true, isReviewTarget: true, source: true, promotionType: true, savedAt: true } },
       },
       orderBy: [{ department: "asc" }, { team: "asc" }, { name: "asc" }],
     }),
@@ -206,6 +206,9 @@ export async function GET(req: NextRequest) {
       const existingCandidate = user.candidates[0];
       if (existingCandidate) hasExistingCandidateSet.add(user.id);
 
+      // 제외 처리된 대상자는 재생성하지 않고 결과에서 제외
+      if (existingCandidate?.source === "excluded") return null;
+
       const candidate = existingCandidate
         ? await prisma.candidate.update({
             where: { id: existingCandidate.id },
@@ -251,7 +254,8 @@ export async function GET(req: NextRequest) {
   );
 
   // ── meetType + promotionType 필터 (JS에서 처리) ─────────────
-  const filteredEmployees = allEmployeesData.filter((emp) => {
+  // null = 제외 처리된 대상자 (source="excluded")
+  const filteredEmployees = (allEmployeesData.filter(Boolean) as NonNullable<(typeof allEmployeesData)[number]>[]).filter((emp) => {
     const isManual = emp.source === "manual";
     const isQualified = emp.pointMet || emp.creditMet || emp.promotionType === "special";
     // 자격 미충족 + 수동 추가 아닌 경우 제외 (이것이 231→47 버그의 핵심 수정)
@@ -265,9 +269,10 @@ export async function GET(req: NextRequest) {
     return true;
   });
 
-  // 구분별 집계 (자격 충족자만 카운트)
-  const normalCount = allEmployeesData.filter((e) => e.promotionType === "normal" && e.pointMet).length;
-  const specialCount = allEmployeesData.filter((e) => e.promotionType === "special").length;
+  // 구분별 집계 (자격 충족자만 카운트, 제외된 대상자 제외)
+  const nonExcluded = allEmployeesData.filter(Boolean) as NonNullable<(typeof allEmployeesData)[number]>[];
+  const normalCount = nonExcluded.filter((e) => e.promotionType === "normal" && e.pointMet).length;
+  const specialCount = nonExcluded.filter((e) => e.promotionType === "special").length;
 
   // ── 페이지네이션 ─────────────────────────────────────────────
   const total = filteredEmployees.length;

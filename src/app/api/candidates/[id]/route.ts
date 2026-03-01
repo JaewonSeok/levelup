@@ -74,7 +74,11 @@ export async function DELETE(
     return NextResponse.json({ error: "대상자 레코드를 찾을 수 없습니다." }, { status: 404 });
   }
 
-  await prisma.candidate.delete({ where: { id } });
+  // 삭제 대신 제외 표시 — GET 시 재생성 방지 (source="excluded")
+  await prisma.candidate.update({
+    where: { id },
+    data: { source: "excluded" },
+  });
 
   return NextResponse.json({ success: true });
 }
