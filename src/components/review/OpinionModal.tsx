@@ -56,12 +56,48 @@ interface RowState {
   savedJustNow: boolean;
 }
 
+interface AiScoreInfo {
+  totalScore: number;
+  grade: string;
+  trendScore: number;
+  pointsExcessScore: number;
+  creditsExcessScore: number;
+  stabilityScore: number;
+  maturityScore: number;
+  details: string[];
+}
+
+export interface CandidateInfoForAI {
+  name: string;
+  department: string;
+  team: string;
+  level: string | null;
+  yearsOfService: number | null;
+  promotionType?: string;
+  grades: {
+    2021: string | null;
+    2022: string | null;
+    2023: string | null;
+    2024: string | null;
+    2025: string | null;
+  };
+  pointCumulative: number;
+  creditCumulative: number;
+  aiScore?: AiScoreInfo;
+  sameLevelAvgPoints?: number;
+  sameLevelAvgCredits?: number;
+  requiredPoints?: number | null;
+  requiredCredits?: number | null;
+  minTenure?: number;
+}
+
 interface OpinionModalProps {
   reviewId: string;
   onClose: () => void;
   /** 저장 성공 시 서버가 확정한 값 전달. reviewUpdated=true면 Review.recommendation도 업데이트됨 */
   onSaved: (reviewerRole: string, recommendation: boolean | null, reviewUpdated: boolean) => void;
   isSubmitted?: boolean;
+  candidateInfo?: CandidateInfoForAI;
 }
 
 // ── Component ──────────────────────────────────────────────────
@@ -71,10 +107,13 @@ export function OpinionModal({
   onClose,
   onSaved,
   isSubmitted = false,
+  candidateInfo,
 }: OpinionModalProps) {
   const [data, setData] = useState<OpinionData | null>(null);
   const [loading, setLoading] = useState(true);
   const [rowStates, setRowStates] = useState<Record<string, RowState>>({});
+  const [aiReport, setAiReport] = useState<string | null>(null);
+  const [aiReportLoading, setAiReportLoading] = useState(false);
 
   useEffect(() => {
     setLoading(true);
@@ -199,6 +238,46 @@ export function OpinionModal({
     }
   }
 
+  async function handleGenerateAiReport() {
+    if (!candidateInfo) return;
+    setAiReportLoading(true);
+    setAiReport(null);
+    try {
+      const res = await fetch("/api/ai-report", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          employeeData: {
+            name: candidateInfo.name,
+            department: candidateInfo.department,
+            team: candidateInfo.team,
+            level: candidateInfo.level,
+            yearsOfService: candidateInfo.yearsOfService,
+            promotionType: candidateInfo.promotionType,
+            grades: candidateInfo.grades,
+            finalPoints: candidateInfo.pointCumulative,
+            pointCumulative: candidateInfo.pointCumulative,
+            requiredPoints: candidateInfo.requiredPoints,
+            creditScore: candidateInfo.creditCumulative,
+            creditCumulative: candidateInfo.creditCumulative,
+            requiredCredits: candidateInfo.requiredCredits,
+            minTenure: candidateInfo.minTenure,
+            aiScore: candidateInfo.aiScore,
+            sameLevelAvgPoints: candidateInfo.sameLevelAvgPoints,
+            sameLevelAvgCredits: candidateInfo.sameLevelAvgCredits,
+          },
+        }),
+      });
+      const resData = await res.json();
+      if (!res.ok) throw new Error(resData.error ?? "AI 분석 실패");
+      setAiReport(resData.report);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "AI 분석 중 오류가 발생했습니다.");
+    } finally {
+      setAiReportLoading(false);
+    }
+  }
+
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col overflow-hidden">
@@ -231,6 +310,29 @@ export function OpinionModal({
                 <span className="text-gray-700">{data.creditCumulative.toFixed(1)}</span>
               </div>
             </div>
+
+            {/* ── AI 분석 리포트 ──────────────────────────────── */}
+            {candidateInfo && (
+              <div className="flex-shrink-0 mt-2">
+                <Button
+                  size="sm"
+                  className="w-full bg-purple-600 hover:bg-purple-700 text-white text-xs h-7"
+                  disabled={aiReportLoading}
+                  onClick={handleGenerateAiReport}
+                >
+                  {aiReportLoading ? "AI 분석 중..." : "🤖 AI 분석 리포트 생성"}
+                </Button>
+                {aiReport && (
+                  <div className="mt-2 bg-purple-50 border border-purple-200 rounded-lg p-3 max-h-40 overflow-y-auto">
+                    <p className="text-xs font-bold text-purple-800 mb-1.5">🤖 AI 심사 보조 리포트</p>
+                    <div className="text-xs text-gray-700 whitespace-pre-wrap">{aiReport}</div>
+                    <p className="text-[10px] text-gray-400 mt-2">
+                      * AI 분석은 참고자료이며, 최종 판단은 심사위원이 결정합니다.
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* ── 본부장 의견 행 ──────────────────────────────── */}
             <div className="flex-1 overflow-y-auto min-h-0 mt-3">

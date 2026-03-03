@@ -3,7 +3,8 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Role, Level, Prisma } from "@prisma/client";
-import { calculateFinalPoints } from "@/lib/pointCalculation";
+import { calculateFinalPoints, getNextLevel, gradeToPoints } from "@/lib/pointCalculation";
+import { calculateAiScore } from "@/lib/aiScoring";
 
 const REVIEW_ROLES: Role[] = [Role.DEPT_HEAD, Role.HR_TEAM, Role.CEO, Role.SYSTEM_ADMIN];
 
@@ -252,9 +253,58 @@ export async function GET(req: NextRequest) {
     };
   });
 
+  // ── AI 스코어링: 레벨별 평균 계산 후 각 대상자에 점수 부여 ──
+  const levelGroupAvg: Record<string, { avgPoints: number; avgCredits: number }> = {};
+  {
+    const lvGroups: Record<string, { pts: number[]; creds: number[] }> = {};
+    for (const r of result) {
+      const lv = (r.level ?? "").substring(0, 2);
+      if (!lvGroups[lv]) lvGroups[lv] = { pts: [], creds: [] };
+      lvGroups[lv].pts.push(r.pointCumulative);
+      lvGroups[lv].creds.push(r.creditCumulative);
+    }
+    for (const [lv, d] of Object.entries(lvGroups)) {
+      levelGroupAvg[lv] = {
+        avgPoints: d.pts.reduce((a, b) => a + b, 0) / (d.pts.length || 1),
+        avgCredits: d.creds.reduce((a, b) => a + b, 0) / (d.creds.length || 1),
+      };
+    }
+  }
+
+  const enrichedResult = result.map((r) => {
+    const nl = getNextLevel(r.level);
+    const crit = nl ? criteriaMap.get(nl) : (r.level ? criteriaMap.get(r.level) : null);
+    const lv = (r.level ?? "").substring(0, 2);
+    const avg = levelGroupAvg[lv] ?? { avgPoints: 0, avgCredits: 0 };
+    const userGrades = gradeMap.get(r.userId) ?? {};
+    const gradeList = ([2021, 2022, 2023, 2024, 2025] as const).flatMap((y) => {
+      const grade = userGrades[y];
+      if (!grade) return [] as { year: number; grade: string; points: number }[];
+      return [{ year: y as number, grade, points: gradeToPoints(grade, y, gradeCriteriaAll) }];
+    });
+    const aiScore = calculateAiScore({
+      grades: gradeList,
+      finalPoints: r.pointCumulative,
+      requiredPoints: r.requiredPoints ?? crit?.requiredPoints ?? 0,
+      creditScore: r.creditCumulative,
+      requiredCredits: r.requiredCredits ?? crit?.requiredCredits ?? 0,
+      yearsOfService: r.yearsOfService ?? 0,
+      minTenure: crit?.minTenure ?? 0,
+      sameLevelAvgPoints: avg.avgPoints,
+      sameLevelAvgCredits: avg.avgCredits,
+    });
+    return {
+      ...r,
+      aiScore,
+      sameLevelAvgPoints: avg.avgPoints,
+      sameLevelAvgCredits: avg.avgCredits,
+      minTenure: crit?.minTenure ?? 0,
+    };
+  });
+
   return NextResponse.json({
-    candidates: result,
-    total: result.length,
+    candidates: enrichedResult,
+    total: enrichedResult.length,
     meta: {
       departments: metaDepts.map((d) => d.department).filter(Boolean),
       teams: metaTeams.map((t) => t.team).filter(Boolean),

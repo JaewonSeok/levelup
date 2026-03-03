@@ -35,6 +35,17 @@ interface GradeMap {
   2025: string | null;
 }
 
+interface AiScoreResult {
+  totalScore: number;
+  trendScore: number;
+  pointsExcessScore: number;
+  creditsExcessScore: number;
+  stabilityScore: number;
+  maturityScore: number;
+  grade: string;
+  details: string[];
+}
+
 interface CandidateRow {
   candidateId: string;
   userId: string;
@@ -56,6 +67,12 @@ interface CandidateRow {
   promotionType?: string;
   source: string;
   grades: GradeMap;
+  aiScore?: AiScoreResult;
+  sameLevelAvgPoints?: number;
+  sameLevelAvgCredits?: number;
+  requiredPoints?: number;
+  requiredCredits?: number;
+  minTenure?: number;
 }
 
 type MeetType = "all" | "point" | "credit" | "both";
@@ -162,6 +179,11 @@ export default function CandidatesPage() {
   // Admin: delete candidate
   const [deleteTarget, setDeleteTarget] = useState<{ candidateId: string; name: string } | null>(null);
   const [deleting, setDeleting] = useState(false);
+
+  // AI 점수 상세 팝업
+  const [aiDetailTarget, setAiDetailTarget] = useState<CandidateRow | null>(null);
+  const [aiReport, setAiReport] = useState<string | null>(null);
+  const [aiReportLoading, setAiReportLoading] = useState(false);
 
   // Admin: refresh
   const handleRefresh = () => setQuery((q) => ({ ...q }));
@@ -285,6 +307,45 @@ export default function CandidatesPage() {
       toast.error(e instanceof Error ? e.message : "삭제 중 오류가 발생했습니다.");
     } finally {
       setDeleting(false);
+    }
+  };
+
+  const handleGenerateAiReport = async (row: CandidateRow) => {
+    setAiReportLoading(true);
+    setAiReport(null);
+    try {
+      const res = await fetch("/api/ai-report", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          employeeData: {
+            name: row.name,
+            department: row.department,
+            team: row.team,
+            level: row.level,
+            yearsOfService: row.yearsOfService,
+            promotionType: row.promotionType,
+            grades: row.grades,
+            pointCumulative: row.pointCumulative,
+            creditCumulative: row.creditCumulative,
+            finalPoints: row.pointCumulative,
+            requiredPoints: row.requiredPoints,
+            creditScore: row.creditCumulative,
+            requiredCredits: row.requiredCredits,
+            minTenure: row.minTenure,
+            aiScore: row.aiScore,
+            sameLevelAvgPoints: row.sameLevelAvgPoints,
+            sameLevelAvgCredits: row.sameLevelAvgCredits,
+          },
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "AI 분석 실패");
+      setAiReport(data.report);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "AI 분석 중 오류가 발생했습니다.");
+    } finally {
+      setAiReportLoading(false);
     }
   };
 
@@ -516,6 +577,7 @@ export default function CandidatesPage() {
               <th className="border px-2 py-2 font-medium">학점</th>
               <th className="border px-2 py-2 font-medium">충족여부</th>
               <th className="border px-2 py-2 font-medium">구분</th>
+              <th className="border px-2 py-2 font-medium text-xs text-purple-700">AI 점수</th>
               {GRADE_YEARS.map((y) => (
                 <th key={y} className="border px-2 py-2 font-medium text-xs text-gray-600">{y}</th>
               ))}
@@ -525,13 +587,13 @@ export default function CandidatesPage() {
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={isAdmin ? 13 + GRADE_YEARS.length : 12 + GRADE_YEARS.length} className="text-center py-10 text-muted-foreground">
+                <td colSpan={isAdmin ? 14 + GRADE_YEARS.length : 13 + GRADE_YEARS.length} className="text-center py-10 text-muted-foreground">
                   불러오는 중...
                 </td>
               </tr>
             ) : rows.length === 0 ? (
               <tr>
-                <td colSpan={isAdmin ? 13 + GRADE_YEARS.length : 12 + GRADE_YEARS.length} className="text-center py-10 text-muted-foreground">
+                <td colSpan={isAdmin ? 14 + GRADE_YEARS.length : 13 + GRADE_YEARS.length} className="text-center py-10 text-muted-foreground">
                   충족 조건을 만족하는 직원이 없습니다.
                 </td>
               </tr>
@@ -621,6 +683,29 @@ export default function CandidatesPage() {
                         <span className="text-xs font-medium px-1.5 py-0.5 rounded bg-orange-100 text-orange-700">특진</span>
                       ) : (
                         <span className="text-xs font-medium px-1.5 py-0.5 rounded bg-blue-100 text-blue-700">일반</span>
+                      )}
+                    </td>
+
+                    {/* AI 점수 */}
+                    <td className="border px-2 py-1.5 text-center">
+                      {row.aiScore ? (
+                        <button
+                          onClick={() => { setAiDetailTarget(row); setAiReport(null); }}
+                          className="flex flex-col items-center gap-0.5 w-full hover:opacity-80 transition-opacity"
+                        >
+                          <span className={`font-bold text-sm ${
+                            row.aiScore.grade === "S" ? "text-purple-600" :
+                            row.aiScore.grade === "A" ? "text-blue-600" :
+                            row.aiScore.grade === "B" ? "text-green-600" :
+                            row.aiScore.grade === "C" ? "text-orange-500" :
+                            "text-red-500"
+                          }`}>
+                            {row.aiScore.grade}
+                          </span>
+                          <span className="text-[10px] text-gray-400">{row.aiScore.totalScore}점</span>
+                        </button>
+                      ) : (
+                        <span className="text-gray-300 text-xs">-</span>
                       )}
                     </td>
 
@@ -730,6 +815,85 @@ export default function CandidatesPage() {
               {addSubmitting ? "추가 중..." : "추가"}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── AI 점수 상세 팝업 ─────────────────────────────── */}
+      <Dialog open={!!aiDetailTarget} onOpenChange={(o) => { if (!o) { setAiDetailTarget(null); setAiReport(null); } }}>
+        <DialogContent className="max-w-md max-h-[90vh] flex flex-col overflow-hidden">
+          <DialogHeader className="flex-shrink-0">
+            <DialogTitle>AI 승진 적합도 분석 — {aiDetailTarget?.name}</DialogTitle>
+          </DialogHeader>
+          {aiDetailTarget?.aiScore && (
+            <div className="flex-1 overflow-y-auto space-y-3 text-sm">
+              {/* 총점 */}
+              <div className="flex items-center gap-3 bg-gray-50 rounded-md px-3 py-2">
+                <span className={`text-2xl font-bold ${
+                  aiDetailTarget.aiScore.grade === "S" ? "text-purple-600" :
+                  aiDetailTarget.aiScore.grade === "A" ? "text-blue-600" :
+                  aiDetailTarget.aiScore.grade === "B" ? "text-green-600" :
+                  aiDetailTarget.aiScore.grade === "C" ? "text-orange-500" : "text-red-500"
+                }`}>{aiDetailTarget.aiScore.grade}</span>
+                <div>
+                  <div className="font-semibold">{aiDetailTarget.aiScore.totalScore} / 100점</div>
+                  <div className="text-xs text-gray-500">종합 적합도 점수</div>
+                </div>
+              </div>
+              {/* 세부 점수 */}
+              <div className="space-y-1.5">
+                {[
+                  { label: "성과 추세", score: aiDetailTarget.aiScore.trendScore, weight: "30%" },
+                  { label: "포인트 초과율", score: aiDetailTarget.aiScore.pointsExcessScore, weight: "25%" },
+                  { label: "학점 초과율", score: aiDetailTarget.aiScore.creditsExcessScore, weight: "20%" },
+                  { label: "평가 안정성", score: aiDetailTarget.aiScore.stabilityScore, weight: "15%" },
+                  { label: "체류 성숙도", score: aiDetailTarget.aiScore.maturityScore, weight: "10%" },
+                ].map(({ label, score, weight }) => (
+                  <div key={label} className="flex items-center gap-2">
+                    <span className="w-24 text-xs text-gray-600 flex-shrink-0">{label}</span>
+                    <div className="flex-1 bg-gray-200 rounded-full h-2 overflow-hidden">
+                      <div
+                        className={`h-full rounded-full ${score >= 70 ? "bg-green-500" : score >= 40 ? "bg-blue-400" : "bg-red-400"}`}
+                        style={{ width: `${score}%` }}
+                      />
+                    </div>
+                    <span className="text-xs font-mono w-8 text-right">{score}</span>
+                    <span className="text-[10px] text-gray-400 w-7">{weight}</span>
+                  </div>
+                ))}
+              </div>
+              {/* 특이사항 */}
+              {aiDetailTarget.aiScore.details.length > 0 && (
+                <div className="bg-blue-50 border border-blue-200 rounded px-3 py-2 text-xs text-blue-700">
+                  {aiDetailTarget.aiScore.details.map((d, i) => (
+                    <span key={i}>{i > 0 ? " · " : ""}{d}</span>
+                  ))}
+                </div>
+              )}
+              {/* AI 리포트 */}
+              <div className="border-t pt-3">
+                <Button
+                  size="sm"
+                  className="w-full bg-purple-600 hover:bg-purple-700 text-white text-xs"
+                  disabled={aiReportLoading}
+                  onClick={() => handleGenerateAiReport(aiDetailTarget)}
+                >
+                  {aiReportLoading ? "AI 분석 중..." : "🤖 AI 분석 리포트 생성"}
+                </Button>
+                {aiReport && (
+                  <div className="mt-3 bg-purple-50 border border-purple-200 rounded-lg p-3">
+                    <p className="text-xs font-bold text-purple-800 mb-2">🤖 AI 심사 보조 리포트</p>
+                    <div className="text-xs text-gray-700 whitespace-pre-wrap">{aiReport}</div>
+                    <p className="text-[10px] text-gray-400 mt-2">
+                      * AI 분석은 참고자료이며, 최종 판단은 심사위원이 결정합니다.
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+          <div className="flex-shrink-0 pt-2 border-t mt-2 flex justify-end">
+            <Button variant="outline" size="sm" onClick={() => { setAiDetailTarget(null); setAiReport(null); }}>닫기</Button>
+          </div>
         </DialogContent>
       </Dialog>
 

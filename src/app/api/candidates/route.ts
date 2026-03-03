@@ -3,7 +3,8 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Role, Level, EmploymentType, Prisma } from "@prisma/client";
-import { calculateFinalPoints, getNextLevel } from "@/lib/pointCalculation";
+import { calculateFinalPoints, getNextLevel, gradeToPoints } from "@/lib/pointCalculation";
+import { calculateAiScore } from "@/lib/aiScoring";
 
 const ALLOWED_ROLES: Role[] = [Role.HR_TEAM, Role.SYSTEM_ADMIN];
 
@@ -276,8 +277,58 @@ export async function GET(req: NextRequest) {
   const pagedEmployees = filteredEmployees
     .slice((page - 1) * pageSize, page * pageSize);
 
+  // ── AI 스코어링: 레벨별 평균 계산 후 paged 직원에 점수 부여 ────
+  const levelGroupAvg: Record<string, { avgPoints: number; avgCredits: number }> = {};
+  {
+    const lvGroups: Record<string, { pts: number[]; creds: number[] }> = {};
+    for (const emp of filteredEmployees) {
+      const lv = (emp.level ?? "").substring(0, 2);
+      if (!lvGroups[lv]) lvGroups[lv] = { pts: [], creds: [] };
+      lvGroups[lv].pts.push(emp.pointCumulative);
+      lvGroups[lv].creds.push(emp.creditCumulative);
+    }
+    for (const [lv, d] of Object.entries(lvGroups)) {
+      levelGroupAvg[lv] = {
+        avgPoints: d.pts.reduce((a, b) => a + b, 0) / (d.pts.length || 1),
+        avgCredits: d.creds.reduce((a, b) => a + b, 0) / (d.creds.length || 1),
+      };
+    }
+  }
+
+  const enrichedPaged = pagedEmployees.map((emp) => {
+    const nl = getNextLevel(emp.level);
+    const crit = nl ? criteriaMap.get(nl) : null;
+    const lv = (emp.level ?? "").substring(0, 2);
+    const avg = levelGroupAvg[lv] ?? { avgPoints: 0, avgCredits: 0 };
+    const gradeList = ([2021, 2022, 2023, 2024, 2025] as const).flatMap((y) => {
+      const grade = emp.grades[y];
+      if (!grade) return [] as { year: number; grade: string; points: number }[];
+      return [{ year: y as number, grade, points: gradeToPoints(grade, y, gradeCriteriaAll) }];
+    });
+    const aiScore = calculateAiScore({
+      grades: gradeList,
+      finalPoints: emp.pointCumulative,
+      requiredPoints: crit?.requiredPoints ?? 0,
+      creditScore: emp.creditCumulative,
+      requiredCredits: crit?.requiredCredits ?? 0,
+      yearsOfService: emp.yearsOfService ?? 0,
+      minTenure: crit?.minTenure ?? 0,
+      sameLevelAvgPoints: avg.avgPoints,
+      sameLevelAvgCredits: avg.avgCredits,
+    });
+    return {
+      ...emp,
+      aiScore,
+      sameLevelAvgPoints: avg.avgPoints,
+      sameLevelAvgCredits: avg.avgCredits,
+      requiredPoints: crit?.requiredPoints ?? 0,
+      requiredCredits: crit?.requiredCredits ?? 0,
+      minTenure: crit?.minTenure ?? 0,
+    };
+  });
+
   return NextResponse.json({
-    employees: pagedEmployees,
+    employees: enrichedPaged,
     total,
     normalCount,
     specialCount,

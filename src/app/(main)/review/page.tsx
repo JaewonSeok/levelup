@@ -32,6 +32,17 @@ interface GradeMap {
   2025: string | null;
 }
 
+interface AiScoreResult {
+  totalScore: number;
+  trendScore: number;
+  pointsExcessScore: number;
+  creditsExcessScore: number;
+  stabilityScore: number;
+  maturityScore: number;
+  grade: string;
+  details: string[];
+}
+
 interface ReviewCandidate {
   candidateId: string;
   userId: string;
@@ -52,6 +63,12 @@ interface ReviewCandidate {
   ownDeptHeadHasOpinion: boolean;
   recommendationStatus: "추천" | "제외" | null;
   grades: GradeMap;
+  aiScore?: AiScoreResult;
+  sameLevelAvgPoints?: number;
+  sameLevelAvgCredits?: number;
+  requiredPoints?: number | null;
+  requiredCredits?: number | null;
+  minTenure?: number;
 }
 
 interface CurrentUser {
@@ -75,9 +92,9 @@ const CURRENT_YEAR = new Date().getFullYear();
 const YEARS = Array.from({ length: 5 }, (_, i) => CURRENT_YEAR - i);
 const GRADE_YEARS = [2021, 2022, 2023, 2024, 2025] as const;
 
-// No. 본부 팀 이름 레벨 연차 입사일 포인트 학점 구분 의견 추천여부 + 5 grade cols
-const COL_BASE = 12;
-const COL_COUNT = COL_BASE + GRADE_YEARS.length; // 17
+// No. 본부 팀 이름 레벨 연차 입사일 포인트 학점 구분 AI점수 의견 추천여부 + 5 grade cols
+const COL_BASE = 13;
+const COL_COUNT = COL_BASE + GRADE_YEARS.length; // 18
 
 // ── Grade badge ────────────────────────────────────────────────
 
@@ -130,6 +147,10 @@ export default function ReviewPage() {
 
   // 의견 팝업
   const [selectedReviewId, setSelectedReviewId] = useState<string | null>(null);
+  const [selectedCandidate, setSelectedCandidate] = useState<ReviewCandidate | null>(null);
+
+  // AI 점수 상세 팝업
+  const [aiDetailTarget, setAiDetailTarget] = useState<ReviewCandidate | null>(null);
 
   // 제출 상태
   const [isSubmitted, setIsSubmitted] = useState(false);
@@ -552,6 +573,7 @@ export default function ReviewPage() {
                 <th key={y} className="border px-2 py-2 font-medium text-xs text-gray-600">{y}</th>
               ))}
               <th className="border px-2 py-2 font-medium">구분</th>
+              <th className="border px-2 py-2 font-medium text-xs text-purple-700">AI 점수</th>
               <th className="border px-2 py-2 font-medium">의견</th>
               <th className="border px-2 py-2 font-medium">추천여부</th>
             </tr>
@@ -638,10 +660,32 @@ export default function ReviewPage() {
                       )}
                     </td>
 
+                    {/* AI 점수 */}
+                    <td className="border px-2 py-1.5 text-center">
+                      {c.aiScore ? (
+                        <button
+                          onClick={() => setAiDetailTarget(c)}
+                          className="flex flex-col items-center gap-0.5 w-full hover:opacity-80 transition-opacity"
+                        >
+                          <span className={`font-bold text-sm ${
+                            c.aiScore.grade === "S" ? "text-purple-600" :
+                            c.aiScore.grade === "A" ? "text-blue-600" :
+                            c.aiScore.grade === "B" ? "text-green-600" :
+                            c.aiScore.grade === "C" ? "text-orange-500" : "text-red-500"
+                          }`}>
+                            {c.aiScore.grade}
+                          </span>
+                          <span className="text-[10px] text-gray-400">{c.aiScore.totalScore}점</span>
+                        </button>
+                      ) : (
+                        <span className="text-gray-300 text-xs">-</span>
+                      )}
+                    </td>
+
                     {/* 의견 */}
                     <td className="border px-2 py-1.5">
                       <button
-                        onClick={() => c.reviewId && setSelectedReviewId(c.reviewId)}
+                        onClick={() => { if (c.reviewId) { setSelectedReviewId(c.reviewId); setSelectedCandidate(c); } }}
                         disabled={!c.reviewId}
                         className="flex items-center justify-center gap-0.5 w-full cursor-pointer disabled:cursor-default"
                       >
@@ -702,10 +746,74 @@ export default function ReviewPage() {
       {selectedReviewId && (
         <OpinionModal
           reviewId={selectedReviewId}
-          onClose={() => setSelectedReviewId(null)}
+          onClose={() => { setSelectedReviewId(null); setSelectedCandidate(null); }}
           onSaved={handleOpinionSaved}
           isSubmitted={isSubmitted && isDeptHead}
+          candidateInfo={selectedCandidate ?? undefined}
         />
+      )}
+
+      {/* ── AI 점수 상세 팝업 (심사 페이지) ─────────────────── */}
+      {aiDetailTarget && (
+        <Dialog open onOpenChange={(o) => { if (!o) setAiDetailTarget(null); }}>
+          <DialogContent className="max-w-sm">
+            <DialogHeader>
+              <DialogTitle>AI 승진 적합도 — {aiDetailTarget.name}</DialogTitle>
+              <DialogDescription>
+                {aiDetailTarget.department} · {aiDetailTarget.team} · {aiDetailTarget.competencyLevel ?? aiDetailTarget.level ?? "-"}
+              </DialogDescription>
+            </DialogHeader>
+            {aiDetailTarget.aiScore ? (
+              <div className="space-y-3 text-sm">
+                <div className="flex items-center gap-3 bg-gray-50 rounded-md px-3 py-2">
+                  <span className={`text-2xl font-bold ${
+                    aiDetailTarget.aiScore.grade === "S" ? "text-purple-600" :
+                    aiDetailTarget.aiScore.grade === "A" ? "text-blue-600" :
+                    aiDetailTarget.aiScore.grade === "B" ? "text-green-600" :
+                    aiDetailTarget.aiScore.grade === "C" ? "text-orange-500" : "text-red-500"
+                  }`}>{aiDetailTarget.aiScore.grade}</span>
+                  <div>
+                    <div className="font-semibold">{aiDetailTarget.aiScore.totalScore} / 100점</div>
+                    <div className="text-xs text-gray-500">종합 적합도 점수</div>
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  {[
+                    { label: "성과 추세", score: aiDetailTarget.aiScore.trendScore, weight: "30%" },
+                    { label: "포인트 초과율", score: aiDetailTarget.aiScore.pointsExcessScore, weight: "25%" },
+                    { label: "학점 초과율", score: aiDetailTarget.aiScore.creditsExcessScore, weight: "20%" },
+                    { label: "평가 안정성", score: aiDetailTarget.aiScore.stabilityScore, weight: "15%" },
+                    { label: "체류 성숙도", score: aiDetailTarget.aiScore.maturityScore, weight: "10%" },
+                  ].map(({ label, score, weight }) => (
+                    <div key={label} className="flex items-center gap-2">
+                      <span className="w-24 text-xs text-gray-600 flex-shrink-0">{label}</span>
+                      <div className="flex-1 bg-gray-200 rounded-full h-2 overflow-hidden">
+                        <div
+                          className={`h-full rounded-full ${score >= 70 ? "bg-green-500" : score >= 40 ? "bg-blue-400" : "bg-red-400"}`}
+                          style={{ width: `${score}%` }}
+                        />
+                      </div>
+                      <span className="text-xs font-mono w-8 text-right">{score}</span>
+                      <span className="text-[10px] text-gray-400 w-7">{weight}</span>
+                    </div>
+                  ))}
+                </div>
+                {aiDetailTarget.aiScore.details.length > 0 && (
+                  <div className="bg-blue-50 border border-blue-200 rounded px-3 py-2 text-xs text-blue-700">
+                    {aiDetailTarget.aiScore.details.map((d, i) => (
+                      <span key={i}>{i > 0 ? " · " : ""}{d}</span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <p className="text-sm text-gray-500">점수 정보가 없습니다.</p>
+            )}
+            <DialogFooter>
+              <Button variant="outline" size="sm" onClick={() => setAiDetailTarget(null)}>닫기</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       )}
 
       {/* ── 최종 제출 확인 다이얼로그 ───────────────────────── */}
