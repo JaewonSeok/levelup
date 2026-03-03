@@ -198,10 +198,11 @@ export async function GET(req: NextRequest) {
     // 소속본부장 의견 — "의견" 컬럼 전용 (텍스트 입력 여부 판단)
     const ownDeptHeadOpinion = opinions.find((o) => o.reviewerRole === "소속본부장");
     const ownDeptHeadHasOpinion = !!(ownDeptHeadOpinion?.opinionText?.trim());
-    // 추천여부: review.recommendation 사용 (인사팀 드롭다운 최종 결정 / 소속본부장 저장 시 동기화)
+    // 추천여부: 소속본부장 Opinion.recommendation만 반영
+    // (타본부장 의견은 팝업 참고용이며 목록 추천여부에 영향 없음)
     const recommendationStatus: "추천" | "제외" | null =
-      review?.recommendation === true ? "추천" :
-      review?.recommendation === false ? "제외" :
+      ownDeptHeadOpinion?.recommendation === true ? "추천" :
+      ownDeptHeadOpinion?.recommendation === false ? "제외" :
       null;
 
     const criteria = candidate.user.level ? criteriaMap.get(candidate.user.level) : null;

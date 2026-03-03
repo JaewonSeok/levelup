@@ -248,24 +248,12 @@ export async function POST(
   const now = new Date();
 
   // Opinion 저장 + Review.recommendation 업데이트 — 트랜잭션
-  // 규칙: 소속본부장 → 항상 업데이트 (최우선)
-  //       타본부장  → 소속본부장이 아직 추천/미추천 미저장인 경우에만 업데이트
-  //       인사팀장  → 업데이트 없음
+  // 규칙: 소속본부장 → Review.recommendation 업데이트
+  //       타본부장  → Opinion만 저장 (Review.recommendation 변경 없음)
+  //       인사팀장  → Opinion만 저장 (Review.recommendation 변경 없음)
   let reviewUpdated = false;
 
   const opinion = await prisma.$transaction(async (tx) => {
-    // 소속본부장이 이미 추천/미추천을 저장했는지 확인 (타본부장 저장 시 우선순위 판별용)
-    const ownerOpinion =
-      reviewerRole === "타본부장"
-        ? await tx.opinion.findFirst({
-            where: {
-              reviewId: params.id,
-              reviewerRole: "소속본부장",
-              recommendation: { not: null },
-            },
-          })
-        : null;
-
     const saved = await tx.opinion.upsert({
       where: {
         reviewId_reviewerId: { reviewId: params.id, reviewerId: targetReviewerId },
@@ -290,9 +278,8 @@ export async function POST(
     });
 
     // Review.recommendation 업데이트 여부 결정
-    const shouldUpdateReview =
-      reviewerRole === "소속본부장" ||
-      (reviewerRole === "타본부장" && !ownerOpinion);
+    // 소속본부장만 Review.recommendation 반영 — 타본부장은 참고 의견에 불과
+    const shouldUpdateReview = reviewerRole === "소속본부장";
 
     if (shouldUpdateReview) {
       await tx.review.update({
