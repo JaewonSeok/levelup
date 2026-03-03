@@ -20,9 +20,11 @@ export async function POST(req: NextRequest) {
   }
 
   const apiKey = process.env.ANTHROPIC_API_KEY;
+  // 서버 콘솔에서 로딩 여부 확인용 (key 값은 노출하지 않음)
+  console.log("[ai-report] ANTHROPIC_API_KEY loaded:", !!apiKey, "| length:", apiKey?.length ?? 0);
   if (!apiKey) {
     return NextResponse.json(
-      { error: "ANTHROPIC_API_KEY가 설정되지 않았습니다." },
+      { error: "ANTHROPIC_API_KEY가 설정되지 않았습니다. 서버를 재시작해주세요." },
       { status: 500 }
     );
   }
