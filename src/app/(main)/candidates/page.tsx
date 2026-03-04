@@ -285,6 +285,7 @@ export default function CandidatesPage() {
       toast.success("대상자가 추가되었습니다.");
       setAddModalOpen(false);
       setAddForm({ department: "", team: "", name: "", level: "", yearsOfService: "", hireDate: "", pointCumulative: "", creditCumulative: "" });
+      setPage(1);
       setQuery((q) => ({ ...q }));
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "추가 중 오류가 발생했습니다.");
