@@ -20,7 +20,6 @@ export async function POST(req: NextRequest) {
   }
 
   const apiKey = process.env.ANTHROPIC_API_KEY;
-  // 서버 콘솔에서 로딩 여부 확인용 (key 값은 노출하지 않음)
   console.log("[ai-report] ANTHROPIC_API_KEY loaded:", !!apiKey, "| length:", apiKey?.length ?? 0);
   if (!apiKey) {
     return NextResponse.json(
@@ -41,7 +40,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "employeeData가 필요합니다." }, { status: 400 });
   }
 
-  // 등급 이력 문자열화
   const grades = ed.grades as Record<string, string | null> | undefined;
   const gradeHistory = grades
     ? Object.entries(grades)
@@ -65,40 +63,40 @@ export async function POST(req: NextRequest) {
     L0: "L1", L1: "L2", L2: "L3", L3: "L4", L4: "L5",
   };
   const level = String(ed.level ?? "");
-  const nextLevel = nextLevelMap[level] ?? "상위 레벨";
+  const nextLevel = nextLevelMap[level] ?? "최고 레벨";
 
-  const prompt = `당신은 인사 전문가입니다. 아래 직원의 승진 심사를 위한 객관적 분석 리포트를 작성해주세요.
+  const prompt = `당신은 인사 평가 전문가입니다. 아래 직원의 레벨업 심사를 위한 객관적 분석 리포트를 작성해주세요.
 
 ## 직원 정보
 - 소속: ${ed.department ?? "-"} / ${ed.team ?? "-"}
 - 현재 레벨: ${level}
-- 승진 대상 레벨: ${nextLevel}
-- 연차: ${ed.yearsOfService ?? "-"}년
-- 구분: ${ed.promotionType === "special" ? "특진 (체류연수 미달)" : "일반 (체류연수 충족)"}
+- 레벨업 목표 레벨: ${nextLevel}
+- 재직기간: ${ed.yearsOfService ?? "-"}년
+- 심사유형: ${ed.promotionType === "special" ? "특별심사 (재직기간 단축 적용)" : "일반심사 (재직기간 충족)"}
 
-## 평가 데이터
-- 연도별 등급: ${gradeHistory}
+## 정량적 데이터
+- 연도별 성과등급: ${gradeHistory}
 - 포인트: ${ed.finalPoints ?? ed.pointCumulative ?? "-"} (기준: ${ed.requiredPoints ?? "-"})
 - 학점: ${ed.creditScore ?? ed.creditCumulative ?? "-"} (기준: ${ed.requiredCredits ?? "-"})
-- 체류연수: ${ed.yearsOfService ?? "-"}년 (기준: ${ed.minTenure ?? "-"}년)
-- AI 적합도 점수: ${aiScore?.totalScore ?? "-"}/100 (${aiScore?.grade ?? "-"}등급)
-- AI 세부 점수: 성과추세 ${aiScore?.trendScore ?? "-"}, 포인트초과 ${aiScore?.pointsExcessScore ?? "-"}, 학점초과 ${aiScore?.creditsExcessScore ?? "-"}, 안정성 ${aiScore?.stabilityScore ?? "-"}, 성숙도 ${aiScore?.maturityScore ?? "-"}
+- 재직기간: ${ed.yearsOfService ?? "-"}년 (기준: ${ed.minTenure ?? "-"}년)
+- AI 종합점수: ${aiScore?.totalScore ?? "-"}/100 (${aiScore?.grade ?? "-"}등급)
+- AI 세부 점수: 성과추이 ${aiScore?.trendScore ?? "-"}, 포인트초과분 ${aiScore?.pointsExcessScore ?? "-"}, 학점초과 ${aiScore?.creditsExcessScore ?? "-"}, 안정성 ${aiScore?.stabilityScore ?? "-"}, 성숙도 ${aiScore?.maturityScore ?? "-"}
 
-## 동일 레벨 대비
+## 동일 레벨 비교
 - 동일 레벨 평균 포인트: ${ed.sameLevelAvgPoints != null ? Number(ed.sameLevelAvgPoints).toFixed(1) : "-"}
 - 동일 레벨 평균 학점: ${ed.sameLevelAvgCredits != null ? Number(ed.sameLevelAvgCredits).toFixed(1) : "-"}
 
-## 작성 요청
-아래 형식으로 간결하게 작성해주세요 (각 항목 2~3문장):
+## 작성 형식
+아래 항목으로 구분하여 작성해주세요 (각 항목 2~3문단):
 
-1. **성과 추이 분석**: 최근 평가등급의 변화 패턴과 의미
-2. **강점**: 데이터에서 드러나는 이 직원의 강점
-3. **발전 영역**: 승진 후 주의가 필요한 부분
-4. **동료 대비 위치**: 동일 레벨 직원 대비 객관적 위치
-5. **종합 의견**: 승진 적합성에 대한 종합적 판단 (3~4문장)
+1. **성과 추이 분석**: 최근 연도별 성과등급의 흐름과 의미
+2. **강점**: 데이터에서 두드러지는 해당 직원의 강점
+3. **발전 방향**: 레벨업 이후 성장이 필요한 역량
+4. **동료 대비 위치**: 동일 레벨 직원 대비 위치 평가
+5. **종합 의견**: 레벨업 적합성에 대한 종합적 의견 (3~4문단)
 
-주의: 추천/비추천을 직접 하지 마세요. 객관적 데이터 분석만 제공하세요.
-개인 이름은 "해당 직원"으로 지칭하세요.`;
+주의: 직함/직책명을 직접 쓰지 말고, 데이터에 기반한 객관적 평가를 해주세요.
+대상 직원 표현은 "해당 직원"으로 일컬어 주세요.`;
 
   try {
     const response = await fetch("https://api.anthropic.com/v1/messages", {
@@ -110,7 +108,7 @@ export async function POST(req: NextRequest) {
       },
       body: JSON.stringify({
         model: "claude-sonnet-4-6",
-        max_tokens: 1024,
+        max_tokens: 4096,
         messages: [{ role: "user", content: prompt }],
       }),
     });

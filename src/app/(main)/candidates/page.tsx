@@ -820,7 +820,7 @@ export default function CandidatesPage() {
 
       {/* ── AI 점수 상세 팝업 ─────────────────────────────── */}
       <Dialog open={!!aiDetailTarget} onOpenChange={(o) => { if (!o) { setAiDetailTarget(null); setAiReport(null); } }}>
-        <DialogContent className="max-w-md max-h-[90vh] flex flex-col overflow-hidden">
+        <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col overflow-hidden">
           <DialogHeader className="flex-shrink-0">
             <DialogTitle>AI 승진 적합도 분석 — {aiDetailTarget?.name}</DialogTitle>
           </DialogHeader>
