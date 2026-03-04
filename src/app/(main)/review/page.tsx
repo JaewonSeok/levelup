@@ -151,6 +151,8 @@ export default function ReviewPage() {
 
   // AI 점수 상세 팝업
   const [aiDetailTarget, setAiDetailTarget] = useState<ReviewCandidate | null>(null);
+  const [aiReport, setAiReport] = useState<string | null>(null);
+  const [aiReportLoading, setAiReportLoading] = useState(false);
 
   // 제출 상태
   const [isSubmitted, setIsSubmitted] = useState(false);
@@ -306,6 +308,42 @@ export default function ReviewPage() {
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "추천여부 변경 실패");
       setRefreshKey((k) => k + 1); // 실패 시 서버 데이터로 복원
+    }
+  };
+
+  const handleGenerateAiReport = async (candidate: ReviewCandidate) => {
+    setAiReportLoading(true);
+    try {
+      const res = await fetch("/api/ai-report", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          employeeData: {
+            name: candidate.name,
+            department: candidate.department,
+            team: candidate.team,
+            level: candidate.level,
+            yearsOfService: candidate.yearsOfService,
+            promotionType: candidate.promotionType,
+            grades: candidate.grades,
+            pointCumulative: candidate.pointCumulative,
+            creditCumulative: candidate.creditCumulative,
+            aiScore: candidate.aiScore,
+            sameLevelAvgPoints: candidate.sameLevelAvgPoints,
+            sameLevelAvgCredits: candidate.sameLevelAvgCredits,
+            requiredPoints: candidate.requiredPoints,
+            requiredCredits: candidate.requiredCredits,
+            minTenure: candidate.minTenure,
+          },
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "AI 분석 실패");
+      setAiReport(data.report);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "AI 분석 중 오류가 발생했습니다.");
+    } finally {
+      setAiReportLoading(false);
     }
   };
 
@@ -755,8 +793,8 @@ export default function ReviewPage() {
 
       {/* ── AI 점수 상세 팝업 (심사 페이지) ─────────────────── */}
       {aiDetailTarget && (
-        <Dialog open onOpenChange={(o) => { if (!o) setAiDetailTarget(null); }}>
-          <DialogContent className="max-w-sm">
+        <Dialog open onOpenChange={(o) => { if (!o) { setAiDetailTarget(null); setAiReport(null); } }}>
+          <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col overflow-hidden">
             <DialogHeader>
               <DialogTitle>AI 승진 적합도 — {aiDetailTarget.name}</DialogTitle>
               <DialogDescription>
@@ -805,12 +843,32 @@ export default function ReviewPage() {
                     ))}
                   </div>
                 )}
+                {/* AI 리포트 */}
+                <div className="border-t pt-3">
+                  <Button
+                    size="sm"
+                    className="w-full bg-purple-600 hover:bg-purple-700 text-white text-xs"
+                    disabled={aiReportLoading}
+                    onClick={() => handleGenerateAiReport(aiDetailTarget)}
+                  >
+                    {aiReportLoading ? "AI 분석 중..." : "🤖 AI 분석 리포트 생성"}
+                  </Button>
+                  {aiReport && (
+                    <div className="mt-3 bg-purple-50 border border-purple-200 rounded-lg p-3 max-h-60 overflow-y-auto">
+                      <p className="text-xs font-bold text-purple-800 mb-2">🤖 AI 심사 보조 리포트</p>
+                      <div className="text-xs text-gray-700 whitespace-pre-wrap">{aiReport}</div>
+                      <p className="text-[10px] text-gray-400 mt-2">
+                        * AI 분석은 참고자료이며, 최종 판단은 심사위원이 결정합니다.
+                      </p>
+                    </div>
+                  )}
+                </div>
               </div>
             ) : (
               <p className="text-sm text-gray-500">점수 정보가 없습니다.</p>
             )}
-            <DialogFooter>
-              <Button variant="outline" size="sm" onClick={() => setAiDetailTarget(null)}>닫기</Button>
+            <DialogFooter className="flex-shrink-0">
+              <Button variant="outline" size="sm" onClick={() => { setAiDetailTarget(null); setAiReport(null); }}>닫기</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
