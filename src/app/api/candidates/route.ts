@@ -156,8 +156,8 @@ export async function GET(req: NextRequest) {
       const nextLevel = user.level ? getNextLevel(user.level) : null;
       // L5 등 다음 레벨 없으면 레벨업 대상 아님 → 항상 제외
       if (!nextLevel) return null;
-      // 판정 기준: 현재 레벨의 기준 사용 (L1→L2 승급 시 L1 기준 적용)
-      const criteria = user.level ? criteriaMap.get(user.level as string) : undefined;
+      // 판정 기준: 다음 레벨의 기준 사용 (L1→L2 승급 시 L2 기준 적용)
+      const criteria = criteriaMap.get(nextLevel);
       const userGrades = gradeMap.get(user.id) ?? {};
       const totalMerit = user.points.reduce((s, p) => s + p.merit, 0);
       const totalPenalty = user.points.reduce((s, p) => s + p.penalty, 0);
@@ -297,7 +297,8 @@ export async function GET(req: NextRequest) {
   }
 
   const enrichedPaged = pagedEmployees.map((emp) => {
-    const crit = emp.level ? criteriaMap.get(emp.level) : null;
+    const nl = emp.level ? getNextLevel(emp.level) : null;
+    const crit = nl ? criteriaMap.get(nl) : null;
     const lv = (emp.level ?? "").substring(0, 2);
     const avg = levelGroupAvg[lv] ?? { avgPoints: 0, avgCredits: 0 };
     const gradeList = ([2021, 2022, 2023, 2024, 2025] as const).flatMap((y) => {
