@@ -113,6 +113,8 @@ export async function GET(req: NextRequest) {
 
   // ── 쿼리 ──────────────────────────────────────────────────
   try {
+    // 1단계: 기본 유저 정보 + 메타 + 등급기준 병렬 조회
+    // (PgBouncer 호환: 중첩 relation select 대신 별도 쿼리로 분리)
     const [total, rawEmployees, metaDepts, metaTeams, gradeCriteriaAll] = await Promise.all([
       prisma.user.count({ where }),
       prisma.user.findMany({
@@ -132,9 +134,6 @@ export async function GET(req: NextRequest) {
           levelUpYear: true,
           isActive: true,
           role: true,
-          performanceGrades: { select: { year: true, grade: true } },
-          points: { select: { merit: true, penalty: true } },
-          credits: { select: { cumulative: true }, orderBy: { year: "desc" }, take: 1 },
         },
         orderBy: [{ department: "asc" }, { team: "asc" }, { name: "asc" }],
         skip: (page - 1) * pageSize,
@@ -155,12 +154,44 @@ export async function GET(req: NextRequest) {
       prisma.gradeCriteria.findMany(),
     ]);
 
-    // BonusPenalty (총점 계산용)
+    // 2단계: 유저 IDs로 관련 데이터 별도 조회 (candidates/route.ts 와 동일 패턴)
     const empIds = rawEmployees.map((e) => e.id);
-    const bpRecordsEmp = await prisma.bonusPenalty.findMany({
-      where: { userId: { in: empIds } },
-      select: { userId: true, points: true },
-    });
+    const [allGrades, allPoints, allCredits, bpRecordsEmp] = await Promise.all([
+      prisma.performanceGrade.findMany({
+        where: { userId: { in: empIds } },
+        select: { userId: true, year: true, grade: true },
+      }),
+      prisma.point.findMany({
+        where: { userId: { in: empIds } },
+        select: { userId: true, merit: true, penalty: true },
+      }),
+      prisma.credit.findMany({
+        where: { userId: { in: empIds } },
+        select: { userId: true, cumulative: true, year: true },
+        orderBy: { year: "desc" },
+      }),
+      prisma.bonusPenalty.findMany({
+        where: { userId: { in: empIds } },
+        select: { userId: true, points: true },
+      }),
+    ]);
+
+    // 각 유저별 맵 구성
+    const gradeMap = new Map<string, Record<number, string>>();
+    for (const g of allGrades) {
+      if (!gradeMap.has(g.userId)) gradeMap.set(g.userId, {});
+      gradeMap.get(g.userId)![g.year] = g.grade;
+    }
+    const pointMap = new Map<string, { merit: number; penalty: number }>();
+    for (const p of allPoints) {
+      const cur = pointMap.get(p.userId) ?? { merit: 0, penalty: 0 };
+      pointMap.set(p.userId, { merit: cur.merit + p.merit, penalty: cur.penalty + p.penalty });
+    }
+    // 학점: 유저별 가장 최근 연도의 cumulative
+    const creditMap = new Map<string, number | null>();
+    for (const c of allCredits) {
+      if (!creditMap.has(c.userId)) creditMap.set(c.userId, c.cumulative);
+    }
     const bpMapEmp = new Map<string, number>();
     for (const bp of bpRecordsEmp) {
       bpMapEmp.set(bp.userId, (bpMapEmp.get(bp.userId) ?? 0) + bp.points);
@@ -169,24 +200,21 @@ export async function GET(req: NextRequest) {
     // 평가등급 맵 + 학점 누적값 + 포인트 변환 (포인트 관리 페이지와 동일한 공통 함수 사용)
     const CURRENT_YEAR = new Date().getFullYear();
     const employees = rawEmployees.map((emp) => {
-      const { performanceGrades, credits, points: pointRecords, ...rest } = emp;
+      const userGrades = gradeMap.get(emp.id) ?? {};
       const grades: Record<string, string> = {};
-      const gradesNumeric: Record<number, string> = {};
-      for (const g of performanceGrades) {
-        grades[String(g.year)] = g.grade;
-        gradesNumeric[g.year] = g.grade;
+      for (const [year, grade] of Object.entries(userGrades)) {
+        grades[year] = grade;
       }
-      const creditTotal = credits[0]?.cumulative ?? null;
+      const creditTotal = creditMap.get(emp.id) ?? null;
 
       // 포인트 계산: grade window 합 + Point.merit/penalty + BonusPenalty adjustment
-      const totalMerit = pointRecords.reduce((s, p) => s + p.merit, 0);
-      const totalPenalty = pointRecords.reduce((s, p) => s + p.penalty, 0);
+      const { merit: totalMerit, penalty: totalPenalty } = pointMap.get(emp.id) ?? { merit: 0, penalty: 0 };
       const adjustment = bpMapEmp.get(emp.id) ?? 0;
       const totalPoints: number | null = gradeCriteriaAll.length > 0
-        ? calculateFinalPoints(gradesNumeric, gradeCriteriaAll, CURRENT_YEAR, emp.yearsOfService ?? 0, totalMerit, totalPenalty, adjustment)
+        ? calculateFinalPoints(userGrades, gradeCriteriaAll, CURRENT_YEAR, emp.yearsOfService ?? 0, totalMerit, totalPenalty, adjustment)
         : null;
 
-      return { ...rest, grades, creditTotal, totalPoints };
+      return { ...emp, grades, creditTotal, totalPoints };
     });
 
     return NextResponse.json({
