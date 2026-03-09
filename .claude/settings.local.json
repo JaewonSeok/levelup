@@ -66,7 +66,8 @@
       "WebFetch(domain:levelup-2026.vercel.app)",
       "Bash(cd \"C:\\\\Users\\\\RSUPPORT\\\\Desktop\\\\2026 레벨업\" && npm run db:seed 2>&1)",
       "Bash(cd:*)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(head:*)"
     ]
   }
 }
