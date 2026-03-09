@@ -96,6 +96,8 @@ interface OpinionModalProps {
   onClose: () => void;
   /** 저장 성공 시 서버가 확정한 값 전달. reviewUpdated=true면 Review.recommendation도 업데이트됨 */
   onSaved: (reviewerRole: string, recommendation: boolean | null, reviewUpdated: boolean) => void;
+  /** 제출 초기화 성공 시 호출 — 부모가 isSubmitted 상태를 false로 갱신 */
+  onReset?: () => void;
   isSubmitted?: boolean;
   candidateInfo?: CandidateInfoForAI;
 }
@@ -106,6 +108,7 @@ export function OpinionModal({
   reviewId,
   onClose,
   onSaved,
+  onReset,
   isSubmitted = false,
   candidateInfo,
 }: OpinionModalProps) {
@@ -114,6 +117,8 @@ export function OpinionModal({
   const [rowStates, setRowStates] = useState<Record<string, RowState>>({});
   const [aiReport, setAiReport] = useState<string | null>(null);
   const [aiReportLoading, setAiReportLoading] = useState(false);
+  const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
+  const [resetLoading, setResetLoading] = useState(false);
 
   useEffect(() => {
     setLoading(true);
@@ -275,6 +280,29 @@ export function OpinionModal({
       toast.error(e instanceof Error ? e.message : "AI 분석 중 오류가 발생했습니다.");
     } finally {
       setAiReportLoading(false);
+    }
+  }
+
+  async function handleReset() {
+    if (!data) return;
+    setResetLoading(true);
+    try {
+      const res = await fetch("/api/reviews/submit", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ year: data.candidate.year }),
+      });
+      if (!res.ok) {
+        const resData = await res.json();
+        throw new Error(resData.error ?? "초기화 실패");
+      }
+      toast.success("제출이 초기화되었습니다. 의견을 다시 수정할 수 있습니다.");
+      setResetConfirmOpen(false);
+      onReset?.();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "초기화 중 오류가 발생했습니다.");
+    } finally {
+      setResetLoading(false);
     }
   }
 
@@ -531,7 +559,42 @@ export function OpinionModal({
               </div>
             </div>
 
-            <div className="flex justify-end flex-shrink-0 pt-2 border-t mt-2">
+            <div className="flex items-center justify-between flex-shrink-0 pt-2 border-t mt-2">
+              {/* 제출 초기화 (제출된 상태이고 onReset 콜백이 있을 때만 표시) */}
+              {isSubmitted && onReset ? (
+                resetConfirmOpen ? (
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-red-600">제출을 초기화하시겠습니까?</span>
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      onClick={handleReset}
+                      disabled={resetLoading}
+                    >
+                      {resetLoading ? "처리 중..." : "확인"}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setResetConfirmOpen(false)}
+                      disabled={resetLoading}
+                    >
+                      취소
+                    </Button>
+                  </div>
+                ) : (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="text-red-600 border-red-300 hover:bg-red-50"
+                    onClick={() => setResetConfirmOpen(true)}
+                  >
+                    제출 초기화
+                  </Button>
+                )
+              ) : (
+                <span />
+              )}
               <Button variant="outline" onClick={onClose}>
                 닫기
               </Button>

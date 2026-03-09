@@ -51,10 +51,26 @@ export async function POST(req: NextRequest) {
   const grades = ed.grades as Record<string, string | null> | undefined;
   // 등급은 허용 목록으로만 필터링 (S/A/B/C/O/E/G/N/U)
   const VALID_GRADES = new Set(["S", "A", "B", "C", "O", "E", "G", "N", "U"]);
+
+  // 등급 레이블: AI가 의미를 오해하지 않도록 설명 포함
+  const GRADE_LABEL: Record<string, string> = {
+    // 신규 등급 (2025~)
+    O: "O(탁월, A수준)",
+    E: "E(우수, B+수준)",
+    G: "G(양호, B수준)",
+    N: "N(개선필요, B-수준)",
+    U: "U(미흡, C수준)",
+    // 기존 등급 (~2024)
+    S: "S(최우수)",
+    A: "A(우수)",
+    B: "B(양호)",
+    C: "C(미흡)",
+  };
+
   const gradeHistory = grades
     ? Object.entries(grades)
         .filter(([, v]) => v && VALID_GRADES.has(v))
-        .map(([k, v]) => `${Number(k)}년: ${v}`)
+        .map(([k, v]) => `${Number(k)}년: ${GRADE_LABEL[v!] ?? v}`)
         .join(", ")
     : "정보 없음";
 
