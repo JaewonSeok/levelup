@@ -147,8 +147,11 @@ export async function autoSelectCandidates(
     // 9. Candidate upsert
     const existing = await prisma.candidate.findUnique({
       where: { userId_year: { userId: user.id, year } },
-      select: { id: true },
+      select: { id: true, source: true },
     });
+
+    // 관리자가 명시적으로 제외(excluded)한 후보자는 auto-select로 복원하지 않음
+    if (existing?.source === "excluded") continue;
 
     if (existing) {
       await prisma.candidate.update({

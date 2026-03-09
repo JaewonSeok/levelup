@@ -457,7 +457,8 @@ export async function POST(req: NextRequest) {
     const candidate = await prisma.candidate.upsert({
       where: { userId_year: { userId, year } },
       create: { userId, year, pointMet, creditMet, isReviewTarget: true, source: "manual" },
-      update: { isReviewTarget: true, pointMet, creditMet },
+      // excluded 상태인 경우에도 source를 "manual"로 초기화하여 재표시되도록 함
+      update: { isReviewTarget: true, pointMet, creditMet, source: "manual" },
     });
 
     return NextResponse.json({ success: true, candidateId: candidate.id }, { status: 201 });
@@ -477,7 +478,8 @@ export async function POST(req: NextRequest) {
   const candidate = await prisma.candidate.upsert({
     where: { userId_year: { userId: legacyUserId, year } },
     create: { userId: legacyUserId, year, pointMet: false, creditMet: false, isReviewTarget: true, source: "manual" },
-    update: { isReviewTarget: true },
+    // excluded 상태 초기화
+    update: { isReviewTarget: true, source: "manual" },
   });
 
   return NextResponse.json({ success: true, candidateId: candidate.id }, { status: 201 });
