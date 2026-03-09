@@ -104,8 +104,8 @@ export async function autoSelectCandidates(
     const minTenure = criteria.minTenure ?? 0;
     const yearsOfService = user.yearsOfService ?? tenure;
 
-    // tenureRange = min(연차, 5) — 최근 N년만 합산
-    const tenureRange = Math.min(yearsOfService, 5);
+    // tenureRange = min(연차, minTenure) — 해당 레벨 기준 상한 내 최근 N년만 합산
+    const tenureRange = Math.min(yearsOfService, minTenure > 0 ? minTenure : 5);
 
     // 6. 포인트 윈도우 합산 (최근 tenureRange년)
     const gradeMap = new Map(user.performanceGrades.map((pg) => [pg.year, pg.grade]));

@@ -75,8 +75,9 @@ export async function recalculatePointsFromGrades(
 
     const criteria = user.level ? criteriaMap.get((getNextLevel(user.level as string) ?? "") as typeof user.level) : null;
 
-    // tenureRange = min(연차, 5) — 최근 N년만 합산
-    const tenureRange = Math.min(user.yearsOfService ?? 0, 5);
+    // tenureRange = min(연차, minTenure) — 해당 레벨 기준 상한 내 최근 N년만 합산
+    const critMinTenure = criteria?.minTenure ?? 0;
+    const tenureRange = Math.min(user.yearsOfService ?? 0, critMinTenure > 0 ? critMinTenure : 5);
 
     // merit/penalty 합산
     const totalMerit = user.points.reduce((s, p) => s + p.merit, 0);

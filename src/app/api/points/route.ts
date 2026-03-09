@@ -124,7 +124,7 @@ export async function GET(req: NextRequest) {
     prisma.gradeCriteria.findMany(),
     // year 필터 없이 전체 로드 후 최신 연도 기준 사용 (2025 저장 데이터도 2026에서 활용)
     prisma.levelCriteria.findMany({
-      select: { level: true, requiredPoints: true, year: true },
+      select: { level: true, requiredPoints: true, minTenure: true, year: true },
       orderBy: { year: "desc" },
     }),
   ]);
@@ -137,10 +137,10 @@ export async function GET(req: NextRequest) {
   const creditMap = new Map(latestCredits.map((c) => [c.userId, c.score]));
 
   // LevelCriteria: level별 최신 연도 기준 사용
-  const lcMap = new Map<string, { requiredPoints: number | null }>();
+  const lcMap = new Map<string, { requiredPoints: number | null; minTenure: number | null }>();
   for (const c of levelCriteriaAll) {
     if (!lcMap.has(c.level as string)) {
-      lcMap.set(c.level as string, { requiredPoints: c.requiredPoints });
+      lcMap.set(c.level as string, { requiredPoints: c.requiredPoints, minTenure: c.minTenure });
     }
   }
   // 가감점 일괄 조회
@@ -202,7 +202,8 @@ export async function GET(req: NextRequest) {
     let cumulative: number;
     if (gradeCriteriaAll.length > 0) {
       // 등급 기준이 설정된 경우: 공통 함수로 grade + merit/penalty + adjustment 합산
-      cumulative = calculateFinalPoints(userGrades, gradeCriteriaAll, CURRENT_YEAR, user.yearsOfService ?? 0, totalMerit, totalPenalty, adjustment);
+      const minTenure = userLc?.minTenure ?? 0;
+      cumulative = calculateFinalPoints(userGrades, gradeCriteriaAll, CURRENT_YEAR, user.yearsOfService ?? 0, totalMerit, totalPenalty, adjustment, minTenure);
     } else {
       // GradeCriteria 미설정 시 DB Point 값 fallback (cumulative에 merit/penalty 포함) + 가감점
       const latestPoint = user.points[user.points.length - 1];

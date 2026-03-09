@@ -46,9 +46,11 @@ export function calculatePointSum(
   grades: Record<number, string>,
   gradeCriteria: GradeCriteriaItem[],
   baseYear: number,
-  yearsOfService: number
+  yearsOfService: number,
+  minTenure: number = 5
 ): number {
-  const tenureRange = Math.min(yearsOfService, 5);
+  // tenureRange = min(연차, minTenure) — 해당 레벨 기준 상한 내 최근 N년만 집계
+  const tenureRange = Math.min(yearsOfService, minTenure > 0 ? minTenure : 5);
   let pointSum = 0;
   for (let i = 0; i < tenureRange; i++) {
     const year = baseYear - 1 - i; // 2025, 2024, 2023, ...
@@ -70,9 +72,10 @@ export function calculateFinalPoints(
   yearsOfService: number,
   totalMerit: number,
   totalPenalty: number,
-  adjustment: number
+  adjustment: number,
+  minTenure: number = 5
 ): number {
-  return calculatePointSum(grades, gradeCriteria, baseYear, yearsOfService)
+  return calculatePointSum(grades, gradeCriteria, baseYear, yearsOfService, minTenure)
     + totalMerit - totalPenalty + adjustment;
 }
 

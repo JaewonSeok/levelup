@@ -174,7 +174,8 @@ export async function GET(req: NextRequest) {
       let pointCumulative: number;
       if (gradeCriteriaAll.length > 0) {
         // 공통 함수: grade window 합 + merit/penalty + adjustment (포인트 관리 페이지와 동일)
-        pointCumulative = calculateFinalPoints(userGrades, gradeCriteriaAll, year, user.yearsOfService ?? 0, totalMerit, totalPenalty, adjustment);
+        const minTenure = criteria?.minTenure ?? 0;
+        pointCumulative = calculateFinalPoints(userGrades, gradeCriteriaAll, year, user.yearsOfService ?? 0, totalMerit, totalPenalty, adjustment, minTenure);
       } else {
         // GradeCriteria 미설정 시 DB 누적값(merit/penalty 포함) + adjustment
         const latestPoint = user.points[user.points.length - 1];
