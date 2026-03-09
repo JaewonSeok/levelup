@@ -1,5 +1,6 @@
 import { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
+import GoogleProvider from "next-auth/providers/google";
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
@@ -41,6 +42,11 @@ export const authOptions: NextAuthOptions = {
     signIn: "/login",
   },
   providers: [
+    GoogleProvider({
+      clientId: process.env.GOOGLE_CLIENT_ID!,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+      allowDangerousEmailAccountLinking: true,
+    }),
     CredentialsProvider({
       name: "credentials",
       credentials: {
@@ -89,12 +95,37 @@ export const authOptions: NextAuthOptions = {
     }),
   ],
   callbacks: {
-    async jwt({ token, user }) {
+    async signIn({ user, account }) {
+      // Google OAuth: DB에 등록된 이메일만 허용
+      if (account?.provider === "google") {
+        if (!user.email) return false;
+        const existing = await prisma.user.findUnique({
+          where: { email: user.email },
+          select: { id: true },
+        });
+        if (!existing) return "/login?error=google_not_registered";
+      }
+      return true;
+    },
+    async jwt({ token, user, account }) {
       if (user) {
         token.id = user.id;
-        token.role = user.role;
-        token.department = user.department;
-        token.team = user.team;
+        token.role = (user as { role?: Role }).role;
+        token.department = (user as { department?: string }).department;
+        token.team = (user as { team?: string }).team;
+      }
+      // Google OAuth 첫 로그인 시 DB에서 role/department/team 보완
+      if (account?.provider === "google" && token.email && !token.role) {
+        const dbUser = await prisma.user.findUnique({
+          where: { email: token.email as string },
+          select: { id: true, role: true, department: true, team: true },
+        });
+        if (dbUser) {
+          token.id = dbUser.id;
+          token.role = dbUser.role;
+          token.department = dbUser.department;
+          token.team = dbUser.team;
+        }
       }
       return token;
     },
