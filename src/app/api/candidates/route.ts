@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { Role, Level, EmploymentType, Prisma } from "@prisma/client";
 import { calculateFinalPoints, getNextLevel, gradeToPoints } from "@/lib/pointCalculation";
 import { calculateAiScore } from "@/lib/aiScoring";
+import { parseSafeDate } from "@/lib/validate";
 
 const ALLOWED_ROLES: Role[] = [Role.HR_TEAM, Role.SYSTEM_ADMIN];
 
@@ -62,8 +63,17 @@ export async function GET(req: NextRequest) {
   }
   if (hireDateFrom || hireDateTo) {
     const hireDateFilter: { gte?: Date; lte?: Date } = {};
-    if (hireDateFrom) hireDateFilter.gte = new Date(hireDateFrom);
-    if (hireDateTo) hireDateFilter.lte = new Date(hireDateTo);
+    // [보안] new Date(string) 직접 호출 제거 — Invalid Date 방지
+    if (hireDateFrom) {
+      const d = parseSafeDate(hireDateFrom);
+      if (!d) return NextResponse.json({ error: "hireDateFrom 형식 오류 (YYYY-MM-DD)" }, { status: 400 });
+      hireDateFilter.gte = d;
+    }
+    if (hireDateTo) {
+      const d = parseSafeDate(hireDateTo);
+      if (!d) return NextResponse.json({ error: "hireDateTo 형식 오류 (YYYY-MM-DD)" }, { status: 400 });
+      hireDateFilter.lte = d;
+    }
     conditions.push({ hireDate: hireDateFilter });
   }
 
@@ -171,9 +181,12 @@ export async function GET(req: NextRequest) {
         pointCumulative = (latestPoint?.cumulative ?? 0) + adjustment;
       }
 
-      // 학점 = 2025년 누적(cumulative) — 학점 관리 페이지와 동일한 값
-      const credit2025 = user.credits.find((c) => c.year === GRADE_CALC_BASE);
-      const creditCumulative = credit2025?.cumulative ?? 0;
+      // 학점 = 대상 연도(GRADE_CALC_BASE=2025) 이하 가장 최근 연도의 score 사용
+      // (levelUpYear < 2025인 경우 학점이 해당 연도에 저장됐을 수 있으므로 폴백 처리)
+      const creditRecord = user.credits
+        .filter((c) => c.year <= GRADE_CALC_BASE)
+        .sort((a, b) => b.year - a.year)[0] ?? null;
+      const creditCumulative = creditRecord?.score ?? 0;
 
       // 최종포인트 = pointCumulative만 사용 (학점 미포함 — 포인트 단독 판정)
       const finalPoints = pointCumulative;
@@ -197,8 +210,9 @@ export async function GET(req: NextRequest) {
       const creditMet = reqCredits <= 0 ? true : creditCumulative >= reqCredits;
 
       // 체류연수 충족 여부 → 일반(충족)/특진(미달) 구분
+      // minTenure=0 : 체류 조건 없음 → 누구나 충족(true)
       // criteria 없으면 (L5 등 다음 레벨 없음) 특진/일반 모두 불가
-      const tenureMet = minTenure > 0 ? tenure >= minTenure : false;
+      const tenureMet = minTenure > 0 ? tenure >= minTenure : true;
       const isSpecialPromotion = !!criteria && pointMet && creditMet && !tenureMet;
       const promotionType = isSpecialPromotion ? "special" : "normal";
 
@@ -342,8 +356,9 @@ export async function GET(req: NextRequest) {
     },
   });
   } catch (error) {
+    // [보안] String(error) 제거 — 내부 스택트레이스 클라이언트 노출 방지
     console.error("[GET /api/candidates] error:", error);
-    return NextResponse.json({ error: String(error) }, { status: 500 });
+    return NextResponse.json({ error: "대상자 목록을 불러오는 중 오류가 발생했습니다." }, { status: 500 });
   }
 }
 
@@ -400,9 +415,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "유효하지 않은 레벨입니다." }, { status: 400 });
     }
 
-    const hireDateParsed = new Date(hireDate);
-    if (isNaN(hireDateParsed.getTime())) {
-      return NextResponse.json({ error: "유효하지 않은 입사일입니다." }, { status: 400 });
+    // [보안] parseSafeDate — YYYY-MM-DD 형식 검증 + Invalid Date 방지
+    const hireDateParsed = parseSafeDate(hireDate);
+    if (!hireDateParsed) {
+      return NextResponse.json({ error: "입사일 형식 오류 (YYYY-MM-DD)" }, { status: 400 });
     }
 
     // 동명이인 + 동일 입사일로 기존 직원 조회

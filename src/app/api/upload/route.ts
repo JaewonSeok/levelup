@@ -307,10 +307,11 @@ export async function POST(req: NextRequest) {
   }
 
   // 5-8. 학점 병렬 upsert
+  // 학점은 2025년 도입 기준 → 항상 2025년에 저장 (levelUpYear 무관)
   const creditOps = savedRows
     .filter(({ row }) => row.creditScore != null)
     .map(({ row, userId }) => {
-      const creditYear = Math.min(row.levelUpYear ?? CURRENT_YEAR, 2025);
+      const creditYear = 2025;
       const creditCriteria = row.level ? criteriaMap.get(`${row.level}_${creditYear}`) : null;
       const isMet = creditCriteria && creditCriteria.requiredCredits != null && creditCriteria.requiredCredits > 0 ? row.creditScore! >= creditCriteria.requiredCredits : false;
       return prisma.credit.upsert({

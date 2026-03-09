@@ -118,9 +118,12 @@ export async function autoSelectCandidates(
     }
     const adjustment = bpMap.get(user.id) ?? 0;
 
-    // 7. 학점 = 2025년 값만 사용 (2025년 신규 도입, 이전 연도 없음)
-    const creditMap = new Map(user.credits.map((c) => [c.year, c.score]));
-    const windowCreditSum = creditMap.get(MAX_DATA_YEAR) ?? 0;
+    // 7. 학점 = MAX_DATA_YEAR(2025) 이하 가장 최근 연도의 score 사용
+    // (levelUpYear < 2025인 경우 학점이 해당 연도에 저장됐을 수 있으므로 폴백 처리)
+    const latestCredit = user.credits
+      .filter((c) => c.year <= MAX_DATA_YEAR)
+      .sort((a, b) => b.year - a.year)[0] ?? null;
+    const windowCreditSum = latestCredit?.score ?? 0;
 
     // 8. 포인트와 학점 별도 판정 (일반/특진 동일 기준)
     const gradePoints = windowPointSum + adjustment; // 포인트 = 등급 합산 + 가감점
@@ -128,8 +131,8 @@ export async function autoSelectCandidates(
     const reqPts = criteria.requiredPoints ?? 0;
     const reqCredits = criteria.requiredCredits ?? 0;
 
-    // 연차 충족 여부
-    const tenureMet = minTenure > 0 ? tenure >= minTenure : false;
+    // 연차 충족 여부 (minTenure=0 → 조건 없음 → 누구나 충족)
+    const tenureMet = minTenure > 0 ? tenure >= minTenure : true;
 
     // 포인트/학점 충족 (일반·특진 동일 기준)
     const pointMet = reqPts <= 0 ? true : gradePoints >= reqPts;
