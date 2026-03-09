@@ -110,9 +110,9 @@ export const authOptions: NextAuthOptions = {
     async jwt({ token, user, account }) {
       if (user) {
         token.id = user.id;
-        token.role = (user as { role?: Role }).role;
-        token.department = (user as { department?: string }).department;
-        token.team = (user as { team?: string }).team;
+        token.role = (user as { role?: Role }).role ?? token.role;
+        token.department = (user as { department?: string }).department ?? token.department;
+        token.team = (user as { team?: string }).team ?? token.team;
       }
       // Google OAuth 첫 로그인 시 DB에서 role/department/team 보완
       if (account?.provider === "google" && token.email && !token.role) {
