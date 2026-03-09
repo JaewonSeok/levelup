@@ -9,10 +9,16 @@ const SUBMIT_ROLES: Role[] = [Role.DEPT_HEAD, Role.SYSTEM_ADMIN];
 
 // ── GET /api/reviews/submit?year=YYYY ───────────────────────────
 // 제출 현황 조회. DEPT_HEAD → 본인 부서 isSubmitted / SYSTEM_ADMIN → 전체 제출 목록
+// [보안] GET에도 RBAC 적용 — 이전에는 로그인만 확인하고 역할 체크 없었음
+const VIEW_ROLES: Role[] = [Role.DEPT_HEAD, Role.HR_TEAM, Role.CEO, Role.SYSTEM_ADMIN];
+
 export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session?.user) {
     return NextResponse.json({ error: "로그인이 필요합니다." }, { status: 401 });
+  }
+  if (!VIEW_ROLES.includes(session.user.role)) {
+    return NextResponse.json({ error: "접근 권한이 없습니다." }, { status: 403 });
   }
 
   const { searchParams } = new URL(req.url);

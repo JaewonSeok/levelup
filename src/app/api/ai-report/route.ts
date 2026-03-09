@@ -20,7 +20,7 @@ export async function POST(req: NextRequest) {
   }
 
   const apiKey = process.env.ANTHROPIC_API_KEY;
-  console.log("[ai-report] ANTHROPIC_API_KEY loaded:", !!apiKey, "| length:", apiKey?.length ?? 0);
+  // [보안] API 키 길이 로그 제거 — 런타임 로그에 키 메타데이터 노출 방지
   if (!apiKey) {
     return NextResponse.json(
       { error: "ANTHROPIC_API_KEY가 설정되지 않았습니다. 서버를 재시작해주세요." },
@@ -40,11 +40,21 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "employeeData가 필요합니다." }, { status: 400 });
   }
 
+  // [보안] Prompt Injection 방어 — 사용자 입력값을 프롬프트에 삽입 전 위험 문자 제거
+  function sanitizeForPrompt(value: unknown): string {
+    if (value == null) return "-";
+    const str = String(value).slice(0, 200); // 최대 200자 제한
+    // 프롬프트 구조를 깨는 마크다운/특수 패턴 제거
+    return str.replace(/#+\s/g, "").replace(/\n{3,}/g, "\n\n").trim();
+  }
+
   const grades = ed.grades as Record<string, string | null> | undefined;
+  // 등급은 허용 목록으로만 필터링 (S/A/B/C/O/E/G/N/U)
+  const VALID_GRADES = new Set(["S", "A", "B", "C", "O", "E", "G", "N", "U"]);
   const gradeHistory = grades
     ? Object.entries(grades)
-        .filter(([, v]) => v)
-        .map(([k, v]) => `${k}년: ${v}`)
+        .filter(([, v]) => v && VALID_GRADES.has(v))
+        .map(([k, v]) => `${Number(k)}년: ${v}`)
         .join(", ")
     : "정보 없음";
 
@@ -59,32 +69,48 @@ export async function POST(req: NextRequest) {
     details?: string[];
   } | undefined;
 
+  const VALID_LEVELS = new Set(["L0", "L1", "L2", "L3", "L4", "L5"]);
   const nextLevelMap: Record<string, string> = {
     L0: "L1", L1: "L2", L2: "L3", L3: "L4", L4: "L5",
   };
-  const level = String(ed.level ?? "");
+  // [보안] Prompt Injection 방어 — 숫자형 데이터는 Number() 캐스팅, 문자열은 sanitizeForPrompt 처리
+  const rawLevel = String(ed.level ?? "");
+  const level = VALID_LEVELS.has(rawLevel) ? rawLevel : "-";
   const nextLevel = nextLevelMap[level] ?? "최고 레벨";
+  const yearsOfService = Number(ed.yearsOfService) || 0;
+  const promotionType = ed.promotionType === "special" ? "special" : "normal";
+  const finalPoints = Number(ed.finalPoints ?? ed.pointCumulative) || 0;
+  const requiredPoints = Number(ed.requiredPoints) || 0;
+  const creditScore = Number(ed.creditScore ?? ed.creditCumulative) || 0;
+  const requiredCredits = Number(ed.requiredCredits) || 0;
+  const minTenure = Number(ed.minTenure) || 0;
+  const sameLevelAvgPoints = ed.sameLevelAvgPoints != null ? Number(ed.sameLevelAvgPoints).toFixed(1) : "-";
+  const sameLevelAvgCredits = ed.sameLevelAvgCredits != null ? Number(ed.sameLevelAvgCredits).toFixed(1) : "-";
+
+  // 소속/팀은 문자열이므로 sanitizeForPrompt로 위험 패턴 제거
+  const safeDepartment = sanitizeForPrompt(ed.department);
+  const safeTeam = sanitizeForPrompt(ed.team);
 
   const prompt = `당신은 인사 평가 전문가입니다. 아래 직원의 레벨업 심사를 위한 객관적 분석 리포트를 작성해주세요.
 
 ## 직원 정보
-- 소속: ${ed.department ?? "-"} / ${ed.team ?? "-"}
+- 소속: ${safeDepartment} / ${safeTeam}
 - 현재 레벨: ${level}
 - 레벨업 목표 레벨: ${nextLevel}
-- 재직기간: ${ed.yearsOfService ?? "-"}년
-- 심사유형: ${ed.promotionType === "special" ? "특별심사 (재직기간 단축 적용)" : "일반심사 (재직기간 충족)"}
+- 재직기간: ${yearsOfService}년
+- 심사유형: ${promotionType === "special" ? "특별심사 (재직기간 단축 적용)" : "일반심사 (재직기간 충족)"}
 
 ## 정량적 데이터
 - 연도별 성과등급: ${gradeHistory}
-- 포인트: ${ed.finalPoints ?? ed.pointCumulative ?? "-"} (기준: ${ed.requiredPoints ?? "-"})
-- 학점: ${ed.creditScore ?? ed.creditCumulative ?? "-"} (기준: ${ed.requiredCredits ?? "-"})
-- 재직기간: ${ed.yearsOfService ?? "-"}년 (기준: ${ed.minTenure ?? "-"}년)
-- AI 종합점수: ${aiScore?.totalScore ?? "-"}/100 (${aiScore?.grade ?? "-"}등급)
-- AI 세부 점수: 성과추이 ${aiScore?.trendScore ?? "-"}, 포인트초과분 ${aiScore?.pointsExcessScore ?? "-"}, 학점초과 ${aiScore?.creditsExcessScore ?? "-"}, 안정성 ${aiScore?.stabilityScore ?? "-"}, 성숙도 ${aiScore?.maturityScore ?? "-"}
+- 포인트: ${finalPoints} (기준: ${requiredPoints})
+- 학점: ${creditScore} (기준: ${requiredCredits})
+- 재직기간: ${yearsOfService}년 (기준: ${minTenure}년)
+- AI 종합점수: ${Number(aiScore?.totalScore) || "-"}/100 (${aiScore?.grade ?? "-"}등급)
+- AI 세부 점수: 성과추이 ${Number(aiScore?.trendScore) || "-"}, 포인트초과분 ${Number(aiScore?.pointsExcessScore) || "-"}, 학점초과 ${Number(aiScore?.creditsExcessScore) || "-"}, 안정성 ${Number(aiScore?.stabilityScore) || "-"}, 성숙도 ${Number(aiScore?.maturityScore) || "-"}
 
 ## 동일 레벨 비교
-- 동일 레벨 평균 포인트: ${ed.sameLevelAvgPoints != null ? Number(ed.sameLevelAvgPoints).toFixed(1) : "-"}
-- 동일 레벨 평균 학점: ${ed.sameLevelAvgCredits != null ? Number(ed.sameLevelAvgCredits).toFixed(1) : "-"}
+- 동일 레벨 평균 포인트: ${sameLevelAvgPoints}
+- 동일 레벨 평균 학점: ${sameLevelAvgCredits}
 
 ## 작성 형식
 아래 항목으로 구분하여 작성해주세요 (각 항목 2~3문단):
@@ -130,7 +156,8 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ report });
   } catch (error) {
+    // [보안] String(error) 제거 — 스택트레이스/API 에러 상세 클라이언트 노출 방지
     console.error("[ai-report] error:", error);
-    return NextResponse.json({ error: String(error) }, { status: 500 });
+    return NextResponse.json({ error: "AI 리포트 생성 중 오류가 발생했습니다." }, { status: 500 });
   }
 }

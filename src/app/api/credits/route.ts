@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Role, Level, EmploymentType, Prisma } from "@prisma/client";
 import { getNextLevel } from "@/lib/pointCalculation";
+import { parseSafeDate } from "@/lib/validate";
 
 const ALLOWED_ROLES: Role[] = [Role.HR_TEAM, Role.SYSTEM_ADMIN];
 
@@ -55,8 +56,17 @@ export async function GET(req: NextRequest) {
   }
   if (hireDateFrom || hireDateTo) {
     const hireDateFilter: { gte?: Date; lte?: Date } = {};
-    if (hireDateFrom) hireDateFilter.gte = new Date(hireDateFrom);
-    if (hireDateTo) hireDateFilter.lte = new Date(hireDateTo);
+    // [보안] new Date(string) 직접 호출 제거 — Invalid Date 방지
+    if (hireDateFrom) {
+      const d = parseSafeDate(hireDateFrom);
+      if (!d) return NextResponse.json({ error: "hireDateFrom 형식 오류 (YYYY-MM-DD)" }, { status: 400 });
+      hireDateFilter.gte = d;
+    }
+    if (hireDateTo) {
+      const d = parseSafeDate(hireDateTo);
+      if (!d) return NextResponse.json({ error: "hireDateTo 형식 오류 (YYYY-MM-DD)" }, { status: 400 });
+      hireDateFilter.lte = d;
+    }
     conditions.push({ hireDate: hireDateFilter });
   }
   const where: Prisma.UserWhereInput =
@@ -261,8 +271,9 @@ export async function POST(req: NextRequest) {
       }
     });
   } catch (e) {
-    const msg = e instanceof Error ? e.message : "알 수 없는 오류";
-    return NextResponse.json({ error: `저장 실패: ${msg}` }, { status: 500 });
+    // [보안] e.message 제거 — 내부 에러 정보 클라이언트 노출 방지
+    console.error("[POST /api/credits] error:", e);
+    return NextResponse.json({ error: "학점 저장 중 오류가 발생했습니다." }, { status: 500 });
   }
 
   const updatedCredits = await prisma.credit.findMany({

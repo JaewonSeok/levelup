@@ -37,7 +37,10 @@ declare module "next-auth/jwt" {
 
 export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma) as NextAuthOptions["adapter"],
-  session: { strategy: "jwt" },
+  session: {
+    strategy: "jwt",
+    maxAge: 8 * 60 * 60, // [보안] 8시간 — 기본값 30일에서 단축
+  },
   pages: {
     signIn: "/login",
   },
@@ -45,7 +48,7 @@ export const authOptions: NextAuthOptions = {
     GoogleProvider({
       clientId: process.env.GOOGLE_CLIENT_ID!,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
-      allowDangerousEmailAccountLinking: true,
+      // [보안] allowDangerousEmailAccountLinking 제거 — Google 계정으로 기존 계정 탈취 방지
     }),
     CredentialsProvider({
       name: "credentials",

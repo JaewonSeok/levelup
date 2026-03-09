@@ -27,6 +27,9 @@ export async function GET(req: NextRequest) {
 
   const currentDept = session.user.department ?? "";
 
+  // [QA] try/catch 추가 — 이전에는 전체 함수에 에러 처리 없었음
+  try {
+
   const userConditions: Prisma.UserWhereInput[] = [
     { role: { not: Role.DEPT_HEAD } },
     { isActive: true },
@@ -315,4 +318,12 @@ export async function GET(req: NextRequest) {
       department: currentDept,
     },
   });
+
+  } catch (error) {
+    console.error("[GET /api/reviews] error:", error);
+    return NextResponse.json(
+      { error: "심사 목록을 불러오는 중 오류가 발생했습니다." },
+      { status: 500 }
+    );
+  }
 }

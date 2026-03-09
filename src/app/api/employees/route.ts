@@ -6,6 +6,7 @@ import { Role, Level, EmploymentType, Prisma } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import { randomBytes } from "crypto";
 import { calculateFinalPoints } from "@/lib/pointCalculation";
+import { parseSafeDate } from "@/lib/validate";
 
 export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions);
@@ -87,8 +88,17 @@ export async function GET(req: NextRequest) {
   if (isActiveParam === "N") filterConditions.push({ isActive: false });
   if (hireDateFrom || hireDateTo) {
     const hireDateFilter: { gte?: Date; lte?: Date } = {};
-    if (hireDateFrom) hireDateFilter.gte = new Date(hireDateFrom);
-    if (hireDateTo) hireDateFilter.lte = new Date(hireDateTo);
+    // [보안] new Date(string) 직접 호출 제거 — Invalid Date 방지
+    if (hireDateFrom) {
+      const d = parseSafeDate(hireDateFrom);
+      if (!d) return NextResponse.json({ error: "hireDateFrom 형식 오류 (YYYY-MM-DD)" }, { status: 400 });
+      hireDateFilter.gte = d;
+    }
+    if (hireDateTo) {
+      const d = parseSafeDate(hireDateTo);
+      if (!d) return NextResponse.json({ error: "hireDateTo 형식 오류 (YYYY-MM-DD)" }, { status: 400 });
+      hireDateFilter.lte = d;
+    }
     filterConditions.push({ hireDate: hireDateFilter });
   }
   if (levelUpYear) {
@@ -191,10 +201,10 @@ export async function GET(req: NextRequest) {
       },
     });
   } catch (error) {
-    // [TEMP DEBUG] 진단용 - 확인 후 제거 예정
+    // [보안] _debug 필드 제거 — 내부 에러 정보 클라이언트 노출 방지
     console.error("[GET /api/employees] error:", error);
     return NextResponse.json(
-      { error: "서버 오류가 발생했습니다.", _debug: error instanceof Error ? error.message : String(error) },
+      { error: "서버 오류가 발생했습니다." },
       { status: 500 }
     );
   }

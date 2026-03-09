@@ -38,3 +38,10 @@ yarn-error.log*
 next-env.d.ts
 
 /src/generated/prisma
+
+# Claude Code 로컬 설정 (로컬 환경 정보 포함 — git 추적 제외)
+.claude/settings.local.json
+
+# 백업 파일
+*.bak
+*.backup

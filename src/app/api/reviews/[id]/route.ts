@@ -37,9 +37,24 @@ export async function PATCH(
     return NextResponse.json({ error: "요청 파싱 실패" }, { status: 400 });
   }
 
-  const review = await prisma.review.findUnique({ where: { id } });
+  // [보안] IDOR 방지 — DEPT_HEAD는 본인 부서 대상자만 수정 가능
+  const review = await prisma.review.findUnique({
+    where: { id },
+    include: {
+      candidate: {
+        include: { user: { select: { department: true } } },
+      },
+    },
+  });
   if (!review) {
     return NextResponse.json({ error: "심사 레코드를 찾을 수 없습니다." }, { status: 404 });
+  }
+
+  if (session.user.role === Role.DEPT_HEAD) {
+    const candidateDept = review.candidate.user.department;
+    if (candidateDept !== session.user.department) {
+      return NextResponse.json({ error: "본인 부서의 심사만 수정할 수 있습니다." }, { status: 403 });
+    }
   }
 
   const updateData: {
