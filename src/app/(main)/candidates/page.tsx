@@ -164,6 +164,14 @@ export default function CandidatesPage() {
 
   // Admin: add candidate modal
   const [addModalOpen, setAddModalOpen] = useState(false);
+  const [addMode, setAddMode] = useState<"search" | "manual">("search");
+  // search mode
+  const [empSearch, setEmpSearch] = useState("");
+  const [empResults, setEmpResults] = useState<{ id: string; name: string; department: string; team: string; level: string | null; yearsOfService: number | null }[]>([]);
+  const [empSearching, setEmpSearching] = useState(false);
+  const [selectedEmpId, setSelectedEmpId] = useState<string | null>(null);
+  const [selectedEmpName, setSelectedEmpName] = useState("");
+  // manual mode
   const [addForm, setAddForm] = useState({
     department: "",
     team: "",
@@ -257,7 +265,51 @@ export default function CandidatesPage() {
 
   // ── Admin handlers ─────────────────────────────────────────
 
+  const handleEmpSearch = async () => {
+    if (!empSearch.trim()) return;
+    setEmpSearching(true);
+    setEmpResults([]);
+    setSelectedEmpId(null);
+    setSelectedEmpName("");
+    try {
+      const res = await fetch(`/api/employees?keyword=${encodeURIComponent(empSearch.trim())}&pageSize=20`);
+      if (!res.ok) return;
+      const data = await res.json();
+      setEmpResults(data.employees ?? []);
+    } finally {
+      setEmpSearching(false);
+    }
+  };
+
   const handleAddCandidate = async () => {
+    if (addMode === "search") {
+      if (!selectedEmpId) {
+        toast.error("직원을 선택해주세요.");
+        return;
+      }
+      setAddSubmitting(true);
+      try {
+        const res = await fetch("/api/candidates", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ year: query.year, userId: selectedEmpId }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error ?? "추가 실패");
+        toast.success(`${selectedEmpName}이(가) 대상자에 추가되었습니다.`);
+        setAddModalOpen(false);
+        setEmpSearch(""); setEmpResults([]); setSelectedEmpId(null); setSelectedEmpName("");
+        setPage(1);
+        setQuery((q) => ({ ...q }));
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : "추가 중 오류가 발생했습니다.");
+      } finally {
+        setAddSubmitting(false);
+      }
+      return;
+    }
+
+    // manual mode
     const { department, team, name, level, yearsOfService, hireDate } = addForm;
     if (!department || !team || !name || !level || !hireDate) {
       toast.error("필수 항목을 모두 입력해주세요.");
@@ -744,75 +796,173 @@ export default function CandidatesPage() {
       />
 
       {/* ── 대상자 추가 모달 (admin) ──────────────────────── */}
-      <Dialog open={addModalOpen} onOpenChange={(o) => !o && setAddModalOpen(false)}>
+      <Dialog open={addModalOpen} onOpenChange={(o) => {
+        if (!o) {
+          setAddModalOpen(false);
+          setAddMode("search");
+          setEmpSearch(""); setEmpResults([]); setSelectedEmpId(null); setSelectedEmpName("");
+          setAddForm({ department: "", team: "", name: "", level: "", yearsOfService: "", hireDate: "", pointCumulative: "", creditCumulative: "" });
+        }
+      }}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>대상자 수동 추가</DialogTitle>
             <DialogDescription>
-              {query.year}년 심사 대상자에 직원 정보를 직접 입력하여 추가합니다.
+              {query.year}년 심사 대상자에 추가합니다. 조건 미충족 직원도 수동 추가 가능합니다.
             </DialogDescription>
           </DialogHeader>
-          <div className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
-            {/* 본부 */}
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-gray-700">본부 <span className="text-red-500">*</span></label>
-              <Select value={addForm.department || "__none__"} onValueChange={(v) => setAddForm((f) => ({ ...f, department: v === "__none__" ? "" : v }))}>
-                <SelectTrigger className="h-8 text-sm">
-                  <SelectValue placeholder="선택" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__none__">선택</SelectItem>
-                  {meta.departments.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            {/* 팀 */}
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-gray-700">팀 <span className="text-red-500">*</span></label>
-              <Input className="h-8 text-sm" placeholder="팀명 입력" value={addForm.team} onChange={(e) => setAddForm((f) => ({ ...f, team: e.target.value }))} />
-            </div>
-            {/* 이름 */}
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-gray-700">이름 <span className="text-red-500">*</span></label>
-              <Input className="h-8 text-sm" placeholder="성명 입력" value={addForm.name} onChange={(e) => setAddForm((f) => ({ ...f, name: e.target.value }))} />
-            </div>
-            {/* 레벨 */}
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-gray-700">레벨 <span className="text-red-500">*</span></label>
-              <Select value={addForm.level || "__none__"} onValueChange={(v) => setAddForm((f) => ({ ...f, level: v === "__none__" ? "" : v }))}>
-                <SelectTrigger className="h-8 text-sm">
-                  <SelectValue placeholder="선택" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__none__">선택</SelectItem>
-                  {["L0", "L1", "L2", "L3", "L4", "L5"].map((l) => <SelectItem key={l} value={l}>{l}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            {/* 연차 */}
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-gray-700">연차</label>
-              <Input className="h-8 text-sm" type="number" min={0} placeholder="숫자 입력" value={addForm.yearsOfService} onChange={(e) => setAddForm((f) => ({ ...f, yearsOfService: e.target.value }))} />
-            </div>
-            {/* 입사일 */}
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-gray-700">입사일 <span className="text-red-500">*</span></label>
-              <input type="date" className="w-full h-8 border rounded px-2 text-sm bg-white" value={addForm.hireDate} onChange={(e) => setAddForm((f) => ({ ...f, hireDate: e.target.value }))} />
-            </div>
-            {/* 포인트 */}
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-gray-700">포인트 누적 (선택)</label>
-              <Input className="h-8 text-sm" type="number" step="0.1" min={0} placeholder="숫자 입력" value={addForm.pointCumulative} onChange={(e) => setAddForm((f) => ({ ...f, pointCumulative: e.target.value }))} />
-            </div>
-            {/* 학점 */}
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-gray-700">학점 누적 (선택)</label>
-              <Input className="h-8 text-sm" type="number" step="0.1" min={0} placeholder="숫자 입력" value={addForm.creditCumulative} onChange={(e) => setAddForm((f) => ({ ...f, creditCumulative: e.target.value }))} />
-            </div>
+
+          {/* 모드 탭 */}
+          <div className="flex border-b mb-3 text-sm">
+            <button
+              className={`px-4 py-1.5 font-medium border-b-2 transition-colors ${addMode === "search" ? "border-blue-600 text-blue-700" : "border-transparent text-gray-500 hover:text-gray-700"}`}
+              onClick={() => setAddMode("search")}
+            >
+              기존 직원 검색
+            </button>
+            <button
+              className={`px-4 py-1.5 font-medium border-b-2 transition-colors ${addMode === "manual" ? "border-blue-600 text-blue-700" : "border-transparent text-gray-500 hover:text-gray-700"}`}
+              onClick={() => setAddMode("manual")}
+            >
+              직접 입력 (신규)
+            </button>
           </div>
+
+          {addMode === "search" ? (
+            <div className="space-y-3">
+              {/* 검색 입력 */}
+              <div className="flex gap-2">
+                <Input
+                  className="h-8 text-sm flex-1"
+                  placeholder="이름으로 검색 (예: 김철수)"
+                  value={empSearch}
+                  onChange={(e) => setEmpSearch(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && handleEmpSearch()}
+                />
+                <Button size="sm" className="h-8 px-3" onClick={handleEmpSearch} disabled={empSearching}>
+                  {empSearching ? "검색 중..." : "검색"}
+                </Button>
+              </div>
+
+              {/* 검색 결과 */}
+              {empResults.length > 0 && (
+                <div className="border rounded-md overflow-hidden max-h-52 overflow-y-auto text-sm">
+                  <table className="w-full text-xs border-collapse">
+                    <thead>
+                      <tr className="bg-gray-50 text-center">
+                        <th className="border-b px-2 py-1.5 font-medium">이름</th>
+                        <th className="border-b px-2 py-1.5 font-medium">본부</th>
+                        <th className="border-b px-2 py-1.5 font-medium">팀</th>
+                        <th className="border-b px-2 py-1.5 font-medium">레벨</th>
+                        <th className="border-b px-2 py-1.5 font-medium">연차</th>
+                        <th className="border-b px-2 py-1.5 font-medium w-12"></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {empResults.map((emp) => (
+                        <tr
+                          key={emp.id}
+                          className={`border-b last:border-0 transition-colors ${selectedEmpId === emp.id ? "bg-blue-50" : "hover:bg-gray-50"}`}
+                        >
+                          <td className="px-2 py-1.5 font-medium text-center">{emp.name}</td>
+                          <td className="px-2 py-1.5 text-center">{emp.department || "-"}</td>
+                          <td className="px-2 py-1.5 text-center">{emp.team || "-"}</td>
+                          <td className="px-2 py-1.5 text-center">{emp.level || "-"}</td>
+                          <td className="px-2 py-1.5 text-center">{emp.yearsOfService ?? "-"}</td>
+                          <td className="px-2 py-1.5 text-center">
+                            <button
+                              className={`px-2 py-0.5 rounded text-xs font-medium transition-colors ${selectedEmpId === emp.id ? "bg-blue-600 text-white" : "bg-gray-100 hover:bg-blue-100 text-gray-700"}`}
+                              onClick={() => { setSelectedEmpId(emp.id); setSelectedEmpName(emp.name); }}
+                            >
+                              {selectedEmpId === emp.id ? "선택됨" : "선택"}
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+              {empResults.length === 0 && empSearch && !empSearching && (
+                <p className="text-xs text-gray-400 text-center py-2">검색 결과가 없습니다.</p>
+              )}
+
+              {/* 선택된 직원 확인 */}
+              {selectedEmpId && (
+                <div className="bg-amber-50 border border-amber-200 rounded-md px-3 py-2 text-xs text-amber-800">
+                  <span className="font-semibold">{selectedEmpName}</span>을(를) {query.year}년 심사 대상자에 추가합니다.
+                  <br />
+                  <span className="text-amber-600">수동 추가 시 조건 미충족 여부와 관계없이 목록에 표시됩니다.</span>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
+              {/* 본부 */}
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-gray-700">본부 <span className="text-red-500">*</span></label>
+                <Select value={addForm.department || "__none__"} onValueChange={(v) => setAddForm((f) => ({ ...f, department: v === "__none__" ? "" : v }))}>
+                  <SelectTrigger className="h-8 text-sm">
+                    <SelectValue placeholder="선택" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">선택</SelectItem>
+                    {meta.departments.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              {/* 팀 */}
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-gray-700">팀 <span className="text-red-500">*</span></label>
+                <Input className="h-8 text-sm" placeholder="팀명 입력" value={addForm.team} onChange={(e) => setAddForm((f) => ({ ...f, team: e.target.value }))} />
+              </div>
+              {/* 이름 */}
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-gray-700">이름 <span className="text-red-500">*</span></label>
+                <Input className="h-8 text-sm" placeholder="성명 입력" value={addForm.name} onChange={(e) => setAddForm((f) => ({ ...f, name: e.target.value }))} />
+              </div>
+              {/* 레벨 */}
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-gray-700">레벨 <span className="text-red-500">*</span></label>
+                <Select value={addForm.level || "__none__"} onValueChange={(v) => setAddForm((f) => ({ ...f, level: v === "__none__" ? "" : v }))}>
+                  <SelectTrigger className="h-8 text-sm">
+                    <SelectValue placeholder="선택" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">선택</SelectItem>
+                    {["L0", "L1", "L2", "L3", "L4", "L5"].map((l) => <SelectItem key={l} value={l}>{l}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              {/* 연차 */}
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-gray-700">연차</label>
+                <Input className="h-8 text-sm" type="number" min={0} placeholder="숫자 입력" value={addForm.yearsOfService} onChange={(e) => setAddForm((f) => ({ ...f, yearsOfService: e.target.value }))} />
+              </div>
+              {/* 입사일 */}
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-gray-700">입사일 <span className="text-red-500">*</span></label>
+                <input type="date" className="w-full h-8 border rounded px-2 text-sm bg-white" value={addForm.hireDate} onChange={(e) => setAddForm((f) => ({ ...f, hireDate: e.target.value }))} />
+              </div>
+              {/* 포인트 */}
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-gray-700">포인트 누적 (선택)</label>
+                <Input className="h-8 text-sm" type="number" step="0.1" min={0} placeholder="숫자 입력" value={addForm.pointCumulative} onChange={(e) => setAddForm((f) => ({ ...f, pointCumulative: e.target.value }))} />
+              </div>
+              {/* 학점 */}
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-gray-700">학점 누적 (선택)</label>
+                <Input className="h-8 text-sm" type="number" step="0.1" min={0} placeholder="숫자 입력" value={addForm.creditCumulative} onChange={(e) => setAddForm((f) => ({ ...f, creditCumulative: e.target.value }))} />
+              </div>
+            </div>
+          )}
+
           <DialogFooter className="mt-2">
             <Button variant="outline" onClick={() => setAddModalOpen(false)} disabled={addSubmitting}>취소</Button>
-            <Button onClick={handleAddCandidate} disabled={addSubmitting}>
+            <Button
+              onClick={handleAddCandidate}
+              disabled={addSubmitting || (addMode === "search" && !selectedEmpId)}
+            >
               {addSubmitting ? "추가 중..." : "추가"}
             </Button>
           </DialogFooter>

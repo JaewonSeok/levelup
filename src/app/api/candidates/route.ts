@@ -277,7 +277,7 @@ export async function GET(req: NextRequest) {
 
     if (meetType === "point") { if (!emp.pointMet && !isManual) return false; }
     else if (meetType === "credit") { if (!emp.creditMet && !isManual) return false; }
-    else if (meetType === "both") { if (!(emp.pointMet && emp.creditMet)) return false; }
+    else if (meetType === "both") { if (!(emp.pointMet && emp.creditMet) && !isManual) return false; }
     if (promotionFilter === "normal") return emp.promotionType === "normal";
     if (promotionFilter === "special") return emp.promotionType === "special";
     return true;
