@@ -113,68 +113,63 @@ export async function GET(req: NextRequest) {
 
   // ── 쿼리 ──────────────────────────────────────────────────
   try {
-    // 1단계: 기본 유저 정보 + 메타 + 등급기준 병렬 조회
-    // (PgBouncer 호환: 중첩 relation select 대신 별도 쿼리로 분리)
-    const [total, rawEmployees, metaDepts, metaTeams, gradeCriteriaAll] = await Promise.all([
-      prisma.user.count({ where }),
-      prisma.user.findMany({
-        where,
-        select: {
-          id: true,
-          name: true,
-          department: true,
-          team: true,
-          level: true,
-          position: true,
-          employmentType: true,
-          hireDate: true,
-          resignDate: true,
-          competencyLevel: true,
-          yearsOfService: true,
-          levelUpYear: true,
-          isActive: true,
-          role: true,
-        },
-        orderBy: [{ department: "asc" }, { team: "asc" }, { name: "asc" }],
-        skip: (page - 1) * pageSize,
-        take: pageSize,
-      }),
-      prisma.user.findMany({
-        where: rbacWhere,
-        distinct: ["department"],
-        select: { department: true },
-        orderBy: { department: "asc" },
-      }),
-      prisma.user.findMany({
-        where: rbacWhere,
-        distinct: ["team"],
-        select: { team: true },
-        orderBy: { team: "asc" },
-      }),
-      prisma.gradeCriteria.findMany(),
-    ]);
+    // 1단계: 기본 유저 정보 + 메타 + 등급기준 순차 조회 (PgBouncer connection_limit=1 호환)
+    const total = await prisma.user.count({ where });
+    const rawEmployees = await prisma.user.findMany({
+      where,
+      select: {
+        id: true,
+        name: true,
+        department: true,
+        team: true,
+        level: true,
+        position: true,
+        employmentType: true,
+        hireDate: true,
+        resignDate: true,
+        competencyLevel: true,
+        yearsOfService: true,
+        levelUpYear: true,
+        isActive: true,
+        role: true,
+      },
+      orderBy: [{ department: "asc" }, { team: "asc" }, { name: "asc" }],
+      skip: (page - 1) * pageSize,
+      take: pageSize,
+    });
+    const metaDepts = await prisma.user.findMany({
+      where: rbacWhere,
+      distinct: ["department"],
+      select: { department: true },
+      orderBy: { department: "asc" },
+    });
+    const metaTeams = await prisma.user.findMany({
+      where: rbacWhere,
+      distinct: ["team"],
+      select: { team: true },
+      orderBy: { team: "asc" },
+    });
+    const gradeCriteriaAll = await prisma.gradeCriteria.findMany();
 
-    // 2단계: 유저 IDs로 관련 데이터 별도 조회 (candidates/route.ts 와 동일 패턴)
+    // 2단계: 유저 IDs로 관련 데이터 순차 조회
     const empIds = rawEmployees.map((e) => e.id);
-    const [allGrades, allPoints, allCredits, bpRecordsEmp] = await Promise.all([
-      prisma.performanceGrade.findMany({
-        where: { userId: { in: empIds } },
-        select: { userId: true, year: true, grade: true },
-      }),
-      prisma.point.findMany({
-        where: { userId: { in: empIds } },
-        select: { userId: true, merit: true, penalty: true },
-      }),
-      prisma.credit.findMany({
-        where: { userId: { in: empIds } },
-        select: { userId: true, cumulative: true, year: true },
-        orderBy: { year: "desc" },
-      }),
-      prisma.bonusPenalty.findMany({
-        where: { userId: { in: empIds } },
-        select: { userId: true, points: true },
-      }),
-    ]);
+    const allGrades = await prisma.performanceGrade.findMany({
+      where: { userId: { in: empIds } },
+      select: { userId: true, year: true, grade: true },
+    });
+    const allPoints = await prisma.point.findMany({
+      where: { userId: { in: empIds } },
+      select: { userId: true, merit: true, penalty: true },
+    });
+    const allCredits = await prisma.credit.findMany({
+      where: { userId: { in: empIds } },
+      select: { userId: true, cumulative: true, year: true },
+      orderBy: { year: "desc" },
+    });
+    const bpRecordsEmp = await prisma.bonusPenalty.findMany({
+      where: { userId: { in: empIds } },
+      select: { userId: true, points: true },
+    });
 
     // 각 유저별 맵 구성
     const gradeMap = new Map<string, Record<number, string>>();

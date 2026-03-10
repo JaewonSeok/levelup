@@ -88,18 +88,16 @@ export async function GET(req: NextRequest) {
     ],
   });
 
-  // 평가등급 + 가감점 일괄 조회
+  // 평가등급 + 가감점 순차 조회
   const candidateUserIds = candidates.map((c) => c.userId);
-  const [allGrades, bonusPenaltyRecords] = await Promise.all([
-    prisma.performanceGrade.findMany({
-      where: { userId: { in: candidateUserIds }, year: { in: [2021, 2022, 2023, 2024, 2025] } },
-      select: { userId: true, year: true, grade: true },
-    }),
-    prisma.bonusPenalty.findMany({
-      where: { userId: { in: candidateUserIds } },
-      select: { userId: true, type: true, points: true },
-    }),
-  ]);
+  const allGrades = await prisma.performanceGrade.findMany({
+    where: { userId: { in: candidateUserIds }, year: { in: [2021, 2022, 2023, 2024, 2025] } },
+    select: { userId: true, year: true, grade: true },
+  });
+  const bonusPenaltyRecords = await prisma.bonusPenalty.findMany({
+    where: { userId: { in: candidateUserIds } },
+    select: { userId: true, type: true, points: true },
+  });
   const gradeMap = new Map<string, Record<number, string>>();
   for (const g of allGrades) {
     if (!gradeMap.has(g.userId)) gradeMap.set(g.userId, {});
@@ -125,11 +123,9 @@ export async function GET(req: NextRequest) {
         });
       }
 
-      // 포인트/학점 누적 조회
-      const [latestPoint, latestCredit] = await Promise.all([
-        prisma.point.findFirst({ where: { userId: c.userId }, orderBy: { year: "desc" } }),
-        prisma.credit.findFirst({ where: { userId: c.userId }, orderBy: { year: "desc" } }),
-      ]);
+      // 포인트/학점 누적 조회 (순차)
+      const latestPoint = await prisma.point.findFirst({ where: { userId: c.userId }, orderBy: { year: "desc" } });
+      const latestCredit = await prisma.credit.findFirst({ where: { userId: c.userId }, orderBy: { year: "desc" } });
 
       const { bonusTotal = 0, penaltyTotal = 0 } = bpMap.get(c.userId) ?? {};
       const adjustment = bonusTotal - penaltyTotal;
@@ -193,18 +189,16 @@ export async function GET(req: NextRequest) {
   };
 
   // 드롭다운용 메타데이터
-  const [metaDepts, metaTeams] = await Promise.all([
-    prisma.user.findMany({
-      distinct: ["department"],
-      select: { department: true },
-      orderBy: { department: "asc" },
-    }),
-    prisma.user.findMany({
-      distinct: ["team"],
-      select: { team: true },
-      orderBy: { team: "asc" },
-    }),
-  ]);
+  const metaDepts = await prisma.user.findMany({
+    distinct: ["department"],
+    select: { department: true },
+    orderBy: { department: "asc" },
+  });
+  const metaTeams = await prisma.user.findMany({
+    distinct: ["team"],
+    select: { team: true },
+    orderBy: { team: "asc" },
+  });
 
   return NextResponse.json({
     employees: rows,

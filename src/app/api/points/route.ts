@@ -77,57 +77,53 @@ export async function GET(req: NextRequest) {
   const where: Prisma.UserWhereInput =
     conditions.length > 0 ? { AND: conditions } : {};
 
-  // ── 쿼리 (isMet 필터는 JS에서 처리) ──────────────────────
-  const [users, metaDepts, metaTeams] = await Promise.all([
-    prisma.user.findMany({
-      where,
-      select: {
-        id: true,
-        name: true,
-        department: true,
-        team: true,
-        level: true,
-        position: true,
-        employmentType: true,
-        hireDate: true,
-        yearsOfService: true,
-        competencyLevel: true,
-        levelUpYear: true,
-        isActive: true,
-        points: { orderBy: { year: "asc" } },
-      },
-      orderBy: [{ department: "asc" }, { team: "asc" }, { name: "asc" }],
-    }),
-    prisma.user.findMany({
-      distinct: ["department"],
-      select: { department: true },
-      orderBy: { department: "asc" },
-    }),
-    prisma.user.findMany({
-      distinct: ["team"],
-      select: { team: true },
-      orderBy: { team: "asc" },
-    }),
-  ]);
+  // ── 쿼리 (isMet 필터는 JS에서 처리, 순차 실행) ──────────────────────
+  const users = await prisma.user.findMany({
+    where,
+    select: {
+      id: true,
+      name: true,
+      department: true,
+      team: true,
+      level: true,
+      position: true,
+      employmentType: true,
+      hireDate: true,
+      yearsOfService: true,
+      competencyLevel: true,
+      levelUpYear: true,
+      isActive: true,
+      points: { orderBy: { year: "asc" } },
+    },
+    orderBy: [{ department: "asc" }, { team: "asc" }, { name: "asc" }],
+  });
+  const metaDepts = await prisma.user.findMany({
+    distinct: ["department"],
+    select: { department: true },
+    orderBy: { department: "asc" },
+  });
+  const metaTeams = await prisma.user.findMany({
+    distinct: ["team"],
+    select: { team: true },
+    orderBy: { team: "asc" },
+  });
 
-  // 평가등급 + 학점 누적값 + 포인트/레벨 기준 일괄 조회
+  // 평가등급 + 학점 누적값 + 포인트/레벨 기준 순차 조회
   const allUserIds = users.map((u) => u.id);
-  const [allGrades, latestCredits, gradeCriteriaAll, levelCriteriaAll] = await Promise.all([
-    prisma.performanceGrade.findMany({
-      where: { userId: { in: allUserIds }, year: { in: [2021, 2022, 2023, 2024, 2025] } },
-      select: { userId: true, year: true, grade: true },
-    }),
-    prisma.credit.findMany({
-      where: { userId: { in: allUserIds }, year: 2025 },
-      select: { userId: true, score: true },
-    }),
-    prisma.gradeCriteria.findMany(),
-    // year 필터 없이 전체 로드 후 최신 연도 기준 사용 (2025 저장 데이터도 2026에서 활용)
-    prisma.levelCriteria.findMany({
-      select: { level: true, requiredPoints: true, minTenure: true, year: true },
-      orderBy: { year: "desc" },
-    }),
-  ]);
+  const allGrades = await prisma.performanceGrade.findMany({
+    where: { userId: { in: allUserIds }, year: { in: [2021, 2022, 2023, 2024, 2025] } },
+    select: { userId: true, year: true, grade: true },
+  });
+  const latestCredits = await prisma.credit.findMany({
+    where: { userId: { in: allUserIds }, year: 2025 },
+    select: { userId: true, score: true },
+  });
+  const gradeCriteriaAll = await prisma.gradeCriteria.findMany();
+  // year 필터 없이 전체 로드 후 최신 연도 기준 사용 (2025 저장 데이터도 2026에서 활용)
+  const levelCriteriaAll = await prisma.levelCriteria.findMany({
+    select: { level: true, requiredPoints: true, minTenure: true, year: true },
+    orderBy: { year: "desc" },
+  });
 
   const gradeMap = new Map<string, Record<number, string>>();
   for (const g of allGrades) {
@@ -402,22 +398,20 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "포인트 저장 중 오류가 발생했습니다." }, { status: 500 });
   }
 
-  // 저장 후 window 합산 cumulative 재계산 (GET과 동일 로직)
-  const [savedGrades, savedGradeCriteria, savedLevelCriteria, bpSum] = await Promise.all([
-    prisma.performanceGrade.findMany({
-      where: { userId, year: { in: [2021, 2022, 2023, 2024, 2025] } },
-      select: { year: true, grade: true },
-    }),
-    prisma.gradeCriteria.findMany(),
-    prisma.levelCriteria.findMany({
-      select: { level: true, requiredPoints: true, year: true },
-      orderBy: { year: "desc" },
-    }),
-    prisma.bonusPenalty.findMany({
-      where: { userId },
-      select: { points: true },
-    }),
-  ]);
+  // 저장 후 window 합산 cumulative 재계산 (GET과 동일 로직, 순차 조회)
+  const savedGrades = await prisma.performanceGrade.findMany({
+    where: { userId, year: { in: [2021, 2022, 2023, 2024, 2025] } },
+    select: { year: true, grade: true },
+  });
+  const savedGradeCriteria = await prisma.gradeCriteria.findMany();
+  const savedLevelCriteria = await prisma.levelCriteria.findMany({
+    select: { level: true, requiredPoints: true, year: true },
+    orderBy: { year: "desc" },
+  });
+  const bpSum = await prisma.bonusPenalty.findMany({
+    where: { userId },
+    select: { points: true },
+  });
 
   function findGradePointsPost(grade: string, yr: number): number {
     if (!grade) return 2;

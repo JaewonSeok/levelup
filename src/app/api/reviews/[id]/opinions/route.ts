@@ -51,28 +51,24 @@ export async function GET(
   const year = review.candidate.year;
   const userId = review.candidate.userId;
 
-  // Level criteria + cumulative values
-  const [criteria, latestPoint, latestCredit] = await Promise.all([
-    candidateLevel
-      ? prisma.levelCriteria.findFirst({ where: { level: candidateLevel, year } })
-      : null,
-    prisma.point.findFirst({ where: { userId }, orderBy: { year: "desc" } }),
-    prisma.credit.findFirst({ where: { userId }, orderBy: { year: "desc" } }),
-  ]);
+  // Level criteria + cumulative values (순차 조회)
+  const criteria = candidateLevel
+    ? await prisma.levelCriteria.findFirst({ where: { level: candidateLevel, year } })
+    : null;
+  const latestPoint = await prisma.point.findFirst({ where: { userId }, orderBy: { year: "desc" } });
+  const latestCredit = await prisma.credit.findFirst({ where: { userId }, orderBy: { year: "desc" } });
 
-  // All dept heads + HR team users (potential reviewers)
-  const [deptHeads, hrTeam] = await Promise.all([
-    prisma.user.findMany({
-      where: { role: Role.DEPT_HEAD, isActive: true },
-      select: { id: true, name: true, department: true },
-      orderBy: { department: "asc" },
-    }),
-    prisma.user.findMany({
-      where: { role: Role.HR_TEAM, isActive: true },
-      select: { id: true, name: true, department: true },
-      orderBy: { name: "asc" },
-    }),
-  ]);
+  // All dept heads + HR team users (순차 조회)
+  const deptHeads = await prisma.user.findMany({
+    where: { role: Role.DEPT_HEAD, isActive: true },
+    select: { id: true, name: true, department: true },
+    orderBy: { department: "asc" },
+  });
+  const hrTeam = await prisma.user.findMany({
+    where: { role: Role.HR_TEAM, isActive: true },
+    select: { id: true, name: true, department: true },
+    orderBy: { name: "asc" },
+  });
 
   const opinionMap = new Map(review.opinions.map((o) => [o.reviewerId, o]));
 

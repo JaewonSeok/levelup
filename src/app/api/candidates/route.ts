@@ -88,54 +88,50 @@ export async function GET(req: NextRequest) {
 
   const where: Prisma.UserWhereInput = conditions.length > 0 ? { AND: conditions } : {};
 
-  // ── 전체 조회 (meetType 필터는 JS에서 처리) ─────────────────
-  const [users, metaDepts, metaTeams] = await Promise.all([
-    prisma.user.findMany({
-      where,
-      select: {
-        id: true,
-        name: true,
-        department: true,
-        team: true,
-        level: true,
-        position: true,
-        employmentType: true,
-        hireDate: true,
-        yearsOfService: true,
-        levelStartDate: true,
-        competencyLevel: true,
-        levelUpYear: true,
-        points: { orderBy: { year: "asc" } },
-        credits: { orderBy: { year: "asc" } },
-        candidates: { where: { year }, select: { id: true, pointMet: true, creditMet: true, isReviewTarget: true, source: true, promotionType: true, savedAt: true } },
-      },
-      orderBy: [{ department: "asc" }, { team: "asc" }, { name: "asc" }],
-    }),
-    prisma.user.findMany({
-      distinct: ["department"],
-      select: { department: true },
-      orderBy: { department: "asc" },
-    }),
-    prisma.user.findMany({
-      distinct: ["team"],
-      select: { team: true },
-      orderBy: { team: "asc" },
-    }),
-  ]);
+  // ── 전체 조회 (meetType 필터는 JS에서 처리, 순차 실행) ─────────────────
+  const users = await prisma.user.findMany({
+    where,
+    select: {
+      id: true,
+      name: true,
+      department: true,
+      team: true,
+      level: true,
+      position: true,
+      employmentType: true,
+      hireDate: true,
+      yearsOfService: true,
+      levelStartDate: true,
+      competencyLevel: true,
+      levelUpYear: true,
+      points: { orderBy: { year: "asc" } },
+      credits: { orderBy: { year: "asc" } },
+      candidates: { where: { year }, select: { id: true, pointMet: true, creditMet: true, isReviewTarget: true, source: true, promotionType: true, savedAt: true } },
+    },
+    orderBy: [{ department: "asc" }, { team: "asc" }, { name: "asc" }],
+  });
+  const metaDepts = await prisma.user.findMany({
+    distinct: ["department"],
+    select: { department: true },
+    orderBy: { department: "asc" },
+  });
+  const metaTeams = await prisma.user.findMany({
+    distinct: ["team"],
+    select: { team: true },
+    orderBy: { team: "asc" },
+  });
 
-  // 평가등급 + 가감점 + 등급기준 일괄 조회 (2021~2025)
+  // 평가등급 + 가감점 + 등급기준 순차 조회 (2021~2025)
   const userIds = users.map((u) => u.id);
-  const [allGrades, bonusPenaltyRecords, gradeCriteriaAll] = await Promise.all([
-    prisma.performanceGrade.findMany({
-      where: { userId: { in: userIds }, year: { in: [2021, 2022, 2023, 2024, 2025] } },
-      select: { userId: true, year: true, grade: true },
-    }),
-    prisma.bonusPenalty.findMany({
-      where: { userId: { in: userIds } },
-      select: { userId: true, type: true, points: true },
-    }),
-    prisma.gradeCriteria.findMany(),
-  ]);
+  const allGrades = await prisma.performanceGrade.findMany({
+    where: { userId: { in: userIds }, year: { in: [2021, 2022, 2023, 2024, 2025] } },
+    select: { userId: true, year: true, grade: true },
+  });
+  const bonusPenaltyRecords = await prisma.bonusPenalty.findMany({
+    where: { userId: { in: userIds } },
+    select: { userId: true, type: true, points: true },
+  });
+  const gradeCriteriaAll = await prisma.gradeCriteria.findMany();
   const gradeMap = new Map<string, Record<number, string>>();
   for (const g of allGrades) {
     if (!gradeMap.has(g.userId)) gradeMap.set(g.userId, {});

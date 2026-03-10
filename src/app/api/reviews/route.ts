@@ -93,10 +93,8 @@ export async function GET(req: NextRequest) {
     ],
   });
 
-  const [metaDepts, metaTeams] = await Promise.all([
-    prisma.user.findMany({ distinct: ["department"], select: { department: true }, orderBy: { department: "asc" } }),
-    prisma.user.findMany({ distinct: ["team"], select: { team: true }, orderBy: { team: "asc" } }),
-  ]);
+  const metaDepts = await prisma.user.findMany({ distinct: ["department"], select: { department: true }, orderBy: { department: "asc" } });
+  const metaTeams = await prisma.user.findMany({ distinct: ["team"], select: { team: true }, orderBy: { team: "asc" } });
 
   if (candidates.length === 0) {
     return NextResponse.json({
@@ -138,30 +136,28 @@ export async function GET(req: NextRequest) {
     for (const r of newReviews) reviewMap.set(r.candidateId, r);
   }
 
-  // Fetch level criteria, latest points(fallback), credits(2025), grades, bonus-penalty, gradeCriteria
-  const [criteriaList, latestPoints, latestCredits, allGrades, bonusPenaltyRecords, gradeCriteriaAll] = await Promise.all([
-    levels.length > 0
-      ? prisma.levelCriteria.findMany({ where: { year, level: { in: levels } } })
-      : Promise.resolve([]),
-    prisma.point.findMany({
-      where: { userId: { in: userIds } },
-      select: { userId: true, cumulative: true, merit: true, penalty: true },
-      orderBy: { year: "desc" },
-    }),
-    prisma.credit.findMany({
-      where: { userId: { in: userIds }, year: 2025 },
-      select: { userId: true, score: true },
-    }),
-    prisma.performanceGrade.findMany({
-      where: { userId: { in: userIds }, year: { in: [2021, 2022, 2023, 2024, 2025] } },
-      select: { userId: true, year: true, grade: true },
-    }),
-    prisma.bonusPenalty.findMany({
-      where: { userId: { in: userIds } },
-      select: { userId: true, type: true, points: true },
-    }),
-    prisma.gradeCriteria.findMany(),
-  ]);
+  // Fetch level criteria, latest points(fallback), credits(2025), grades, bonus-penalty, gradeCriteria (순차 조회)
+  const criteriaList = levels.length > 0
+    ? await prisma.levelCriteria.findMany({ where: { year, level: { in: levels } } })
+    : [];
+  const latestPoints = await prisma.point.findMany({
+    where: { userId: { in: userIds } },
+    select: { userId: true, cumulative: true, merit: true, penalty: true },
+    orderBy: { year: "desc" },
+  });
+  const latestCredits = await prisma.credit.findMany({
+    where: { userId: { in: userIds }, year: 2025 },
+    select: { userId: true, score: true },
+  });
+  const allGrades = await prisma.performanceGrade.findMany({
+    where: { userId: { in: userIds }, year: { in: [2021, 2022, 2023, 2024, 2025] } },
+    select: { userId: true, year: true, grade: true },
+  });
+  const bonusPenaltyRecords = await prisma.bonusPenalty.findMany({
+    where: { userId: { in: userIds } },
+    select: { userId: true, type: true, points: true },
+  });
+  const gradeCriteriaAll = await prisma.gradeCriteria.findMany();
 
   const gradeMap = new Map<string, Record<number, string>>();
   for (const g of allGrades) {

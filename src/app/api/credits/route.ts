@@ -72,42 +72,40 @@ export async function GET(req: NextRequest) {
   const where: Prisma.UserWhereInput =
     conditions.length > 0 ? { AND: conditions } : {};
 
-  // ── 쿼리 (isMet 필터는 JS에서 처리) ──────────────────────
-  const [users, metaDepts, metaTeams, levelCriteriaList] = await Promise.all([
-    prisma.user.findMany({
-      where,
-      select: {
-        id: true,
-        name: true,
-        department: true,
-        team: true,
-        level: true,
-        position: true,
-        employmentType: true,
-        hireDate: true,
-        yearsOfService: true,
-        competencyLevel: true,
-        levelUpYear: true,
-        isActive: true,
-        credits: { orderBy: { year: "asc" } },
-      },
-      orderBy: [{ department: "asc" }, { team: "asc" }, { name: "asc" }],
-    }),
-    prisma.user.findMany({
-      distinct: ["department"],
-      select: { department: true },
-      orderBy: { department: "asc" },
-    }),
-    prisma.user.findMany({
-      distinct: ["team"],
-      select: { team: true },
-      orderBy: { team: "asc" },
-    }),
-    prisma.levelCriteria.findMany({
-      where: { year: CURRENT_YEAR },
-      select: { level: true, minTenure: true, requiredCredits: true, requiredPoints: true },
-    }),
-  ]);
+  // ── 쿼리 (isMet 필터는 JS에서 처리, 순차 실행) ──────────────────────
+  const users = await prisma.user.findMany({
+    where,
+    select: {
+      id: true,
+      name: true,
+      department: true,
+      team: true,
+      level: true,
+      position: true,
+      employmentType: true,
+      hireDate: true,
+      yearsOfService: true,
+      competencyLevel: true,
+      levelUpYear: true,
+      isActive: true,
+      credits: { orderBy: { year: "asc" } },
+    },
+    orderBy: [{ department: "asc" }, { team: "asc" }, { name: "asc" }],
+  });
+  const metaDepts = await prisma.user.findMany({
+    distinct: ["department"],
+    select: { department: true },
+    orderBy: { department: "asc" },
+  });
+  const metaTeams = await prisma.user.findMany({
+    distinct: ["team"],
+    select: { team: true },
+    orderBy: { team: "asc" },
+  });
+  const levelCriteriaList = await prisma.levelCriteria.findMany({
+    where: { year: CURRENT_YEAR },
+    select: { level: true, minTenure: true, requiredCredits: true, requiredPoints: true },
+  });
 
   const levelCriteriaMap = new Map(
     levelCriteriaList.map((c) => [c.level as string, c])
