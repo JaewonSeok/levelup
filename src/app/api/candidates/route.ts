@@ -149,10 +149,8 @@ export async function GET(req: NextRequest) {
   const GRADE_CALC_BASE = year - 1;
 
   // ── 직원별 데이터 가공 + Candidate 레코드 생성/업데이트 ──────
-  // 수동 추가(기존 Candidate 보유) 여부를 별도 Set으로 관리
-  const hasExistingCandidateSet = new Set<string>();
-
   // PgBouncer connection_limit=1 환경에서 병렬 DB write 금지 — for...of 순차 실행
+  // GET 조회에서는 DB write 없음 (Vercel 타임아웃 방지)
   type EmployeeRow = {
     candidateId: string | null;
     userId: string;
@@ -239,26 +237,22 @@ export async function GET(req: NextRequest) {
     const isSpecialPromotion = !!criteria && pointMet && creditMet && !tenureMet;
     const promotionType = isSpecialPromotion ? "special" : "normal";
 
-    // 기존 Candidate 레코드 업데이트 or 신규 생성 (충족 시에만)
+    // 기존 Candidate 레코드 참조 (GET 조회에서는 DB write 없음 — Vercel 타임아웃 방지)
+    // DB write (pointMet/creditMet 업데이트)는 auto-select API에서만 실행
     const existingCandidate = user.candidates[0];
-    if (existingCandidate) hasExistingCandidateSet.add(user.id);
 
-    // 제외 처리된 대상자는 재생성하지 않고 결과에서 제외
+    // 제외 처리된 대상자는 결과에서 제외
     if (existingCandidate?.source === "excluded") { allEmployeesData.push(null); continue; }
 
-    const candidate = existingCandidate
-      ? await prisma.candidate.update({
-          where: { id: existingCandidate.id },
-          data: { pointMet, creditMet, promotionType },
-        })
-      : (!!criteria && pointMet && creditMet)
-        ? await prisma.candidate.create({
-            data: { userId: user.id, year, pointMet, creditMet, source: "auto", promotionType },
-          })
-        : null;
+    // candidate 레코드가 없으면서 충족 조건도 안 되면 표시하지 않음
+    // (auto-select 실행 전 상태이거나, 미충족 직원)
+    if (!existingCandidate && !(!!criteria && pointMet && creditMet)) {
+      allEmployeesData.push(null);
+      continue;
+    }
 
     allEmployeesData.push({
-      candidateId: candidate?.id ?? null,
+      candidateId: existingCandidate?.id ?? null,
       userId: user.id,
       name: user.name,
       department: user.department,
@@ -275,10 +269,10 @@ export async function GET(req: NextRequest) {
       creditMet,
       bonusTotal,
       penaltyTotal,
-      promotionType: candidate?.promotionType ?? promotionType,
-      isReviewTarget: candidate?.isReviewTarget ?? false,
-      source: candidate?.source ?? "auto",
-      savedAt: candidate?.savedAt?.toISOString() ?? null,
+      promotionType: existingCandidate?.promotionType ?? promotionType,
+      isReviewTarget: existingCandidate?.isReviewTarget ?? false,
+      source: existingCandidate?.source ?? "auto",
+      savedAt: existingCandidate?.savedAt?.toISOString() ?? null,
       grades: {
         2021: userGrades[2021] ?? null,
         2022: userGrades[2022] ?? null,
