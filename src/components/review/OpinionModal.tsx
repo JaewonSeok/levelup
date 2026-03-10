@@ -121,10 +121,13 @@ export function OpinionModal({
   const [resetLoading, setResetLoading] = useState(false);
   // 서버에서 받아온 개별 잠금 해제 여부 (Review.editUnlocked)
   const [editUnlocked, setEditUnlocked] = useState(false);
+  // 모달이 열렸을 때의 isSubmitted 스냅샷 — 부모 리렌더링(저장 후 refetch)으로
+  // isSubmitted prop이 바뀌어도 모달 내 잠금 상태는 열린 시점 기준으로 유지
+  const [submittedSnapshot] = useState(() => isSubmitted);
 
   useEffect(() => {
     setLoading(true);
-    fetch(`/api/reviews/${reviewId}/opinions`)
+    fetch(`/api/reviews/${reviewId}/opinions`, { cache: "no-store" })
       .then((res) => res.json())
       .then((json: OpinionData) => {
         setData(json);
@@ -155,9 +158,10 @@ export function OpinionModal({
   const isDeptHead = data?.currentUser.role === "DEPT_HEAD";
 
   // 행 편집 가능 여부
-  // isSubmitted=true(본부 제출됨)이더라도 editUnlocked=true면 편집 허용
+  // submittedSnapshot: 모달이 열렸을 때의 isSubmitted 값 (부모 리렌더링 영향 차단)
+  // editUnlocked=true면 제출 후에도 편집 허용 (초기화 버튼으로 해제)
   function getEditable(reviewer: Reviewer): boolean {
-    if (isSubmitted && !editUnlocked) return false;
+    if (submittedSnapshot && !editUnlocked) return false;
     // 인사팀장 행: SYSTEM_ADMIN 또는 HR_TEAM 본인만 편집 가능
     if (reviewer.reviewerRole === "인사팀장") {
       return reviewer.isCurrentUser && (!!isAdmin || !!isHRTeam);
@@ -441,14 +445,14 @@ export function OpinionModal({
                                 ? "focus:ring-1 focus:ring-blue-300 bg-white"
                                 : `cursor-default text-gray-600 ${isHR ? "bg-gray-100" : "bg-gray-50"}`
                             }`}
-                            value={editable ? rs.text : (reviewer.opinionText ?? "")}
+                            value={rs.text}
                             readOnly={!editable}
                             onChange={
                               editable
                                 ? (e) => handleChange(reviewer.userId, "text", e.target.value)
                                 : undefined
                             }
-                            placeholder={editable ? "의견을 입력하세요." : "미입력"}
+                            placeholder={editable ? "의견을 입력하세요." : (rs.text ? "" : "미입력")}
                             maxLength={editable ? 5000 : undefined}
                           />
                           {editable && (
@@ -504,23 +508,25 @@ export function OpinionModal({
                                     ? "..."
                                     : rs.savedJustNow
                                     ? "저장됨"
+                                    : reviewer.opinionId
+                                    ? "수정"
                                     : "저장"}
                                 </Button>
                               </>
                             ) : (
-                              /* 읽기 전용: 텍스트로만 표시 */
+                              /* 읽기 전용: rs.rec 기반으로 표시 (저장 후 모달 내에서도 최신값 반영) */
                               <span
                                 className={`text-xs font-medium ${
-                                  reviewer.recommendation === true
+                                  rs.rec === "추천"
                                     ? "text-green-600"
-                                    : reviewer.recommendation === false
+                                    : rs.rec === "미추천"
                                     ? "text-red-500"
                                     : "text-gray-400"
                                 }`}
                               >
-                                {reviewer.recommendation === true
+                                {rs.rec === "추천"
                                   ? "추천"
-                                  : reviewer.recommendation === false
+                                  : rs.rec === "미추천"
                                   ? "미추천"
                                   : "-"}
                               </span>
@@ -528,7 +534,7 @@ export function OpinionModal({
                           </div>
                         )}
 
-                        {/* 인사팀장 저장 영역 (admin만 표시) */}
+                        {/* 인사팀장 저장 영역 (admin/HR_TEAM만 표시) */}
                         {isHR && editable && (
                           <div className="flex flex-col items-end gap-1.5 w-20 flex-shrink-0">
                             <Button
@@ -550,6 +556,8 @@ export function OpinionModal({
                                 ? "..."
                                 : rs.savedJustNow
                                 ? "저장됨"
+                                : reviewer.opinionId
+                                ? "수정"
                                 : "저장"}
                             </Button>
                           </div>
@@ -562,8 +570,8 @@ export function OpinionModal({
             </div>
 
             <div className="flex items-center justify-between flex-shrink-0 pt-2 border-t mt-2">
-              {/* 초기화 버튼: 본부 제출 상태이고 아직 잠금 해제되지 않은 경우 표시 */}
-              {isSubmitted && !editUnlocked && onReset ? (
+              {/* 초기화 버튼: 모달 열릴 때 제출 상태였고 아직 잠금 해제되지 않은 경우 표시 */}
+              {submittedSnapshot && !editUnlocked && onReset ? (
                 resetConfirmOpen ? (
                   <div className="flex items-center gap-2">
                     <span className="text-sm text-red-600">심사 의견을 초기화하시겠습니까?</span>
