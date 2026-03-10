@@ -93,12 +93,24 @@ export async function GET(
     };
   };
 
-  // 같은 본부에 여러 명의 DEPT_HEAD가 있을 수 있으므로 find → filter
+  // 부서당 의견 있는 본부장을 우선 선택, 없으면 첫 번째 — 부서당 1행만 표시
+  const pickHead = (heads: { id: string; name: string; department: string }[]) =>
+    heads.find((u) => opinionMap.has(u.id)) ?? heads[0];
+
   const ownDeptHeads = deptHeads.filter((u) => u.department === candidateDept);
-  const otherDeptHeads = deptHeads.filter((u) => u.department !== candidateDept);
+  const ownDeptHead = pickHead(ownDeptHeads);
+
+  // 타본부장: 부서별로 그룹화 후 의견 있는 사람 우선 선택 (부서당 1명)
+  const otherDeptGroupMap = new Map<string, { id: string; name: string; department: string }[]>();
+  for (const u of deptHeads.filter((u) => u.department !== candidateDept)) {
+    const dept = u.department ?? "";
+    if (!otherDeptGroupMap.has(dept)) otherDeptGroupMap.set(dept, []);
+    otherDeptGroupMap.get(dept)!.push(u);
+  }
+  const otherDeptHeads = Array.from(otherDeptGroupMap.values()).map(pickHead).filter((u): u is NonNullable<typeof u> => !!u);
 
   const reviewers = [
-    ...ownDeptHeads.map((u) => makeReviewer(u, "소속본부장", `${candidateDept}장`)),
+    ...(ownDeptHead ? [makeReviewer(ownDeptHead, "소속본부장", `${candidateDept}장`)] : []),
     ...otherDeptHeads.map((u) => makeReviewer(u, "타본부장", `${u.department}장`)),
     // SYSTEM_ADMIN이 로그인하면 admin 본인만 인사팀장으로 추가 (중복 방지)
     ...(session.user.role !== Role.SYSTEM_ADMIN
