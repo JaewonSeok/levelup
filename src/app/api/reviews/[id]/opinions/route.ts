@@ -123,6 +123,28 @@ export async function GET(
     });
   }
 
+  // ── 안전망: 로그인한 DEPT_HEAD가 reviewers에 없으면 직접 삽입 ──
+  // deptHeads 조회(isActive=true)에서 누락되었거나 세션/DB 불일치 상황 대비
+  if (
+    session.user.role === Role.DEPT_HEAD &&
+    !reviewers.some((r) => r.userId === session.user.id)
+  ) {
+    const dept = session.user.department ?? "";
+    const existingOp = opinionMap.get(session.user.id);
+    reviewers.unshift({
+      userId: session.user.id,
+      reviewerName: dept ? `${dept}장` : "본부장",
+      reviewerRole: dept && dept === candidateDept ? "소속본부장" : "타본부장",
+      isCurrentUser: true,
+      opinionId: existingOp?.id ?? null,
+      opinionText: existingOp?.opinionText ?? null,
+      recommendation: existingOp?.recommendation ?? null,
+      savedAt: existingOp?.savedAt?.toISOString() ?? null,
+      modifiedBy: existingOp?.modifiedBy ?? null,
+      modifiedAt: existingOp?.modifiedAt?.toISOString() ?? null,
+    });
+  }
+
   return NextResponse.json({
     review: {
       id: review.id,
