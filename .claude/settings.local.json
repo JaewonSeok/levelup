@@ -68,7 +68,8 @@
       "Bash(cd:*)",
       "Bash(grep:*)",
       "Bash(head:*)",
-      "Bash(kill 1527:*)"
+      "Bash(kill 1527:*)",
+      "Bash(npx tsx:*)"
     ]
   }
 }
