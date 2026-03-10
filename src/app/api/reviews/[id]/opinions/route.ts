@@ -59,8 +59,9 @@ export async function GET(
   const latestCredit = await prisma.credit.findFirst({ where: { userId }, orderBy: { year: "desc" } });
 
   // All dept heads + HR team users (순차 조회)
+  // isActive 필터 없이 조회 — 비활성 본부장이 저장한 의견도 표시되어야 하므로
   const deptHeads = await prisma.user.findMany({
-    where: { role: Role.DEPT_HEAD, isActive: true },
+    where: { role: Role.DEPT_HEAD },
     select: { id: true, name: true, department: true },
     orderBy: { department: "asc" },
   });
@@ -105,6 +106,24 @@ export async function GET(
       ? hrTeam.map((u) => makeReviewer(u, "인사팀장", "인사팀장"))
       : []),
   ];
+
+  // ── 안전망: opinion이 저장되었지만 reviewer 목록에 없는 경우 보완 ──
+  // deptHeads 조회에서 누락된 reviewer(예: 비활성 본부장)의 의견도 반드시 표시
+  for (const [reviewerId, op] of Array.from(opinionMap.entries())) {
+    if (reviewers.some((r) => r.userId === reviewerId)) continue;
+    reviewers.push({
+      userId: reviewerId,
+      reviewerName: op.reviewerName,
+      reviewerRole: op.reviewerRole,
+      isCurrentUser: reviewerId === session.user.id,
+      opinionId: op.id,
+      opinionText: op.opinionText ?? null,
+      recommendation: op.recommendation ?? null,
+      savedAt: op.savedAt?.toISOString() ?? null,
+      modifiedBy: op.modifiedBy ?? null,
+      modifiedAt: op.modifiedAt?.toISOString() ?? null,
+    });
+  }
 
   // SYSTEM_ADMIN은 인사팀장 역할로 reviewer 목록에 추가 (본인의 의견 편집 가능)
   if (session.user.role === Role.SYSTEM_ADMIN) {
