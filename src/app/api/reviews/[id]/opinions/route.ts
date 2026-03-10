@@ -132,6 +132,7 @@ export async function GET(
       id: review.id,
       competencyScore: review.competencyScore,
       competencyEval: review.competencyEval,
+      editUnlocked: review.editUnlocked,
     },
     candidate: {
       id: review.candidate.id,

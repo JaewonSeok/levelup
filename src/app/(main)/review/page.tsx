@@ -786,8 +786,14 @@ export default function ReviewPage() {
           reviewId={selectedReviewId}
           onClose={() => { setSelectedReviewId(null); setSelectedCandidate(null); }}
           onSaved={handleOpinionSaved}
-          onReset={isDeptHead ? () => setIsSubmitted(false) : undefined}
-          isSubmitted={isSubmitted && isDeptHead}
+          onReset={(isDeptHead || isAdmin) ? () => setRefreshKey((k) => k + 1) : undefined}
+          isSubmitted={
+            isDeptHead
+              ? isSubmitted
+              : isAdmin
+              ? !!(selectedCandidate && submittedDepts.has(selectedCandidate.department))
+              : false
+          }
           candidateInfo={selectedCandidate ?? undefined}
         />
       )}

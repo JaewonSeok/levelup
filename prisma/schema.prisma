@@ -139,6 +139,8 @@ model Review {
   competencyEval  Float?
   /// 최종 추천 여부. null = 미결정, true = 추천, false = 제외(미추천)
   recommendation  Boolean?
+  /// 개별 대상자 편집 잠금 해제. 본부 제출 후에도 해당 대상자만 의견 수정 가능하게 설정
+  editUnlocked    Boolean   @default(false)
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
   opinions        Opinion[]

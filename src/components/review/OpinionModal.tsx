@@ -26,7 +26,7 @@ interface Reviewer {
 }
 
 interface OpinionData {
-  review: { id: string };
+  review: { id: string; editUnlocked: boolean };
   candidate: {
     id: string;
     year: number;
@@ -119,6 +119,8 @@ export function OpinionModal({
   const [aiReportLoading, setAiReportLoading] = useState(false);
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
   const [resetLoading, setResetLoading] = useState(false);
+  // 서버에서 받아온 개별 잠금 해제 여부 (Review.editUnlocked)
+  const [editUnlocked, setEditUnlocked] = useState(false);
 
   useEffect(() => {
     setLoading(true);
@@ -126,6 +128,7 @@ export function OpinionModal({
       .then((res) => res.json())
       .then((json: OpinionData) => {
         setData(json);
+        setEditUnlocked(json.review.editUnlocked ?? false);
         const initial: Record<string, RowState> = {};
         for (const r of json.reviewers) {
           initial[r.userId] = {
@@ -151,8 +154,9 @@ export function OpinionModal({
   const isDeptHead = data?.currentUser.role === "DEPT_HEAD";
 
   // 행 편집 가능 여부
+  // isSubmitted=true(본부 제출됨)이더라도 editUnlocked=true면 편집 허용
   function getEditable(reviewer: Reviewer): boolean {
-    if (isSubmitted) return false;
+    if (isSubmitted && !editUnlocked) return false;
     if (reviewer.reviewerRole === "인사팀장") return !!isAdmin;
     return reviewer.isCurrentUser || !!isAdmin;
   }
@@ -287,16 +291,15 @@ export function OpinionModal({
     if (!data) return;
     setResetLoading(true);
     try {
-      const res = await fetch("/api/reviews/submit", {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ year: data.candidate.year }),
+      const res = await fetch(`/api/reviews/${data.review.id}/reset`, {
+        method: "PUT",
       });
       if (!res.ok) {
         const resData = await res.json();
         throw new Error(resData.error ?? "초기화 실패");
       }
-      toast.success("제출이 초기화되었습니다. 의견을 다시 수정할 수 있습니다.");
+      setEditUnlocked(true);
+      toast.success("의견 수정이 활성화되었습니다. 기존 내용을 수정한 후 저장해 주세요.");
       setResetConfirmOpen(false);
       onReset?.();
     } catch (e) {
@@ -560,11 +563,11 @@ export function OpinionModal({
             </div>
 
             <div className="flex items-center justify-between flex-shrink-0 pt-2 border-t mt-2">
-              {/* 제출 초기화 (제출된 상태이고 onReset 콜백이 있을 때만 표시) */}
-              {isSubmitted && onReset ? (
+              {/* 초기화 버튼: 본부 제출 상태이고 아직 잠금 해제되지 않은 경우 표시 */}
+              {isSubmitted && !editUnlocked && onReset ? (
                 resetConfirmOpen ? (
                   <div className="flex items-center gap-2">
-                    <span className="text-sm text-red-600">제출을 초기화하시겠습니까?</span>
+                    <span className="text-sm text-red-600">심사 의견을 초기화하시겠습니까?</span>
                     <Button
                       size="sm"
                       variant="destructive"
@@ -589,7 +592,7 @@ export function OpinionModal({
                     className="text-red-600 border-red-300 hover:bg-red-50"
                     onClick={() => setResetConfirmOpen(true)}
                   >
-                    제출 초기화
+                    초기화
                   </Button>
                 )
               ) : (

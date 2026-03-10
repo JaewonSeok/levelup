@@ -81,6 +81,15 @@ export async function POST(req: NextRequest) {
     update: { submittedBy: session.user.id, submittedAt: new Date() },
   });
 
+  // 재제출 시 해당 부서 모든 대상자의 editUnlocked 초기화
+  await prisma.review.updateMany({
+    where: {
+      candidate: { year, user: { department } },
+      editUnlocked: true,
+    },
+    data: { editUnlocked: false },
+  });
+
   // 통계 계산 후 비동기 이메일 발송
   prisma.candidate.findMany({
     where: { year, isReviewTarget: true, user: { department } },
