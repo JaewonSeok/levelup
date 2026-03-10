@@ -240,6 +240,11 @@ export async function GET(req: NextRequest) {
       competencyEval: review?.competencyEval ?? null,
       promotionType: candidate.promotionType ?? "normal",
       currentUserOpinionSavedAt: currentUserOpinion?.savedAt?.toISOString() ?? null,
+      currentUserHasOpinion: !!(currentUserOpinion?.opinionText?.trim()),
+      currentUserRecommendation: currentUserOpinion
+        ? (currentUserOpinion.recommendation === true ? "추천" as const :
+           currentUserOpinion.recommendation === false ? "제외" as const : null)
+        : null,
       ownDeptHeadHasOpinion,
       recommendationStatus,
       grades: {

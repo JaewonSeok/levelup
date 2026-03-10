@@ -60,6 +60,8 @@ interface ReviewCandidate {
   penaltyTotal?: number;
   promotionType?: string;
   currentUserOpinionSavedAt: string | null;
+  currentUserHasOpinion?: boolean;
+  currentUserRecommendation?: "추천" | "제외" | null;
   ownDeptHeadHasOpinion: boolean;
   recommendationStatus: "추천" | "제외" | null;
   grades: GradeMap;
@@ -258,16 +260,21 @@ export default function ReviewPage() {
       setCandidates((prev) =>
         prev.map((c) => {
           if (c.reviewId !== targetId) return c;
-          // ① 현재 유저의 의견 저장 시각 즉시 반영
-          const updates: Partial<typeof c> = { currentUserOpinionSavedAt: nowIso };
+          // ① 현재 유저의 의견 저장 시각 + 본인 의견 상태 즉시 반영
+          const currentUserRec: "추천" | "제외" | null =
+            recommendation === true ? "추천" :
+            recommendation === false ? "제외" :
+            null;
+          const updates: Partial<typeof c> = {
+            currentUserOpinionSavedAt: nowIso,
+            currentUserHasOpinion: true,
+            currentUserRecommendation: currentUserRec,
+          };
           // ② 소속본부장이 저장한 경우 → 의견 컬럼·추천여부 즉시 반영
           if (reviewerRole === "소속본부장") {
             updates.ownDeptHeadHasOpinion = true;
             if (reviewUpdated) {
-              updates.recommendationStatus =
-                recommendation === true ? "추천" :
-                recommendation === false ? "제외" :
-                null;
+              updates.recommendationStatus = currentUserRec;
             }
           }
           return { ...c, ...updates };
@@ -727,7 +734,8 @@ export default function ReviewPage() {
                         disabled={!c.reviewId}
                         className="flex items-center justify-center gap-0.5 w-full cursor-pointer disabled:cursor-default"
                       >
-                        {c.ownDeptHeadHasOpinion ? (
+                        {/* 타본부장이 타본부 직원 볼 때 → 본인 의견 기준, 그 외 → 소속본부장 의견 기준 */}
+                        {(isDeptHead && c.department !== currentDeptName ? c.currentUserHasOpinion : c.ownDeptHeadHasOpinion) ? (
                           <span className="flex items-center gap-0.5 text-green-600 text-xs">
                             <CheckCircle2 className="w-3.5 h-3.5" /> 입력완료
                           </span>
@@ -760,17 +768,23 @@ export default function ReviewPage() {
                           <option value="true">추천</option>
                           <option value="false">미추천</option>
                         </select>
-                      ) : c.recommendationStatus === "추천" ? (
-                        <span className="flex items-center justify-center gap-0.5 text-green-600 text-xs font-medium">
-                          <CheckCircle2 className="w-3.5 h-3.5" /> 추천
-                        </span>
-                      ) : c.recommendationStatus === "제외" ? (
-                        <span className="flex items-center justify-center gap-0.5 text-red-500 text-xs font-medium">
-                          <AlertTriangle className="w-3.5 h-3.5" /> 미추천
-                        </span>
-                      ) : (
-                        <span className="text-gray-400 text-xs">-</span>
-                      )}
+                      ) : (() => {
+                        // 타본부장이 타본부 직원 볼 때 → 본인 recommendation 표시
+                        const recStatus = (isDeptHead && c.department !== currentDeptName)
+                          ? c.currentUserRecommendation
+                          : c.recommendationStatus;
+                        return recStatus === "추천" ? (
+                          <span className="flex items-center justify-center gap-0.5 text-green-600 text-xs font-medium">
+                            <CheckCircle2 className="w-3.5 h-3.5" /> 추천
+                          </span>
+                        ) : recStatus === "제외" ? (
+                          <span className="flex items-center justify-center gap-0.5 text-red-500 text-xs font-medium">
+                            <AlertTriangle className="w-3.5 h-3.5" /> 미추천
+                          </span>
+                        ) : (
+                          <span className="text-gray-400 text-xs">-</span>
+                        );
+                      })()}
                     </td>
                   </tr>
                 );
