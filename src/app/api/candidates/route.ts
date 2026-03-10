@@ -152,117 +152,142 @@ export async function GET(req: NextRequest) {
   // 수동 추가(기존 Candidate 보유) 여부를 별도 Set으로 관리
   const hasExistingCandidateSet = new Set<string>();
 
-  const allEmployeesData = await Promise.all(
-    users.map(async (user) => {
-      // 가감점
-      const { bonusTotal = 0, penaltyTotal = 0 } = bpMap.get(user.id) ?? {};
-      const adjustment = bonusTotal - penaltyTotal;
+  // PgBouncer connection_limit=1 환경에서 병렬 DB write 금지 — for...of 순차 실행
+  type EmployeeRow = {
+    candidateId: string | null;
+    userId: string;
+    name: string;
+    department: string | null;
+    team: string | null;
+    level: string | null;
+    position: string | null;
+    employmentType: string | null;
+    hireDate: string | null;
+    yearsOfService: number | null;
+    competencyLevel: string | null;
+    pointCumulative: number;
+    creditCumulative: number;
+    pointMet: boolean;
+    creditMet: boolean;
+    bonusTotal: number;
+    penaltyTotal: number;
+    promotionType: string;
+    isReviewTarget: boolean;
+    source: string;
+    savedAt: string | null;
+    grades: Record<number, string | null>;
+  };
+  const allEmployeesData: (EmployeeRow | null)[] = [];
 
-      // 등급 기반 포인트 재계산 (공통 모듈 사용 — 포인트 관리 페이지와 동일 로직)
-      const nextLevel = user.level ? getNextLevel(user.level) : null;
-      // L5 등 다음 레벨 없으면 레벨업 대상 아님 → 항상 제외
-      if (!nextLevel) return null;
-      // 판정 기준: 다음 레벨의 기준 사용 (L1→L2 승급 시 L2 기준 적용)
-      const criteria = criteriaMap.get(nextLevel);
-      const userGrades = gradeMap.get(user.id) ?? {};
-      const totalMerit = user.points.reduce((s, p) => s + p.merit, 0);
-      const totalPenalty = user.points.reduce((s, p) => s + p.penalty, 0);
-      let pointCumulative: number;
-      if (gradeCriteriaAll.length > 0) {
-        // 공통 함수: grade window 합 + merit/penalty + adjustment (포인트 관리 페이지와 동일)
-        const minTenure = criteria?.minTenure ?? 0;
-        pointCumulative = calculateFinalPoints(userGrades, gradeCriteriaAll, year, user.yearsOfService ?? 0, totalMerit, totalPenalty, adjustment, minTenure);
-      } else {
-        // GradeCriteria 미설정 시 DB 누적값(merit/penalty 포함) + adjustment
-        const latestPoint = user.points[user.points.length - 1];
-        pointCumulative = (latestPoint?.cumulative ?? 0) + adjustment;
-      }
+  for (const user of users) {
+    // 가감점
+    const { bonusTotal = 0, penaltyTotal = 0 } = bpMap.get(user.id) ?? {};
+    const adjustment = bonusTotal - penaltyTotal;
 
-      // 학점 = 대상 연도(GRADE_CALC_BASE=2025) 이하 가장 최근 연도의 score 사용
-      // (levelUpYear < 2025인 경우 학점이 해당 연도에 저장됐을 수 있으므로 폴백 처리)
-      const creditRecord = user.credits
-        .filter((c) => c.year <= GRADE_CALC_BASE)
-        .sort((a, b) => b.year - a.year)[0] ?? null;
-      const creditCumulative = creditRecord?.score ?? 0;
-
-      // 최종포인트 = pointCumulative만 사용 (학점 미포함 — 포인트 단독 판정)
-      const finalPoints = pointCumulative;
-
-      // 체류 연수 계산 (yearsOfService 우선 사용)
-      const tenure = user.levelStartDate
-        ? currentYear - new Date(user.levelStartDate).getFullYear()
-        : user.yearsOfService != null
-          ? user.yearsOfService
-          : user.hireDate
-            ? currentYear - new Date(user.hireDate).getFullYear()
-            : 0;
-
-      // ===== 확정 스펙 판정 =====
+    // 등급 기반 포인트 재계산 (공통 모듈 사용 — 포인트 관리 페이지와 동일 로직)
+    const nextLevel = user.level ? getNextLevel(user.level) : null;
+    // L5 등 다음 레벨 없으면 레벨업 대상 아님 → 항상 제외
+    if (!nextLevel) { allEmployeesData.push(null); continue; }
+    // 판정 기준: 다음 레벨의 기준 사용 (L1→L2 승급 시 L2 기준 적용)
+    const criteria = criteriaMap.get(nextLevel);
+    const userGrades = gradeMap.get(user.id) ?? {};
+    const totalMerit = user.points.reduce((s, p) => s + p.merit, 0);
+    const totalPenalty = user.points.reduce((s, p) => s + p.penalty, 0);
+    let pointCumulative: number;
+    if (gradeCriteriaAll.length > 0) {
+      // 공통 함수: grade window 합 + merit/penalty + adjustment (포인트 관리 페이지와 동일)
       const minTenure = criteria?.minTenure ?? 0;
-      const reqPts = criteria?.requiredPoints ?? 0;
-      const reqCredits = criteria?.requiredCredits ?? 0;
+      pointCumulative = calculateFinalPoints(userGrades, gradeCriteriaAll, year, user.yearsOfService ?? 0, totalMerit, totalPenalty, adjustment, minTenure);
+    } else {
+      // GradeCriteria 미설정 시 DB 누적값(merit/penalty 포함) + adjustment
+      const latestPoint = user.points[user.points.length - 1];
+      pointCumulative = (latestPoint?.cumulative ?? 0) + adjustment;
+    }
 
-      // 포인트/학점 충족 (일반·특진 동일 기준)
-      const pointMet = reqPts <= 0 ? true : finalPoints >= reqPts;
-      const creditMet = reqCredits <= 0 ? true : creditCumulative >= reqCredits;
+    // 학점 = 대상 연도(GRADE_CALC_BASE=2025) 이하 가장 최근 연도의 score 사용
+    // (levelUpYear < 2025인 경우 학점이 해당 연도에 저장됐을 수 있으므로 폴백 처리)
+    const creditRecord = user.credits
+      .filter((c) => c.year <= GRADE_CALC_BASE)
+      .sort((a, b) => b.year - a.year)[0] ?? null;
+    const creditCumulative = creditRecord?.score ?? 0;
 
-      // 체류연수 충족 여부 → 일반(충족)/특진(미달) 구분
-      // minTenure=0 : 체류 조건 없음 → 누구나 충족(true)
-      // criteria 없으면 (L5 등 다음 레벨 없음) 특진/일반 모두 불가
-      const tenureMet = minTenure > 0 ? tenure >= minTenure : true;
-      const isSpecialPromotion = !!criteria && pointMet && creditMet && !tenureMet;
-      const promotionType = isSpecialPromotion ? "special" : "normal";
+    // 최종포인트 = pointCumulative만 사용 (학점 미포함 — 포인트 단독 판정)
+    const finalPoints = pointCumulative;
 
-      // 기존 Candidate 레코드 업데이트 or 신규 생성 (충족 시에만)
-      const existingCandidate = user.candidates[0];
-      if (existingCandidate) hasExistingCandidateSet.add(user.id);
+    // 체류 연수 계산 (yearsOfService 우선 사용)
+    const tenure = user.levelStartDate
+      ? currentYear - new Date(user.levelStartDate).getFullYear()
+      : user.yearsOfService != null
+        ? user.yearsOfService
+        : user.hireDate
+          ? currentYear - new Date(user.hireDate).getFullYear()
+          : 0;
 
-      // 제외 처리된 대상자는 재생성하지 않고 결과에서 제외
-      if (existingCandidate?.source === "excluded") return null;
+    // ===== 확정 스펙 판정 =====
+    const minTenure = criteria?.minTenure ?? 0;
+    const reqPts = criteria?.requiredPoints ?? 0;
+    const reqCredits = criteria?.requiredCredits ?? 0;
 
-      const candidate = existingCandidate
-        ? await prisma.candidate.update({
-            where: { id: existingCandidate.id },
-            data: { pointMet, creditMet, promotionType },
+    // 포인트/학점 충족 (일반·특진 동일 기준)
+    const pointMet = reqPts <= 0 ? true : finalPoints >= reqPts;
+    const creditMet = reqCredits <= 0 ? true : creditCumulative >= reqCredits;
+
+    // 체류연수 충족 여부 → 일반(충족)/특진(미달) 구분
+    // minTenure=0 : 체류 조건 없음 → 누구나 충족(true)
+    // criteria 없으면 (L5 등 다음 레벨 없음) 특진/일반 모두 불가
+    const tenureMet = minTenure > 0 ? tenure >= minTenure : true;
+    const isSpecialPromotion = !!criteria && pointMet && creditMet && !tenureMet;
+    const promotionType = isSpecialPromotion ? "special" : "normal";
+
+    // 기존 Candidate 레코드 업데이트 or 신규 생성 (충족 시에만)
+    const existingCandidate = user.candidates[0];
+    if (existingCandidate) hasExistingCandidateSet.add(user.id);
+
+    // 제외 처리된 대상자는 재생성하지 않고 결과에서 제외
+    if (existingCandidate?.source === "excluded") { allEmployeesData.push(null); continue; }
+
+    const candidate = existingCandidate
+      ? await prisma.candidate.update({
+          where: { id: existingCandidate.id },
+          data: { pointMet, creditMet, promotionType },
+        })
+      : (!!criteria && pointMet && creditMet)
+        ? await prisma.candidate.create({
+            data: { userId: user.id, year, pointMet, creditMet, source: "auto", promotionType },
           })
-        : (!!criteria && pointMet && creditMet)
-          ? await prisma.candidate.create({
-              data: { userId: user.id, year, pointMet, creditMet, source: "auto", promotionType },
-            })
-          : null;
+        : null;
 
-      return {
-        candidateId: candidate?.id ?? null,
-        userId: user.id,
-        name: user.name,
-        department: user.department,
-        team: user.team,
-        level: user.level as string | null,
-        position: user.position,
-        employmentType: user.employmentType as string | null,
-        hireDate: user.hireDate?.toISOString() ?? null,
-        yearsOfService: user.yearsOfService,
-        competencyLevel: user.competencyLevel,
-        pointCumulative,
-        creditCumulative,
-        pointMet,
-        creditMet,
-        bonusTotal,
-        penaltyTotal,
-        promotionType: candidate?.promotionType ?? promotionType,
-        isReviewTarget: candidate?.isReviewTarget ?? false,
-        source: candidate?.source ?? "auto",
-        savedAt: candidate?.savedAt?.toISOString() ?? null,
-        grades: {
-          2021: userGrades[2021] ?? null,
-          2022: userGrades[2022] ?? null,
-          2023: userGrades[2023] ?? null,
-          2024: userGrades[2024] ?? null,
-          2025: userGrades[2025] ?? null,
-        },
-      };
-    })
-  );
+    allEmployeesData.push({
+      candidateId: candidate?.id ?? null,
+      userId: user.id,
+      name: user.name,
+      department: user.department,
+      team: user.team,
+      level: user.level as string | null,
+      position: user.position,
+      employmentType: user.employmentType as string | null,
+      hireDate: user.hireDate?.toISOString() ?? null,
+      yearsOfService: user.yearsOfService,
+      competencyLevel: user.competencyLevel,
+      pointCumulative,
+      creditCumulative,
+      pointMet,
+      creditMet,
+      bonusTotal,
+      penaltyTotal,
+      promotionType: candidate?.promotionType ?? promotionType,
+      isReviewTarget: candidate?.isReviewTarget ?? false,
+      source: candidate?.source ?? "auto",
+      savedAt: candidate?.savedAt?.toISOString() ?? null,
+      grades: {
+        2021: userGrades[2021] ?? null,
+        2022: userGrades[2022] ?? null,
+        2023: userGrades[2023] ?? null,
+        2024: userGrades[2024] ?? null,
+        2025: userGrades[2025] ?? null,
+      },
+    });
+  }
 
   // ── meetType + promotionType 필터 (JS에서 처리) ─────────────
   // null = 제외 처리된 대상자 (source="excluded")
