@@ -150,6 +150,7 @@ export function OpinionModal({
   }, [reviewId]);
 
   const isAdmin = data?.currentUser.role === "SYSTEM_ADMIN";
+  const isHRTeam = data?.currentUser.role === "HR_TEAM";
   // 본부장은 자기 의견 행만 표시 (HR_TEAM / CEO / SYSTEM_ADMIN은 전체 표시)
   const isDeptHead = data?.currentUser.role === "DEPT_HEAD";
 
@@ -157,7 +158,10 @@ export function OpinionModal({
   // isSubmitted=true(본부 제출됨)이더라도 editUnlocked=true면 편집 허용
   function getEditable(reviewer: Reviewer): boolean {
     if (isSubmitted && !editUnlocked) return false;
-    if (reviewer.reviewerRole === "인사팀장") return !!isAdmin;
+    // 인사팀장 행: SYSTEM_ADMIN 또는 HR_TEAM 본인만 편집 가능
+    if (reviewer.reviewerRole === "인사팀장") {
+      return reviewer.isCurrentUser && (!!isAdmin || !!isHRTeam);
+    }
     return reviewer.isCurrentUser || !!isAdmin;
   }
 
@@ -432,7 +436,7 @@ export function OpinionModal({
                         {/* 의견 입력 영역 — editable: 편집 가능 textarea / 아닐 때: readonly textarea */}
                         <div className="flex-1">
                           <textarea
-                            className={`w-full text-xs border rounded px-2 py-1.5 resize-none h-[70px] focus:outline-none ${
+                            className={`w-full text-xs border rounded px-2 py-1.5 resize-none min-h-[150px] focus:outline-none ${
                               editable
                                 ? "focus:ring-1 focus:ring-blue-300 bg-white"
                                 : `cursor-default text-gray-600 ${isHR ? "bg-gray-100" : "bg-gray-50"}`
