@@ -67,7 +67,8 @@
       "Bash(cd \"C:\\\\Users\\\\RSUPPORT\\\\Desktop\\\\2026 레벨업\" && npm run db:seed 2>&1)",
       "Bash(cd:*)",
       "Bash(grep:*)",
-      "Bash(head:*)"
+      "Bash(head:*)",
+      "Bash(kill 1527:*)"
     ]
   }
 }
