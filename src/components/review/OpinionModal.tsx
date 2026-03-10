@@ -453,11 +453,11 @@ export function OpinionModal({
                                 : undefined
                             }
                             placeholder={editable ? "의견을 입력하세요." : (rs.text ? "" : "미입력")}
-                            maxLength={editable ? 5000 : undefined}
+                            maxLength={editable ? 3000 : undefined}
                           />
                           {editable && (
                             <div className="text-right text-xs text-gray-400 mt-0.5">
-                              {rs.text.length.toLocaleString()} / 5,000자
+                              {rs.text.length.toLocaleString()} / 3,000자
                             </div>
                           )}
                         </div>

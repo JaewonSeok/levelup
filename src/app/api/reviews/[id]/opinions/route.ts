@@ -93,13 +93,12 @@ export async function GET(
     };
   };
 
-  const ownDeptHead = deptHeads.find((u) => u.department === candidateDept);
+  // 같은 본부에 여러 명의 DEPT_HEAD가 있을 수 있으므로 find → filter
+  const ownDeptHeads = deptHeads.filter((u) => u.department === candidateDept);
   const otherDeptHeads = deptHeads.filter((u) => u.department !== candidateDept);
 
   const reviewers = [
-    ...(ownDeptHead
-      ? [makeReviewer(ownDeptHead, "소속본부장", `${candidateDept}장`)]
-      : []),
+    ...ownDeptHeads.map((u) => makeReviewer(u, "소속본부장", `${candidateDept}장`)),
     ...otherDeptHeads.map((u) => makeReviewer(u, "타본부장", `${u.department}장`)),
     // SYSTEM_ADMIN이 로그인하면 admin 본인만 인사팀장으로 추가 (중복 방지)
     ...(session.user.role !== Role.SYSTEM_ADMIN
@@ -143,7 +142,7 @@ export async function GET(
   }
 
   // ── 안전망: 로그인한 DEPT_HEAD가 reviewers에 없으면 직접 삽입 ──
-  // deptHeads 조회(isActive=true)에서 누락되었거나 세션/DB 불일치 상황 대비
+  // deptHeads 조회에서 누락되었거나 세션/DB 불일치 상황 대비
   if (
     session.user.role === Role.DEPT_HEAD &&
     !reviewers.some((r) => r.userId === session.user.id)
