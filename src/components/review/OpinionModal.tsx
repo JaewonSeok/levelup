@@ -429,32 +429,27 @@ export function OpinionModal({
                           )}
                         </div>
 
-                        {/* 의견 입력 영역 */}
+                        {/* 의견 입력 영역 — editable: 편집 가능 textarea / 아닐 때: readonly textarea */}
                         <div className="flex-1">
-                          {editable ? (
-                            <div>
-                              <textarea
-                                className="w-full text-xs border rounded px-2 py-1.5 resize-none h-[70px] focus:outline-none focus:ring-1 focus:ring-blue-300 bg-white"
-                                value={rs.text}
-                                onChange={(e) =>
-                                  handleChange(reviewer.userId, "text", e.target.value)
-                                }
-                                placeholder="의견을 입력하세요."
-                                maxLength={5000}
-                              />
-                              <div className="text-right text-xs text-gray-400 mt-0.5">
-                                {rs.text.length.toLocaleString()} / 5,000자
-                              </div>
-                            </div>
-                          ) : (
-                            <div
-                              className={`text-xs text-gray-600 min-h-[52px] rounded px-2 py-1.5 border ${
-                                isHR ? "bg-gray-100" : "bg-gray-50"
-                              }`}
-                            >
-                              {reviewer.opinionText ?? (
-                                <span className="text-gray-400">미입력</span>
-                              )}
+                          <textarea
+                            className={`w-full text-xs border rounded px-2 py-1.5 resize-none h-[70px] focus:outline-none ${
+                              editable
+                                ? "focus:ring-1 focus:ring-blue-300 bg-white"
+                                : `cursor-default text-gray-600 ${isHR ? "bg-gray-100" : "bg-gray-50"}`
+                            }`}
+                            value={editable ? rs.text : (reviewer.opinionText ?? "")}
+                            readOnly={!editable}
+                            onChange={
+                              editable
+                                ? (e) => handleChange(reviewer.userId, "text", e.target.value)
+                                : undefined
+                            }
+                            placeholder={editable ? "의견을 입력하세요." : "미입력"}
+                            maxLength={editable ? 5000 : undefined}
+                          />
+                          {editable && (
+                            <div className="text-right text-xs text-gray-400 mt-0.5">
+                              {rs.text.length.toLocaleString()} / 5,000자
                             </div>
                           )}
                         </div>
