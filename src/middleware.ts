@@ -28,8 +28,22 @@ function getClientIp(req: NextRequest): string {
 }
 
 export function middleware(req: NextRequest) {
+  // 1. Vercel 내부 요청 허용 (SSR prefetch, Next.js data 요청 등)
+  const isInternalRequest =
+    req.headers.get("x-middleware-prefetch") ||
+    req.headers.get("x-nextjs-data") ||
+    req.headers.get("purpose") === "prefetch";
+  if (isInternalRequest) return NextResponse.next();
+
+  // 2. IP 확인
   const clientIp = getClientIp(req);
 
+  // 3. 로컬 개발 및 IP 미확인 환경 허용
+  if (!clientIp || clientIp === "::1" || clientIp === "127.0.0.1") {
+    return NextResponse.next();
+  }
+
+  // 4. 허용 IP 체크
   if (!ALLOWED_IPS.includes(clientIp)) {
     return new NextResponse(FORBIDDEN_HTML, {
       status: 403,
@@ -40,9 +54,10 @@ export function middleware(req: NextRequest) {
   return NextResponse.next();
 }
 
+// API 라우트와 정적 파일은 미들웨어에서 제외
+// (Vercel SSR/API 내부 호출이 IP 차단되는 문제 방지)
 export const config = {
   matcher: [
-    // 정적 파일·이미지·폰트·favicon 제외, 나머지 모든 경로 (API 포함) 보호
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|woff|woff2|ttf|otf)$).*)",
+    "/((?!api|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|woff|woff2|ttf|otf)$).*)",
   ],
 };
