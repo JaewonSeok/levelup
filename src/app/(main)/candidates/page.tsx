@@ -294,8 +294,11 @@ export default function CandidatesPage() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ year: query.year, userId: selectedEmpId }),
         });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error ?? "추가 실패");
+        if (!res.ok) {
+          let errMsg = "추가 실패";
+          try { const e = await res.json(); errMsg = e.error ?? errMsg; } catch { /* non-JSON */ }
+          throw new Error(errMsg);
+        }
         toast.success(`${selectedEmpName}이(가) 대상자에 추가되었습니다.`);
         setAddModalOpen(false);
         setEmpSearch(""); setEmpResults([]); setSelectedEmpId(null); setSelectedEmpName("");
@@ -332,8 +335,11 @@ export default function CandidatesPage() {
           creditCumulative: addForm.creditCumulative ? Number(addForm.creditCumulative) : undefined,
         }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "추가 실패");
+      if (!res.ok) {
+        let errMsg = "추가 실패";
+        try { const e = await res.json(); errMsg = e.error ?? errMsg; } catch { /* non-JSON */ }
+        throw new Error(errMsg);
+      }
       toast.success("대상자가 추가되었습니다.");
       setAddModalOpen(false);
       setAddForm({ department: "", team: "", name: "", level: "", yearsOfService: "", hireDate: "", pointCumulative: "", creditCumulative: "" });
@@ -351,8 +357,11 @@ export default function CandidatesPage() {
     setDeleting(true);
     try {
       const res = await fetch(`/api/candidates/${deleteTarget.candidateId}`, { method: "DELETE" });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "삭제 실패");
+      if (!res.ok) {
+        let errMsg = "삭제 실패";
+        try { const e = await res.json(); errMsg = e.error ?? errMsg; } catch { /* non-JSON */ }
+        throw new Error(errMsg);
+      }
       toast.success("대상자가 삭제되었습니다.");
       setDeleteTarget(null);
       setQuery((q) => ({ ...q }));
@@ -392,8 +401,12 @@ export default function CandidatesPage() {
           },
         }),
       });
+      if (!res.ok) {
+        let errMsg = "AI 분석 실패";
+        try { const e = await res.json(); errMsg = e.error ?? errMsg; } catch { /* non-JSON */ }
+        throw new Error(errMsg);
+      }
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "AI 분석 실패");
       setAiReport(data.report);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "AI 분석 중 오류가 발생했습니다.");

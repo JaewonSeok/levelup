@@ -100,8 +100,10 @@ export async function GET(req: NextRequest) {
     ],
   });
 
-  // 평가등급 + 가감점 순차 조회
+  // PgBouncer 안전: 모든 보조 데이터를 배치 쿼리로 한 번에 가져온 뒤 순차 루프로 처리
   const candidateUserIds = candidates.map((c) => c.userId);
+
+  // 배치 조회 (평가등급, 가감점, 포인트, 학점, 기준) — Promise.all 없이 순차로
   const allGrades = await prisma.performanceGrade.findMany({
     where: { userId: { in: candidateUserIds }, year: { in: [2021, 2022, 2023, 2024, 2025] } },
     select: { userId: true, year: true, grade: true },
@@ -110,6 +112,25 @@ export async function GET(req: NextRequest) {
     where: { userId: { in: candidateUserIds } },
     select: { userId: true, type: true, points: true },
   });
+  // 포인트: 연도 desc → userId당 첫 번째가 최신
+  const allPoints = await prisma.point.findMany({
+    where: { userId: { in: candidateUserIds } },
+    select: { userId: true, cumulative: true, year: true },
+    orderBy: { year: "desc" },
+  });
+  const allCredits = await prisma.credit.findMany({
+    where: { userId: { in: candidateUserIds } },
+    select: { userId: true, cumulative: true, year: true },
+    orderBy: { year: "desc" },
+  });
+  const levelSet = Array.from(
+    new Set(candidates.map((c) => c.user.level).filter((l): l is NonNullable<typeof l> => l != null))
+  );
+  const allCriteria = levelSet.length > 0
+    ? await prisma.levelCriteria.findMany({ where: { level: { in: levelSet }, year } })
+    : [];
+
+  // 메모리 맵 구성
   const gradeMap = new Map<string, Record<number, string>>();
   for (const g of allGrades) {
     if (!gradeMap.has(g.userId)) gradeMap.set(g.userId, {});
@@ -122,71 +143,68 @@ export async function GET(req: NextRequest) {
     if (bp.points > 0) entry.bonusTotal += bp.points;
     else entry.penaltyTotal += Math.abs(bp.points);
   }
+  const latestPointMap = new Map<string, number>();
+  for (const p of allPoints) {
+    if (!latestPointMap.has(p.userId)) latestPointMap.set(p.userId, p.cumulative);
+  }
+  const latestCreditMap = new Map<string, number>();
+  for (const cr of allCredits) {
+    if (!latestCreditMap.has(cr.userId)) latestCreditMap.set(cr.userId, cr.cumulative);
+  }
+  const criteriaMap = new Map(allCriteria.map((c) => [c.level as string, c]));
 
-  // Confirmation이 없으면 자동 upsert (PENDING)
-  const rows = await Promise.all(
-    candidates.map(async (c) => {
-      let confirmation = c.confirmation;
-      if (!confirmation) {
-        confirmation = await prisma.confirmation.upsert({
-          where: { candidateId: c.id },
-          create: { candidateId: c.id, status: ConfirmationStatus.PENDING },
-          update: {},
-        });
-      }
+  // Confirmation upsert + 행 구성: 순차 루프 (PgBouncer 커넥션 동시 과부하 방지)
+  const rows = [];
+  for (const c of candidates) {
+    let confirmation = c.confirmation;
+    if (!confirmation) {
+      confirmation = await prisma.confirmation.upsert({
+        where: { candidateId: c.id },
+        create: { candidateId: c.id, status: ConfirmationStatus.PENDING },
+        update: {},
+      });
+    }
 
-      // 포인트/학점 누적 조회 (순차)
-      const latestPoint = await prisma.point.findFirst({ where: { userId: c.userId }, orderBy: { year: "desc" } });
-      const latestCredit = await prisma.credit.findFirst({ where: { userId: c.userId }, orderBy: { year: "desc" } });
+    const { bonusTotal = 0, penaltyTotal = 0 } = bpMap.get(c.userId) ?? {};
+    const adjustment = bonusTotal - penaltyTotal;
+    const criteria = c.user.level ? (criteriaMap.get(c.user.level as string) ?? null) : null;
+    const userGrades = gradeMap.get(c.userId) ?? {};
+    const deptSubmitted = submittedDepts.has(c.user.department ?? "");
 
-      const { bonusTotal = 0, penaltyTotal = 0 } = bpMap.get(c.userId) ?? {};
-      const adjustment = bonusTotal - penaltyTotal;
-
-      // 기준 조회
-      const criteria = c.user.level
-        ? await prisma.levelCriteria.findFirst({
-            where: { level: c.user.level, year },
-          })
-        : null;
-
-      const userGrades = gradeMap.get(c.userId) ?? {};
-      const deptSubmitted = submittedDepts.has(c.user.department ?? "");
-
-      return {
-        candidateId: c.id,
-        confirmationId: confirmation.id,
-        userId: c.userId,
-        name: c.user.name,
-        department: c.user.department,
-        team: c.user.team,
-        level: c.user.level as string | null,
-        competencyLevel: c.user.competencyLevel,
-        yearsOfService: c.user.yearsOfService,
-        hireDate: c.user.hireDate?.toISOString() ?? null,
-        pointCumulative: (latestPoint?.cumulative ?? 0) + adjustment,
-        creditCumulative: latestCredit?.cumulative ?? 0,
-        bonusTotal,
-        penaltyTotal,
-        requiredPoints: criteria?.requiredPoints ?? null,
-        requiredCredits: criteria?.requiredCredits ?? null,
-        competencyScore: c.review?.competencyScore ?? null,
-        competencyEval: c.review?.competencyEval ?? null,
-        reviewRecommendation: c.review?.recommendation ?? null,
-        promotionType: c.promotionType ?? "normal",
-        status: confirmation.status,
-        confirmedAt: confirmation.confirmedAt?.toISOString() ?? null,
-        isSubmitted: deptSubmitted,
-        grades: {
-          2021: userGrades[2021] ?? null,
-          2022: userGrades[2022] ?? null,
-          2023: userGrades[2023] ?? null,
-          2024: userGrades[2024] ?? null,
-          2025: userGrades[2025] ?? null,
-        },
-        note: c.note ? { noteText: c.note.noteText ?? null, fileUrl: c.note.fileUrl ?? null, fileName: c.note.fileName ?? null } : null,
-      };
-    })
-  );
+    rows.push({
+      candidateId: c.id,
+      confirmationId: confirmation.id,
+      userId: c.userId,
+      name: c.user.name,
+      department: c.user.department,
+      team: c.user.team,
+      level: c.user.level as string | null,
+      competencyLevel: c.user.competencyLevel,
+      yearsOfService: c.user.yearsOfService,
+      hireDate: c.user.hireDate?.toISOString() ?? null,
+      pointCumulative: (latestPointMap.get(c.userId) ?? 0) + adjustment,
+      creditCumulative: latestCreditMap.get(c.userId) ?? 0,
+      bonusTotal,
+      penaltyTotal,
+      requiredPoints: criteria?.requiredPoints ?? null,
+      requiredCredits: criteria?.requiredCredits ?? null,
+      competencyScore: c.review?.competencyScore ?? null,
+      competencyEval: c.review?.competencyEval ?? null,
+      reviewRecommendation: c.review?.recommendation ?? null,
+      promotionType: c.promotionType ?? "normal",
+      status: confirmation.status,
+      confirmedAt: confirmation.confirmedAt?.toISOString() ?? null,
+      isSubmitted: deptSubmitted,
+      grades: {
+        2021: userGrades[2021] ?? null,
+        2022: userGrades[2022] ?? null,
+        2023: userGrades[2023] ?? null,
+        2024: userGrades[2024] ?? null,
+        2025: userGrades[2025] ?? null,
+      },
+      note: c.note ? { noteText: c.note.noteText ?? null, fileUrl: c.note.fileUrl ?? null, fileName: c.note.fileName ?? null } : null,
+    });
+  }
 
   // 요약 통계
   const confirmedRows = rows.filter((r) => r.status === ConfirmationStatus.CONFIRMED);

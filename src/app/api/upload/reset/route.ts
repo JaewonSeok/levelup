@@ -14,18 +14,26 @@ export async function DELETE() {
     return NextResponse.json({ error: "시스템 관리자만 초기화할 수 있습니다." }, { status: 403 });
   }
 
-  // 삭제 대상: 엑셀 업로드로 생성된 일반 직원 계정 (DEPT_HEAD/HR_TEAM/CEO/SYSTEM_ADMIN 제외)
-  const SYSTEM_ROLES: Role[] = [Role.DEPT_HEAD, Role.HR_TEAM, Role.CEO, Role.SYSTEM_ADMIN];
+  try {
+    // 삭제 대상: 엑셀 업로드로 생성된 일반 직원 계정 (DEPT_HEAD/HR_TEAM/CEO/SYSTEM_ADMIN 제외)
+    const SYSTEM_ROLES: Role[] = [Role.DEPT_HEAD, Role.HR_TEAM, Role.CEO, Role.SYSTEM_ADMIN];
 
-  // onDelete: Cascade로 인해 User 삭제 시 Point/Credit/PerformanceGrade/BonusPenalty/Candidate 자동 삭제
-  // Candidate 삭제 시 Review/Opinion/Confirmation 자동 삭제
-  await prisma.user.deleteMany({
-    where: { role: { notIn: SYSTEM_ROLES } },
-  });
+    // onDelete: Cascade로 인해 User 삭제 시 Point/Credit/PerformanceGrade/BonusPenalty/Candidate 자동 삭제
+    // Candidate 삭제 시 Review/Opinion/Confirmation 자동 삭제
+    await prisma.user.deleteMany({
+      where: { role: { notIn: SYSTEM_ROLES } },
+    });
 
-  // Submission/UploadHistory는 User FK 없으므로 별도 삭제
-  await prisma.submission.deleteMany();
-  await prisma.uploadHistory.deleteMany();
+    // Submission/UploadHistory는 User FK 없으므로 별도 삭제
+    await prisma.submission.deleteMany();
+    await prisma.uploadHistory.deleteMany();
 
-  return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error("[DELETE /api/upload/reset] error:", error);
+    return NextResponse.json(
+      { error: "초기화 중 오류가 발생했습니다." },
+      { status: 500 }
+    );
+  }
 }

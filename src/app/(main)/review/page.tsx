@@ -579,8 +579,12 @@ export default function ReviewPage() {
           },
         }),
       });
+      if (!res.ok) {
+        let errMsg = "AI 분석 실패";
+        try { const e = await res.json(); errMsg = e.error ?? errMsg; } catch { /* non-JSON */ }
+        throw new Error(errMsg);
+      }
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "AI 분석 실패");
       setAiReport(data.report);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "AI 분석 중 오류가 발생했습니다.");

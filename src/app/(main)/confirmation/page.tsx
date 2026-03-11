@@ -183,8 +183,12 @@ export default function ConfirmationPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: newStatus }),
       });
+      if (!res.ok) {
+        let errMsg = "변경 실패";
+        try { const e = await res.json(); errMsg = e.error ?? errMsg; } catch { /* non-JSON */ }
+        throw new Error(errMsg);
+      }
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "변경 실패");
 
       toast.success(`상태가 "${STATUS_LABEL[newStatus]}"으로 변경되었습니다.`);
       setRows((prev) =>

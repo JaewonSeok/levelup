@@ -169,13 +169,14 @@ export default function UploadPage() {
         body: formData,
       });
 
-      const data: UploadResult & { error?: string } = await res.json();
-
       if (!res.ok) {
-        setUploadError(data.error ?? "업로드 실패");
+        let errMsg = "업로드 실패";
+        try { const e = await res.json(); errMsg = e.error ?? errMsg; } catch { /* non-JSON */ }
+        setUploadError(errMsg);
         return;
       }
 
+      const data: UploadResult & { error?: string } = await res.json();
       setResult(data);
       setParsedRows(null);
       setFile(null);
@@ -202,8 +203,11 @@ export default function UploadPage() {
     setIsResetting(true);
     try {
       const res = await fetch("/api/upload/reset", { method: "DELETE" });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "초기화 실패");
+      if (!res.ok) {
+        let errMsg = "초기화 실패";
+        try { const e = await res.json(); errMsg = e.error ?? errMsg; } catch { /* non-JSON */ }
+        throw new Error(errMsg);
+      }
       alert("전체 직원 데이터가 초기화되었습니다.\n엑셀을 다시 업로드해주세요.");
     } catch (e) {
       alert(e instanceof Error ? e.message : "초기화 중 오류가 발생했습니다.");

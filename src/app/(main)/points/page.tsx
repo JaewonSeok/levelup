@@ -331,8 +331,11 @@ export default function PointsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ userId: bpEmployee.id, year: currentYear, items, note: bpNote }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "저장 실패");
+      if (!res.ok) {
+        let errMsg = "저장 실패";
+        try { const e = await res.json(); errMsg = e.error ?? errMsg; } catch { /* non-JSON */ }
+        throw new Error(errMsg);
+      }
       toast.success("가감점이 저장되었습니다.");
       // 로컬 상태 업데이트
       const bonusTotal = items.filter((i) => i.type === "bonus").reduce((s, i) => s + i.points, 0);
@@ -358,8 +361,11 @@ export default function PointsPage() {
     if (!window.confirm(`"${emp.name}" 직원을 비활성화하시겠습니까?\n(레벨관리·포인트·학점 모든 화면에서 숨김 처리됩니다)`)) return;
     try {
       const res = await fetch(`/api/employees/${emp.id}`, { method: "DELETE" });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "삭제 실패");
+      if (!res.ok) {
+        let errMsg = "삭제 실패";
+        try { const e = await res.json(); errMsg = e.error ?? errMsg; } catch { /* non-JSON */ }
+        throw new Error(errMsg);
+      }
       toast.success(`"${emp.name}" 직원이 비활성화되었습니다.`);
       fetchPoints(lastParams, page);
     } catch (e) {
@@ -400,8 +406,11 @@ export default function PointsPage() {
           pointScore: addEmpForm.pointScore !== "" ? Number(addEmpForm.pointScore) : null,
         }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "저장 실패");
+      if (!res.ok) {
+        let errMsg = "저장 실패";
+        try { const e = await res.json(); errMsg = e.error ?? errMsg; } catch { /* non-JSON */ }
+        throw new Error(errMsg);
+      }
       toast.success("직원이 추가되었습니다.");
       setAddEmpOpen(false);
       setAddEmpForm(DEFAULT_ADD_FORM);

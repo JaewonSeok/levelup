@@ -229,12 +229,12 @@ export function OpinionModal({
         body: JSON.stringify(body),
       });
 
-      // 성공/실패 모두 응답 본문을 먼저 읽는다
-      const resData = await res.json();
-
       if (!res.ok) {
-        throw new Error(resData.error ?? "저장 실패");
+        let errMsg = "저장 실패";
+        try { const e = await res.json(); errMsg = e.error ?? errMsg; } catch { /* non-JSON */ }
+        throw new Error(errMsg);
       }
+      const resData = await res.json();
 
       setRowStates((prev) => ({
         ...prev,
@@ -354,8 +354,12 @@ export function OpinionModal({
           },
         }),
       });
+      if (!res.ok) {
+        let errMsg = "AI 분석 실패";
+        try { const e = await res.json(); errMsg = e.error ?? errMsg; } catch { /* non-JSON */ }
+        throw new Error(errMsg);
+      }
       const resData = await res.json();
-      if (!res.ok) throw new Error(resData.error ?? "AI 분석 실패");
       setAiReport(resData.report);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "AI 분석 중 오류가 발생했습니다.");

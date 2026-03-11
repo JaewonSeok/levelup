@@ -294,8 +294,12 @@ function EmployeeFormModal({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
+      if (!res.ok) {
+        let errMsg = "저장 실패";
+        try { const e = await res.json(); errMsg = e.error ?? errMsg; } catch { /* non-JSON */ }
+        throw new Error(errMsg);
+      }
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "저장 실패");
 
       toast.success(mode === "add" ? "직원이 추가되었습니다." : "직원 정보가 수정되었습니다.");
       onSaved(data.employee);
@@ -583,8 +587,11 @@ export default function LevelManagementPage() {
     setDeleting(true);
     try {
       const res = await fetch(`/api/employees/${deleteTarget.id}`, { method: "DELETE" });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "삭제 실패");
+      if (!res.ok) {
+        let errMsg = "삭제 실패";
+        try { const e = await res.json(); errMsg = e.error ?? errMsg; } catch { /* non-JSON */ }
+        throw new Error(errMsg);
+      }
       toast.success("직원이 비활성화되었습니다.");
       setDeleteTarget(null);
       fetchEmployees(lastParams, page);

@@ -231,8 +231,11 @@ export default function CreditsPage() {
           credit2025: addEmpForm.credit2025 !== "" ? Number(addEmpForm.credit2025) : null,
         }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "저장 실패");
+      if (!res.ok) {
+        let errMsg = "저장 실패";
+        try { const e = await res.json(); errMsg = e.error ?? errMsg; } catch { /* non-JSON */ }
+        throw new Error(errMsg);
+      }
       toast.success("직원이 추가되었습니다.");
       setAddEmpOpen(false);
       setAddEmpForm(DEFAULT_ADD_FORM);
@@ -332,8 +335,11 @@ export default function CreditsPage() {
         `/api/credits?userId=${employeeId}&year=${yr}`,
         { method: "DELETE" }
       );
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "삭제 실패");
+      if (!res.ok) {
+        let errMsg = "삭제 실패";
+        try { const e = await res.json(); errMsg = e.error ?? errMsg; } catch { /* non-JSON */ }
+        throw new Error(errMsg);
+      }
       toast.success(`${yr}년 학점 데이터가 삭제되었습니다.`);
       // 모달 편집 상태에서 연도 제거
       setEditState((prev) => {
@@ -363,8 +369,11 @@ export default function CreditsPage() {
     if (!window.confirm(`"${emp.name}" 직원을 비활성화하시겠습니까?\n(레벨관리·포인트·학점 모든 화면에서 숨김 처리됩니다)`)) return;
     try {
       const res = await fetch(`/api/employees/${emp.id}`, { method: "DELETE" });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "삭제 실패");
+      if (!res.ok) {
+        let errMsg = "삭제 실패";
+        try { const e = await res.json(); errMsg = e.error ?? errMsg; } catch { /* non-JSON */ }
+        throw new Error(errMsg);
+      }
       toast.success(`"${emp.name}" 직원이 비활성화되었습니다.`);
       fetchCredits(lastParams, page);
     } catch (e) {

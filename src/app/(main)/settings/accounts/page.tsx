@@ -96,6 +96,7 @@ export default function AccountsPage() {
     setLoading(true);
     try {
       const res = await fetch("/api/accounts");
+      if (!res.ok) return;
       const json = await res.json();
       setAccounts(json.accounts ?? []);
     } catch {
@@ -157,9 +158,10 @@ export default function AccountsPage() {
         body: JSON.stringify(form),
       });
 
-      const json = await res.json();
       if (!res.ok) {
-        toast.error(json.error ?? "저장에 실패했습니다.");
+        let errMsg = "저장에 실패했습니다.";
+        try { const e = await res.json(); errMsg = e.error ?? errMsg; } catch { /* non-JSON */ }
+        toast.error(errMsg);
         return;
       }
 
@@ -184,9 +186,10 @@ export default function AccountsPage() {
     setDeleting(true);
     try {
       const res = await fetch(`/api/accounts/${deleteTarget.id}`, { method: "DELETE" });
-      const json = await res.json();
       if (!res.ok) {
-        toast.error(json.error ?? "삭제에 실패했습니다.");
+        let errMsg = "삭제에 실패했습니다.";
+        try { const e = await res.json(); errMsg = e.error ?? errMsg; } catch { /* non-JSON */ }
+        toast.error(errMsg);
         return;
       }
       toast.success("계정이 삭제되었습니다.");

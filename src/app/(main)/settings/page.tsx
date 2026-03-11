@@ -96,6 +96,10 @@ export default function SettingsPage() {
     setLoading(true);
     try {
       const res = await fetch(`/api/settings?year=${y}`);
+      if (!res.ok) {
+        console.error("[settings] fetchData 실패:", res.status);
+        return;
+      }
       const json: SettingsData = await res.json();
       setData(json);
 
@@ -109,6 +113,8 @@ export default function SettingsPage() {
       }
       setEditValues(init);
       setIsDirty(false);
+    } catch {
+      console.error("[settings] fetchData 예외");
     } finally {
       setLoading(false);
     }
@@ -118,8 +124,11 @@ export default function SettingsPage() {
     setHistoryLoading(true);
     try {
       const res = await fetch(`/api/settings/history?year=${y}`);
+      if (!res.ok) return;
       const json = await res.json();
       setHistory(json.history ?? []);
+    } catch {
+      // 히스토리 로드 실패는 무시
     } finally {
       setHistoryLoading(false);
     }
