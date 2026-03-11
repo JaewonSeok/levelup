@@ -273,9 +273,11 @@ export function OpinionModal({
     }
   }
 
-  // 추천 드롭다운 변경 핸들러 — 추천/미추천 선택 시 사유 팝업, 의견없음은 바로 반영
+  // 추천 드롭다운 변경 핸들러
+  // 수정 3: SYSTEM_ADMIN만 사유 팝업, 본부장은 바로 반영
   function handleRecChange(reviewer: Reviewer, value: "추천" | "미추천" | "의견없음" | "") {
-    if (value === "추천" || value === "미추천") {
+    if ((value === "추천" || value === "미추천") && isAdmin) {
+      // SYSTEM_ADMIN: 사유 팝업 표시
       const currentRec = rowStates[reviewer.userId]?.rec ?? "";
       const currentReason = rowStates[reviewer.userId]?.reason ?? "";
       setReasonPopup({
@@ -285,13 +287,16 @@ export function OpinionModal({
         prevRec: currentRec,
       });
     } else {
-      // "의견없음" 또는 "" — 바로 반영
+      // 비어드민(DEPT_HEAD) 또는 의견없음/"" — 팝업 없이 바로 반영
       setRowStates((prev) => ({
         ...prev,
         [reviewer.userId]: {
           ...prev[reviewer.userId],
           rec: value,
-          reason: "",
+          // 비어드민은 기존 reason 유지 (이미 저장된 사유가 있으면 보존)
+          reason: (value === "추천" || value === "미추천")
+            ? (prev[reviewer.userId]?.reason ?? "")
+            : "",
           isDirty: true,
           savedJustNow: false,
         },

@@ -33,6 +33,19 @@ export async function GET(req: NextRequest) {
   const submittedDepts = new Set(submissions.map((s) => s.department));
   const submittedDeptMap = new Map(submissions.map((s) => [s.department, s.submittedAt.toISOString()]));
 
+  // 제출된 본부가 없고 showAll=false이면 빈 목록 반환
+  if (!showAll && submittedDepts.size === 0 && !department) {
+    const metaDepts = await prisma.user.findMany({ distinct: ["department"], select: { department: true }, orderBy: { department: "asc" } });
+    const metaTeams = await prisma.user.findMany({ distinct: ["team"], select: { team: true }, orderBy: { team: "asc" } });
+    return NextResponse.json({
+      employees: [],
+      total: 0,
+      summary: { pending: 0, confirmed: 0, deferred: 0, submittedDeptCount: 0, confirmedNormal: 0, confirmedSpecial: 0, totalNormal: 0, totalSpecial: 0 },
+      submittedDepartments: [],
+      meta: { departments: metaDepts.map((d) => d.department).filter(Boolean), teams: metaTeams.map((t) => t.team).filter(Boolean) },
+    });
+  }
+
   // 부서 필터 구성
   const userWhere: Prisma.UserWhereInput = {
     role: { not: Role.DEPT_HEAD },
@@ -48,14 +61,12 @@ export async function GET(req: NextRequest) {
     userWhere.team = { contains: team, mode: "insensitive" };
   }
 
-  // isReviewTarget=true 또는 review.recommendation=true인 Candidate 조회
+  // isReviewTarget=true AND review.recommendation=true인 Candidate 조회
   const candidates = await prisma.candidate.findMany({
     where: {
       year,
-      OR: [
-        { isReviewTarget: true },
-        { review: { recommendation: true } },
-      ],
+      isReviewTarget: true,
+      review: { recommendation: true },
       user: userWhere,
     },
     include: {
@@ -80,6 +91,7 @@ export async function GET(req: NextRequest) {
         },
       },
       confirmation: true,
+      note: true,
     },
     orderBy: [
       { user: { department: "asc" } },
@@ -171,6 +183,7 @@ export async function GET(req: NextRequest) {
           2024: userGrades[2024] ?? null,
           2025: userGrades[2025] ?? null,
         },
+        note: c.note ? { noteText: c.note.noteText ?? null, fileUrl: c.note.fileUrl ?? null, fileName: c.note.fileName ?? null } : null,
       };
     })
   );

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { EmployeeTooltip } from "@/components/EmployeeTooltip";
@@ -13,6 +13,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { toast } from "sonner";
 
 // ── Types ──────────────────────────────────────────────────────
@@ -23,6 +30,12 @@ interface GradeMap {
   2023: string | null;
   2024: string | null;
   2025: string | null;
+}
+
+interface CandidateNoteData {
+  noteText: string | null;
+  fileUrl: string | null;
+  fileName: string | null;
 }
 
 interface ConfirmationRow {
@@ -50,6 +63,7 @@ interface ConfirmationRow {
   confirmedAt: string | null;
   isSubmitted: boolean;
   grades: GradeMap;
+  note: CandidateNoteData | null;
 }
 
 interface Summary {
@@ -108,6 +122,179 @@ const STATUS_VARIANT: Record<string, "secondary" | "default" | "destructive" | "
 
 const ALLOWED_ROLES = ["CEO", "HR_TEAM", "SYSTEM_ADMIN"];
 
+// ── NoteModal ─────────────────────────────────────────────────
+
+interface NoteModalProps {
+  candidateId: string;
+  candidateName: string;
+  initialNote: CandidateNoteData | null;
+  onClose: () => void;
+  onSaved: (candidateId: string, note: CandidateNoteData | null) => void;
+}
+
+function NoteModal({ candidateId, candidateName, initialNote, onClose, onSaved }: NoteModalProps) {
+  const [noteText, setNoteText] = useState(initialNote?.noteText ?? "");
+  const [fileUrl, setFileUrl] = useState(initialNote?.fileUrl ?? null);
+  const [fileName, setFileName] = useState(initialNote?.fileName ?? null);
+  const [uploading, setUploading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    const formData = new FormData();
+    formData.append("file", file);
+    try {
+      const res = await fetch("/api/candidate-notes/upload", { method: "POST", body: formData });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "업로드 실패");
+      setFileUrl(data.fileUrl);
+      setFileName(data.fileName);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "파일 업로드에 실패했습니다.");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleRemoveFile = () => {
+    setFileUrl(null);
+    setFileName(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const res = await fetch("/api/candidate-notes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ candidateId, noteText: noteText.trim() || null, fileUrl, fileName }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error ?? "저장 실패");
+      }
+      onSaved(candidateId, { noteText: noteText.trim() || null, fileUrl, fileName });
+      toast.success("메모가 저장되었습니다.");
+      onClose();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "저장 중 오류가 발생했습니다.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/candidate-notes?candidateId=${candidateId}`, { method: "DELETE" });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error ?? "삭제 실패");
+      }
+      onSaved(candidateId, null);
+      toast.success("메모가 삭제되었습니다.");
+      onClose();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "삭제 중 오류가 발생했습니다.");
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const hasNote = !!(initialNote?.noteText || initialNote?.fileUrl);
+
+  return (
+    <Dialog open onOpenChange={onClose}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>비고 메모 — {candidateName}</DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-3">
+          <div>
+            <label className="text-sm font-medium text-gray-700">메모</label>
+            <textarea
+              className="mt-1 w-full border rounded-md px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-ring"
+              rows={5}
+              maxLength={2000}
+              value={noteText}
+              onChange={(e) => setNoteText(e.target.value)}
+              placeholder="개인별 메모를 입력하세요. (최대 2,000자)"
+            />
+            <p className="text-right text-xs text-muted-foreground">{noteText.length} / 2,000</p>
+          </div>
+
+          <div>
+            <label className="text-sm font-medium text-gray-700">첨부파일</label>
+            {fileName ? (
+              <div className="mt-1 flex items-center gap-2 px-3 py-2 border rounded-md bg-gray-50">
+                <span className="text-sm truncate flex-1">{fileName}</span>
+                {fileUrl && (
+                  <a href={fileUrl} target="_blank" rel="noreferrer" className="text-xs text-blue-600 hover:underline shrink-0">
+                    보기
+                  </a>
+                )}
+                <button
+                  type="button"
+                  className="text-xs text-red-500 hover:text-red-700 shrink-0"
+                  onClick={handleRemoveFile}
+                >
+                  제거
+                </button>
+              </div>
+            ) : (
+              <div className="mt-1">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-8 text-xs"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploading}
+                >
+                  {uploading ? "업로드 중..." : "파일 선택"}
+                </Button>
+                <span className="ml-2 text-xs text-muted-foreground">PDF, Excel, 이미지 (최대 10MB)</span>
+              </div>
+            )}
+            <input
+              ref={fileInputRef}
+              type="file"
+              className="hidden"
+              accept=".pdf,.xlsx,.xls,.jpg,.jpeg,.png,.gif,.webp"
+              onChange={handleFileChange}
+            />
+          </div>
+        </div>
+
+        <DialogFooter className="gap-2 mt-2">
+          {hasNote && (
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={handleDelete}
+              disabled={deleting || saving}
+            >
+              {deleting ? "삭제 중..." : "삭제"}
+            </Button>
+          )}
+          <Button variant="outline" size="sm" onClick={onClose} disabled={saving || deleting}>
+            취소
+          </Button>
+          <Button size="sm" onClick={handleSave} disabled={saving || uploading || deleting}>
+            {saving ? "저장 중..." : "저장"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // ── Component ──────────────────────────────────────────────────
 
 export default function ConfirmationPage() {
@@ -117,6 +304,7 @@ export default function ConfirmationPage() {
   const role = session?.user?.role ?? "";
   const canConfirm = role === "CEO" || role === "SYSTEM_ADMIN";
   const isAdmin = role === "SYSTEM_ADMIN";
+  const canEditNote = role === "HR_TEAM" || role === "SYSTEM_ADMIN";
 
   useEffect(() => {
     if (authStatus === "loading") return;
@@ -136,6 +324,7 @@ export default function ConfirmationPage() {
   const [meta, setMeta] = useState<{ departments: string[]; teams: string[] }>({ departments: [], teams: [] });
   const [loading, setLoading] = useState(false);
   const [changingId, setChangingId] = useState<string | null>(null);
+  const [noteModal, setNoteModal] = useState<{ candidateId: string; candidateName: string; note: CandidateNoteData | null } | null>(null);
 
   // ── Fetch ──────────────────────────────────────────────────
 
@@ -211,6 +400,10 @@ export default function ConfirmationPage() {
     } finally {
       setChangingId(null);
     }
+  };
+
+  const handleNoteSaved = (candidateId: string, note: CandidateNoteData | null) => {
+    setRows((prev) => prev.map((r) => r.candidateId === candidateId ? { ...r, note } : r));
   };
 
   // ── Render ─────────────────────────────────────────────────
@@ -350,19 +543,20 @@ export default function ConfirmationPage() {
               <th className="border px-2 py-2 font-medium">구분</th>
               <th className="border px-2 py-2 font-medium">추천여부</th>
               <th className="border px-2 py-2 font-medium">확정상태</th>
+              <th className="border px-2 py-2 font-medium">비고</th>
               {canConfirm && <th className="border px-2 py-2 font-medium">상태변경</th>}
             </tr>
           </thead>
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={canConfirm ? 13 + GRADE_YEARS.length : 12 + GRADE_YEARS.length} className="text-center py-10 text-muted-foreground">
+                <td colSpan={canConfirm ? 14 + GRADE_YEARS.length : 13 + GRADE_YEARS.length} className="text-center py-10 text-muted-foreground">
                   불러오는 중...
                 </td>
               </tr>
             ) : rows.length === 0 ? (
               <tr>
-                <td colSpan={canConfirm ? 13 + GRADE_YEARS.length : 12 + GRADE_YEARS.length} className="text-center py-10 text-muted-foreground">
+                <td colSpan={canConfirm ? 14 + GRADE_YEARS.length : 13 + GRADE_YEARS.length} className="text-center py-10 text-muted-foreground">
                   {showAll ? "심사 완료된 대상자가 없습니다." : "제출된 본부의 심사 대상자가 없습니다."}
                 </td>
               </tr>
@@ -458,6 +652,38 @@ export default function ConfirmationPage() {
                       </Badge>
                     </td>
 
+                    {/* 비고 */}
+                    <td className="border px-2 py-1.5 text-center">
+                      {row.note?.noteText || row.note?.fileUrl ? (
+                        <div className="relative group inline-block">
+                          <button
+                            type="button"
+                            className="text-base leading-none hover:opacity-70"
+                            title="메모 보기/수정"
+                            onClick={() => setNoteModal({ candidateId: row.candidateId, candidateName: row.name, note: row.note })}
+                          >
+                            📝
+                          </button>
+                          {row.note.noteText && (
+                            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 z-50 hidden group-hover:block max-w-[240px] bg-gray-800 text-white text-xs rounded-md shadow-lg px-2 py-1.5 whitespace-pre-wrap pointer-events-none text-left">
+                              {row.note.noteText.slice(0, 120)}{row.note.noteText.length > 120 ? "…" : ""}
+                            </div>
+                          )}
+                        </div>
+                      ) : canEditNote ? (
+                        <button
+                          type="button"
+                          className="text-xs text-gray-400 hover:text-gray-600"
+                          title="메모 추가"
+                          onClick={() => setNoteModal({ candidateId: row.candidateId, candidateName: row.name, note: null })}
+                        >
+                          +
+                        </button>
+                      ) : (
+                        <span className="text-gray-300 text-xs">-</span>
+                      )}
+                    </td>
+
                     {/* 상태변경 (CEO / SYSTEM_ADMIN) */}
                     {canConfirm && (
                       <td className="border px-2 py-1.5">
@@ -518,6 +744,17 @@ export default function ConfirmationPage() {
           </span>
         )}
       </div>
+
+      {/* 비고 NoteModal */}
+      {noteModal && (
+        <NoteModal
+          candidateId={noteModal.candidateId}
+          candidateName={noteModal.candidateName}
+          initialNote={noteModal.note}
+          onClose={() => setNoteModal(null)}
+          onSaved={handleNoteSaved}
+        />
+      )}
     </div>
   );
 }

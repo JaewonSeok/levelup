@@ -249,9 +249,11 @@ export default function ReviewPage() {
   const displayCandidates = isDeptHead
     ? candidates.filter((c) => {
         if (query.targetType === "other")
-          return c.department !== currentDeptName && (c.level === "L4" || c.level === "L5");
+          // 수정 4: L3 포함
+          return c.department !== currentDeptName && (c.level === "L3" || c.level === "L4" || c.level === "L5");
         if (query.targetType === "all")
-          return c.department === currentDeptName || c.level === "L4" || c.level === "L5";
+          // 수정 4: L3 포함
+          return c.department === currentDeptName || c.level === "L3" || c.level === "L4" || c.level === "L5";
         return true; // "own": API가 이미 소속 본부만 필터링
       })
     : candidates;
@@ -347,8 +349,8 @@ export default function ReviewPage() {
   }, []);
 
   const handleRecommendationChange = (reviewId: string, value: string) => {
-    if (value === "true" || value === "false") {
-      // 추천/미추천: 사유 팝업 먼저
+    if ((value === "true" || value === "false") && isAdmin) {
+      // 수정 3: SYSTEM_ADMIN만 사유 팝업 표시
       const prev = candidates.find((c) => c.reviewId === reviewId);
       setRecReasonPopup({
         reviewId,
@@ -356,7 +358,7 @@ export default function ReviewPage() {
         reason: prev?.recommendationReason ?? "",
       });
     } else {
-      // "" (선택 해제) 또는 "none" (의견없음): 팝업 없이 바로 저장
+      // 비어드민 또는 의견없음/선택해제: 팝업 없이 바로 저장
       doSaveRecommendation(reviewId, value, null);
     }
   };

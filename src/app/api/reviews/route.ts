@@ -41,19 +41,19 @@ export async function GET(req: NextRequest) {
     userConditions.push({ department: currentDept });
   } else if (targetType === "other") {
     userConditions.push({ NOT: { department: currentDept } });
-    // 타본부장은 L4, L5 승진 심사만 담당 (L1~L3은 소속 본부장만 평가)
+    // 타본부장은 L3, L4, L5 승진 심사 담당 (수정 4: L3 포함)
     if (session.user.role === Role.DEPT_HEAD) {
-      userConditions.push({ level: { in: [Level.L4, Level.L5] } });
+      userConditions.push({ level: { in: [Level.L3, Level.L4, Level.L5] } });
     }
   } else if (targetType === "all" && session.user.role === Role.DEPT_HEAD) {
-    // 본부장 전체: 본인소속 L1~L5 전부 + 타본부 L4,L5만
+    // 본부장 전체: 본인소속 L1~L5 전부 + 타본부 L3,L4,L5 (수정 4: L3 포함)
     userConditions.push({
       OR: [
         { department: currentDept },
         {
           AND: [
             { NOT: { department: currentDept } },
-            { level: { in: [Level.L4, Level.L5] } },
+            { level: { in: [Level.L3, Level.L4, Level.L5] } },
           ],
         },
       ],
@@ -261,11 +261,18 @@ export async function GET(req: NextRequest) {
     };
   });
 
+  // ── 수정 1: 타본부장 조회 시 소속본부장 미추천 직원 제외 (어드민은 전체 표시) ──
+  const resultForScoring = (session.user.role === Role.DEPT_HEAD)
+    ? result.filter((r) =>
+        r.department === currentDept || r.recommendationStatus !== "제외"
+      )
+    : result;
+
   // ── AI 스코어링: 레벨별 평균 계산 후 각 대상자에 점수 부여 ──
   const levelGroupAvg: Record<string, { avgPoints: number; avgCredits: number }> = {};
   {
     const lvGroups: Record<string, { pts: number[]; creds: number[] }> = {};
-    for (const r of result) {
+    for (const r of resultForScoring) {
       const lv = (r.level ?? "").substring(0, 2);
       if (!lvGroups[lv]) lvGroups[lv] = { pts: [], creds: [] };
       lvGroups[lv].pts.push(r.pointCumulative);
@@ -279,7 +286,7 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  const enrichedResult = result.map((r) => {
+  const enrichedResult = resultForScoring.map((r) => {
     const nl = getNextLevel(r.level);
     const crit = nl ? criteriaMap.get(nl) : (r.level ? criteriaMap.get(r.level) : null);
     const lv = (r.level ?? "").substring(0, 2);

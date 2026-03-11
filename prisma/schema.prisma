@@ -105,26 +105,42 @@ model UploadHistory {
 /// 레벨업 대상자.
 /// 포인트 or 학점 충족 직원이 자동 생성되며, 인사팀이 심사대상 여부를 체크.
 model Candidate {
-  id             String        @id @default(cuid())
+  id             String         @id @default(cuid())
   userId         String
   year           Int
-  pointMet       Boolean       @default(false)
-  creditMet      Boolean       @default(false)
-  isReviewTarget Boolean       @default(false)
+  pointMet       Boolean        @default(false)
+  creditMet      Boolean        @default(false)
+  isReviewTarget Boolean        @default(false)
   /// null = 미저장(저장 버튼 활성), non-null = 저장됨 표시
   savedAt        DateTime?
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @updatedAt
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
   /// "auto" = 자동 선정, "manual" = 수동 추가
-  source         String        @default("manual")
+  source         String         @default("manual")
   /// "normal" = 일반 승진, "special" = 특진 (체류 연수 미달)
-  promotionType  String        @default("normal")
-  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  promotionType  String         @default("normal")
+  user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   confirmation   Confirmation?
+  note           CandidateNote?
   review         Review?
 
   @@unique([userId, year])
   @@map("candidates")
+}
+
+/// 대상자별 메모 및 첨부파일.
+/// 확정 화면에서 인사팀/관리자가 개인별 비고를 기록.
+model CandidateNote {
+  id          String    @id @default(cuid())
+  candidateId String    @unique
+  noteText    String?
+  fileUrl     String?
+  fileName    String?
+  updatedBy   String?
+  updatedAt   DateTime  @updatedAt
+  candidate   Candidate @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+
+  @@map("candidate_notes")
 }
 
 /// 심사 결과.
