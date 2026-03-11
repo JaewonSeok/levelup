@@ -134,14 +134,21 @@ function NoteModal({ candidateId, candidateName, initialNote, onClose, onSaved }
     formData.append("file", file);
     try {
       const res = await fetch("/api/candidate-notes/upload", { method: "POST", body: formData });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "업로드 실패");
+      // res.ok 확인 전 .json() 호출 금지 — 빈 응답이면 SyntaxError 발생
+      let data: { success?: boolean; fileUrl?: string; fileName?: string; error?: string } = {};
+      const contentType = res.headers.get("content-type") ?? "";
+      if (contentType.includes("application/json")) {
+        data = await res.json();
+      }
+      if (!res.ok) throw new Error(data.error ?? `파일 업로드 실패 (HTTP ${res.status})`);
+      if (!data.fileUrl) throw new Error("서버 응답에 파일 URL이 없습니다.");
       setFileUrl(data.fileUrl);
-      setFileName(data.fileName);
+      setFileName(data.fileName ?? file.name);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "파일 업로드에 실패했습니다.");
     } finally {
       setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
     }
   };
 

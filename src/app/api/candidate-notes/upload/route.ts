@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { Role } from "@prisma/client";
 import fs from "fs";
 import path from "path";
+import os from "os";
 
 const EDIT_ROLES: Role[] = [Role.HR_TEAM, Role.SYSTEM_ADMIN];
 
@@ -23,7 +24,14 @@ export async function POST(req: NextRequest) {
   if (!session?.user) return NextResponse.json({ error: "로그인이 필요합니다." }, { status: 401 });
   if (!EDIT_ROLES.includes(session.user.role)) return NextResponse.json({ error: "접근 권한이 없습니다." }, { status: 403 });
 
-  const formData = await req.formData();
+  // formData 파싱 실패 시 JSON 오류 반환
+  let formData: FormData;
+  try {
+    formData = await req.formData();
+  } catch {
+    return NextResponse.json({ error: "파일 업로드 파싱에 실패했습니다." }, { status: 400 });
+  }
+
   const file = formData.get("file") as File | null;
   if (!file) return NextResponse.json({ error: "파일이 없습니다." }, { status: 400 });
 
@@ -35,19 +43,46 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "파일 크기는 10MB 이하여야 합니다." }, { status: 400 });
   }
 
-  const uploadsDir = path.join(process.cwd(), "public", "uploads", "notes");
-  if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+  // arrayBuffer 변환 실패 대비
+  let buffer: Buffer;
+  try {
+    buffer = Buffer.from(await file.arrayBuffer());
+  } catch {
+    return NextResponse.json({ error: "파일 읽기에 실패했습니다." }, { status: 500 });
+  }
 
   const ext = path.extname(file.name);
   const uniqueName = `${Date.now()}_${Math.random().toString(36).slice(2)}${ext}`;
-  const filePath = path.join(uploadsDir, uniqueName);
 
-  const buffer = Buffer.from(await file.arrayBuffer());
-  fs.writeFileSync(filePath, buffer);
+  // public/uploads/notes 에 저장 시도. 실패 시 os.tmpdir() 폴백
+  let savedPath: string;
+  let fileUrl: string;
+
+  const publicDir = path.join(process.cwd(), "public", "uploads", "notes");
+  try {
+    if (!fs.existsSync(publicDir)) fs.mkdirSync(publicDir, { recursive: true });
+    savedPath = path.join(publicDir, uniqueName);
+    fs.writeFileSync(savedPath, buffer);
+    fileUrl = `/uploads/notes/${uniqueName}`;
+  } catch (fsErr) {
+    // public 디렉터리 쓰기 실패 시 (서버리스 환경 등) os.tmpdir() 폴백
+    console.error("[upload] public/ 저장 실패, tmpdir 폴백:", fsErr);
+    try {
+      const tmpDir = path.join(os.tmpdir(), "candidate-notes");
+      if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir, { recursive: true });
+      savedPath = path.join(tmpDir, uniqueName);
+      fs.writeFileSync(savedPath, buffer);
+      // tmpdir에 저장된 파일은 static URL이 없으므로 API 경유 URL 사용
+      fileUrl = `/api/candidate-notes/file/${uniqueName}`;
+    } catch (tmpErr) {
+      console.error("[upload] tmpdir 저장도 실패:", tmpErr);
+      return NextResponse.json({ error: "파일 저장에 실패했습니다. 서버 환경을 확인해주세요." }, { status: 500 });
+    }
+  }
 
   return NextResponse.json({
     success: true,
-    fileUrl: `/uploads/notes/${uniqueName}`,
+    fileUrl,
     fileName: file.name,
   });
 }
