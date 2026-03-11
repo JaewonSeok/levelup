@@ -85,6 +85,7 @@ export async function GET(req: NextRequest) {
           competencyLevel: true,
         },
       },
+      note: true,
     },
     orderBy: [
       { user: { department: "asc" } },
@@ -258,6 +259,9 @@ export async function GET(req: NextRequest) {
         2024: userGrades[2024] ?? null,
         2025: userGrades[2025] ?? null,
       },
+      note: candidate.note
+        ? { noteText: candidate.note.noteText ?? null, fileUrl: candidate.note.fileUrl ?? null, fileName: candidate.note.fileName ?? null }
+        : null,
     };
   });
 

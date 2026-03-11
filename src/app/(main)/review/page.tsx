@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { EmployeeTooltip } from "@/components/EmployeeTooltip";
 import {
@@ -73,6 +73,7 @@ interface ReviewCandidate {
   requiredPoints?: number | null;
   requiredCredits?: number | null;
   minTenure?: number;
+  note?: { noteText: string | null; fileUrl: string | null; fileName: string | null } | null;
 }
 
 interface CurrentUser {
@@ -99,6 +100,171 @@ const GRADE_YEARS = [2021, 2022, 2023, 2024, 2025] as const;
 // No. 본부 팀 이름 레벨 연차 입사일 포인트 학점 구분 AI점수 의견 추천여부 + 5 grade cols
 const COL_BASE = 13;
 const COL_COUNT = COL_BASE + GRADE_YEARS.length; // 18
+
+// ── NoteModal ──────────────────────────────────────────────────
+
+interface CandidateNoteData {
+  noteText: string | null;
+  fileUrl: string | null;
+  fileName: string | null;
+}
+
+interface NoteModalProps {
+  candidateId: string;
+  candidateName: string;
+  initialNote: CandidateNoteData | null;
+  onClose: () => void;
+  onSaved: (candidateId: string, note: CandidateNoteData | null) => void;
+}
+
+function NoteModal({ candidateId, candidateName, initialNote, onClose, onSaved }: NoteModalProps) {
+  const [noteText, setNoteText] = useState(initialNote?.noteText ?? "");
+  const [fileUrl, setFileUrl] = useState(initialNote?.fileUrl ?? null);
+  const [fileName, setFileName] = useState(initialNote?.fileName ?? null);
+  const [uploading, setUploading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    const formData = new FormData();
+    formData.append("file", file);
+    try {
+      const res = await fetch("/api/candidate-notes/upload", { method: "POST", body: formData });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "업로드 실패");
+      setFileUrl(data.fileUrl);
+      setFileName(data.fileName);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "파일 업로드에 실패했습니다.");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleRemoveFile = () => {
+    setFileUrl(null);
+    setFileName(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const res = await fetch("/api/candidate-notes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ candidateId, noteText: noteText.trim() || null, fileUrl, fileName }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error ?? "저장 실패");
+      }
+      onSaved(candidateId, { noteText: noteText.trim() || null, fileUrl, fileName });
+      toast.success("메모가 저장되었습니다.");
+      onClose();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "저장 중 오류가 발생했습니다.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/candidate-notes?candidateId=${candidateId}`, { method: "DELETE" });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error ?? "삭제 실패");
+      }
+      onSaved(candidateId, null);
+      toast.success("메모가 삭제되었습니다.");
+      onClose();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "삭제 중 오류가 발생했습니다.");
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const hasNote = !!(initialNote?.noteText || initialNote?.fileUrl);
+
+  return (
+    <Dialog open onOpenChange={onClose}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>비고 메모 — {candidateName}</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div>
+            <label className="text-sm font-medium text-gray-700">메모</label>
+            <textarea
+              className="mt-1 w-full border rounded-md px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-ring"
+              rows={5}
+              maxLength={2000}
+              value={noteText}
+              onChange={(e) => setNoteText(e.target.value)}
+              placeholder="개인별 메모를 입력하세요. (최대 2,000자)"
+            />
+            <p className="text-right text-xs text-muted-foreground">{noteText.length} / 2,000</p>
+          </div>
+          <div>
+            <label className="text-sm font-medium text-gray-700">첨부파일</label>
+            {fileName ? (
+              <div className="mt-1 flex items-center gap-2 px-3 py-2 border rounded-md bg-gray-50">
+                <span className="text-sm truncate flex-1">{fileName}</span>
+                {fileUrl && (
+                  <a href={fileUrl} target="_blank" rel="noreferrer" className="text-xs text-blue-600 hover:underline shrink-0">
+                    보기
+                  </a>
+                )}
+                <button type="button" className="text-xs text-red-500 hover:text-red-700 shrink-0" onClick={handleRemoveFile}>
+                  제거
+                </button>
+              </div>
+            ) : (
+              <div className="mt-1">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-8 text-xs"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploading}
+                >
+                  {uploading ? "업로드 중..." : "파일 선택"}
+                </Button>
+                <span className="ml-2 text-xs text-muted-foreground">PDF, Excel, 이미지 (최대 10MB)</span>
+              </div>
+            )}
+            <input
+              ref={fileInputRef}
+              type="file"
+              className="hidden"
+              accept=".pdf,.xlsx,.xls,.jpg,.jpeg,.png,.gif,.webp"
+              onChange={handleFileChange}
+            />
+          </div>
+        </div>
+        <DialogFooter className="gap-2 mt-2">
+          {hasNote && (
+            <Button variant="destructive" size="sm" onClick={handleDelete} disabled={deleting || saving}>
+              {deleting ? "삭제 중..." : "삭제"}
+            </Button>
+          )}
+          <Button variant="outline" size="sm" onClick={onClose} disabled={saving || deleting}>취소</Button>
+          <Button size="sm" onClick={handleSave} disabled={saving || uploading || deleting}>
+            {saving ? "저장 중..." : "저장"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
 
 // ── Grade badge ────────────────────────────────────────────────
 
@@ -179,6 +345,9 @@ export default function ReviewPage() {
     reason: string;
   } | null>(null);
 
+  // 비고 NoteModal
+  const [noteModal, setNoteModal] = useState<{ candidateId: string; candidateName: string; note: CandidateNoteData | null } | null>(null);
+
   // 제출 상태
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [submittedDepts, setSubmittedDepts] = useState<Set<string>>(new Set());
@@ -243,6 +412,9 @@ export default function ReviewPage() {
   const isDeptHead = currentUser?.role === "DEPT_HEAD";
   const isAdmin = currentUser?.role === "SYSTEM_ADMIN";
   const isHROrAdmin = currentUser?.role === "HR_TEAM" || currentUser?.role === "SYSTEM_ADMIN";
+  const canEditNote = isHROrAdmin;
+  // 비고 컬럼: 본부장에게는 숨김 (내부 심사 메모는 인사팀/관리자/CEO 전용)
+  const showNoteColumn = !isDeptHead;
 
   // 본부장: 전체/타본부소속 필터 (API 필터 + 프론트 이중 보장)
   const currentDeptName = currentUser?.department ?? "";
@@ -477,6 +649,10 @@ export default function ReviewPage() {
     }
   };
 
+  const handleNoteSaved = (candidateId: string, note: CandidateNoteData | null) => {
+    setCandidates((prev) => prev.map((c) => c.candidateId === candidateId ? { ...c, note } : c));
+  };
+
   const formatDate = (iso: string | null) => (iso ? iso.slice(0, 10) : "-");
 
   // ── Render ───────────────────────────────────────────────────
@@ -677,18 +853,19 @@ export default function ReviewPage() {
               <th className="border px-2 py-2 font-medium text-xs text-purple-700">AI 점수</th>
               <th className="border px-2 py-2 font-medium">의견</th>
               <th className="border px-2 py-2 font-medium">추천여부</th>
+              {showNoteColumn && <th className="border px-2 py-2 font-medium">비고</th>}
             </tr>
           </thead>
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={COL_COUNT} className="text-center py-10 text-muted-foreground">
+                <td colSpan={COL_COUNT + (showNoteColumn ? 1 : 0)} className="text-center py-10 text-muted-foreground">
                   불러오는 중...
                 </td>
               </tr>
             ) : sortedCandidates.length === 0 ? (
               <tr>
-                <td colSpan={COL_COUNT} className="text-center py-10 text-muted-foreground">
+                <td colSpan={COL_COUNT + (showNoteColumn ? 1 : 0)} className="text-center py-10 text-muted-foreground">
                   심사 대상자가 없습니다.
                 </td>
               </tr>
@@ -865,6 +1042,39 @@ export default function ReviewPage() {
                         return <span className="text-gray-400 text-xs">-</span>;
                       })()}
                     </td>
+                    {/* 비고 (DEPT_HEAD 제외) */}
+                    {showNoteColumn && (
+                      <td className="border px-2 py-1.5 text-center">
+                        {c.note?.noteText || c.note?.fileUrl ? (
+                          <div className="relative group inline-block">
+                            <button
+                              type="button"
+                              className="text-base leading-none hover:opacity-70"
+                              title={canEditNote ? "메모 보기/수정" : "메모 보기"}
+                              onClick={() => setNoteModal({ candidateId: c.candidateId, candidateName: c.name, note: c.note ?? null })}
+                            >
+                              📝{c.note?.fileUrl ? "📎" : ""}
+                            </button>
+                            {c.note?.noteText && (
+                              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 z-50 hidden group-hover:block max-w-[240px] bg-gray-800 text-white text-xs rounded-md shadow-lg px-2 py-1.5 whitespace-pre-wrap pointer-events-none text-left">
+                                {c.note.noteText.slice(0, 120)}{c.note.noteText.length > 120 ? "…" : ""}
+                              </div>
+                            )}
+                          </div>
+                        ) : canEditNote ? (
+                          <button
+                            type="button"
+                            className="text-xs text-gray-400 hover:text-gray-600"
+                            title="메모 추가"
+                            onClick={() => setNoteModal({ candidateId: c.candidateId, candidateName: c.name, note: null })}
+                          >
+                            +
+                          </button>
+                        ) : (
+                          <span className="text-gray-300 text-xs">-</span>
+                        )}
+                      </td>
+                    )}
                   </tr>
                 );
               })
@@ -1001,6 +1211,17 @@ export default function ReviewPage() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+      )}
+
+      {/* ── 비고 NoteModal ──────────────────────────────────── */}
+      {noteModal && showNoteColumn && (
+        <NoteModal
+          candidateId={noteModal.candidateId}
+          candidateName={noteModal.candidateName}
+          initialNote={noteModal.note}
+          onClose={() => setNoteModal(null)}
+          onSaved={handleNoteSaved}
+        />
       )}
 
       {/* ── 최종 제출 확인 다이얼로그 ───────────────────────── */}
