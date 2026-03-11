@@ -200,7 +200,8 @@ export async function GET(req: NextRequest) {
     const ownDeptHeadHasOpinion = !!(ownDeptHeadOpinion?.opinionText?.trim());
     // 추천여부: 소속본부장 Opinion.recommendation만 반영
     // (타본부장 의견은 팝업 참고용이며 목록 추천여부에 영향 없음)
-    const recommendationStatus: "추천" | "제외" | null =
+    const recommendationStatus: "추천" | "제외" | "의견없음" | null =
+      ownDeptHeadOpinion?.noOpinion ? "의견없음" :
       ownDeptHeadOpinion?.recommendation === true ? "추천" :
       ownDeptHeadOpinion?.recommendation === false ? "제외" :
       null;
@@ -242,11 +243,14 @@ export async function GET(req: NextRequest) {
       currentUserOpinionSavedAt: currentUserOpinion?.savedAt?.toISOString() ?? null,
       currentUserHasOpinion: !!(currentUserOpinion?.opinionText?.trim()),
       currentUserRecommendation: currentUserOpinion
-        ? (currentUserOpinion.recommendation === true ? "추천" as const :
+        ? (currentUserOpinion.noOpinion ? "의견없음" as const :
+           currentUserOpinion.recommendation === true ? "추천" as const :
            currentUserOpinion.recommendation === false ? "제외" as const : null)
         : null,
+      currentUserRecommendationReason: currentUserOpinion?.recommendationReason ?? null,
       ownDeptHeadHasOpinion,
       recommendationStatus,
+      recommendationReason: ownDeptHeadOpinion?.recommendationReason ?? null,
       grades: {
         2021: userGrades[2021] ?? null,
         2022: userGrades[2022] ?? null,

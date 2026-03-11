@@ -163,6 +163,10 @@ model Opinion {
   opinionText    String?
   /// null = 미선택, true = 추천, false = 미추천
   recommendation Boolean?
+  /// 타본부장 전용: true = "의견없음" 선택. recommendation=null이지만 미선택과 구분
+  noOpinion      Boolean   @default(false)
+  /// 추천/미추천 선택 시 입력한 사유. 의견없음/미선택 시 null
+  recommendationReason String?
   /// null = 미저장(저장 버튼 활성), non-null = 저장됨
   savedAt        DateTime?
   createdAt      DateTime  @default(now())

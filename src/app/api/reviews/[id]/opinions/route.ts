@@ -87,6 +87,8 @@ export async function GET(
       opinionId: op?.id ?? null,
       opinionText: op?.opinionText ?? null,
       recommendation: op?.recommendation ?? null,
+      noOpinion: op?.noOpinion ?? false,
+      recommendationReason: op?.recommendationReason ?? null,
       savedAt: op?.savedAt?.toISOString() ?? null,
       modifiedBy: op?.modifiedBy ?? null,
       modifiedAt: op?.modifiedAt?.toISOString() ?? null,
@@ -130,6 +132,8 @@ export async function GET(
       opinionId: op.id,
       opinionText: op.opinionText ?? null,
       recommendation: op.recommendation ?? null,
+      noOpinion: op.noOpinion ?? false,
+      recommendationReason: op.recommendationReason ?? null,
       savedAt: op.savedAt?.toISOString() ?? null,
       modifiedBy: op.modifiedBy ?? null,
       modifiedAt: op.modifiedAt?.toISOString() ?? null,
@@ -147,6 +151,8 @@ export async function GET(
       opinionId: adminOp?.id ?? null,
       opinionText: adminOp?.opinionText ?? null,
       recommendation: adminOp?.recommendation ?? null,
+      noOpinion: adminOp?.noOpinion ?? false,
+      recommendationReason: adminOp?.recommendationReason ?? null,
       savedAt: adminOp?.savedAt?.toISOString() ?? null,
       modifiedBy: adminOp?.modifiedBy ?? null,
       modifiedAt: adminOp?.modifiedAt?.toISOString() ?? null,
@@ -169,11 +175,18 @@ export async function GET(
       opinionId: existingOp?.id ?? null,
       opinionText: existingOp?.opinionText ?? null,
       recommendation: existingOp?.recommendation ?? null,
+      noOpinion: existingOp?.noOpinion ?? false,
+      recommendationReason: existingOp?.recommendationReason ?? null,
       savedAt: existingOp?.savedAt?.toISOString() ?? null,
       modifiedBy: existingOp?.modifiedBy ?? null,
       modifiedAt: existingOp?.modifiedAt?.toISOString() ?? null,
     });
   }
+
+  // 수정 3: DEPT_HEAD는 자기 의견 행만 반환 (타 본부장 의견 비공개)
+  const filteredReviewers = session.user.role === Role.DEPT_HEAD
+    ? reviewers.filter((r) => r.isCurrentUser)
+    : reviewers;
 
   return NextResponse.json({
     review: {
@@ -197,7 +210,7 @@ export async function GET(
     creditCumulative: latestCredit?.cumulative ?? 0,
     requiredPoints: criteria?.requiredPoints ?? null,
     requiredCredits: criteria?.requiredCredits ?? null,
-    reviewers,
+    reviewers: filteredReviewers,
     currentUser: {
       id: session.user.id,
       role: session.user.role,
@@ -239,6 +252,8 @@ export async function POST(
   let body: {
     opinionText?: string;
     recommendation?: boolean | null;
+    noOpinion?: boolean;
+    recommendationReason?: string | null;
     reviewerId?: string; // SYSTEM_ADMIN만 사용 가능 — 지정된 reviewer 대신 저장
   };
   try {
@@ -290,8 +305,10 @@ export async function POST(
     reviewerName = `${targetDept}장`;
   }
 
-  // 인사팀장은 추천여부 없음
-  const recommendation = reviewerRole === "인사팀장" ? null : (body.recommendation ?? null);
+  // 인사팀장은 추천여부 없음. 타본부장이 "의견없음" 선택 시 recommendation=null + noOpinion=true
+  const noOpinion = reviewerRole !== "인사팀장" && body.noOpinion === true;
+  const recommendation = (reviewerRole === "인사팀장" || noOpinion) ? null : (body.recommendation ?? null);
+  const recommendationReason = (noOpinion || recommendation === null) ? null : (body.recommendationReason ?? null);
 
   const isAdminSave = session.user.role === Role.SYSTEM_ADMIN;
   const now = new Date();
@@ -314,6 +331,8 @@ export async function POST(
         reviewerRole,
         opinionText: body.opinionText ?? null,
         recommendation,
+        noOpinion,
+        recommendationReason,
         savedAt: now,
         modifiedBy: isAdminSave ? session.user.id : null,
         modifiedAt: isAdminSave ? now : null,
@@ -321,6 +340,8 @@ export async function POST(
       update: {
         opinionText: body.opinionText ?? null,
         recommendation,
+        noOpinion,
+        recommendationReason,
         savedAt: now,
         ...(isAdminSave ? { modifiedBy: session.user.id, modifiedAt: now } : {}),
       },
@@ -347,6 +368,8 @@ export async function POST(
     reviewerRole,
     reviewerName,
     recommendation: opinion.recommendation,
+    noOpinion: opinion.noOpinion,
+    recommendationReason: opinion.recommendationReason,
     savedAt: opinion.savedAt?.toISOString() ?? null,
     reviewUpdated,
   });

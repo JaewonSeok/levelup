@@ -30,6 +30,8 @@ export async function PATCH(
     competencyScore?: number | null;
     competencyEval?: number | null;
     recommendation?: boolean | null;
+    noOpinion?: boolean;
+    recommendationReason?: string | null;
   };
   try {
     body = await req.json();
@@ -99,9 +101,15 @@ export async function PATCH(
           select: { id: true },
         });
         if (ownDeptHead) {
+          const syncNoOpinion = body.noOpinion === true;
+          const syncReason = (syncNoOpinion || updateData.recommendation === null) ? null : (body.recommendationReason ?? null);
           await prisma.opinion.updateMany({
             where: { reviewId: id, reviewerId: ownDeptHead.id },
-            data: { recommendation: updateData.recommendation ?? null },
+            data: {
+              recommendation: updateData.recommendation ?? null,
+              noOpinion: syncNoOpinion,
+              recommendationReason: syncReason,
+            },
           });
         }
       }

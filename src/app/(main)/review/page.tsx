@@ -61,9 +61,11 @@ interface ReviewCandidate {
   promotionType?: string;
   currentUserOpinionSavedAt: string | null;
   currentUserHasOpinion?: boolean;
-  currentUserRecommendation?: "추천" | "제외" | null;
+  currentUserRecommendation?: "추천" | "제외" | "의견없음" | null;
+  currentUserRecommendationReason?: string | null;
   ownDeptHeadHasOpinion: boolean;
-  recommendationStatus: "추천" | "제외" | null;
+  recommendationStatus: "추천" | "제외" | "의견없음" | null;
+  recommendationReason?: string | null;
   grades: GradeMap;
   aiScore?: AiScoreResult;
   sameLevelAvgPoints?: number;
@@ -121,6 +123,20 @@ function GradeBadge({ grade }: { grade: string | null }) {
   );
 }
 
+// ── ReasonTooltip ───────────────────────────────────────────────
+
+function ReasonTooltip({ children, reason }: { children: React.ReactNode; reason?: string | null }) {
+  if (!reason) return <>{children}</>;
+  return (
+    <div className="relative group inline-flex items-center gap-0.5">
+      {children}
+      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 z-50 hidden group-hover:block max-w-[300px] min-w-[80px] bg-gray-800 text-white text-xs rounded-md shadow-lg px-2 py-1.5 whitespace-pre-wrap pointer-events-none">
+        {reason}
+      </div>
+    </div>
+  );
+}
+
 // ── Component ──────────────────────────────────────────────────
 
 export default function ReviewPage() {
@@ -155,6 +171,13 @@ export default function ReviewPage() {
   const [aiDetailTarget, setAiDetailTarget] = useState<ReviewCandidate | null>(null);
   const [aiReport, setAiReport] = useState<string | null>(null);
   const [aiReportLoading, setAiReportLoading] = useState(false);
+
+  // 추천/미추천 사유 팝업 (HR_TEAM / SYSTEM_ADMIN 테이블 드롭다운)
+  const [recReasonPopup, setRecReasonPopup] = useState<{
+    reviewId: string;
+    targetValue: "true" | "false";
+    reason: string;
+  } | null>(null);
 
   // 제출 상태
   const [isSubmitted, setIsSubmitted] = useState(false);
@@ -252,7 +275,8 @@ export default function ReviewPage() {
   const handleOpinionSaved = (
     reviewerRole: string,
     recommendation: boolean | null,
-    reviewUpdated: boolean
+    reviewUpdated: boolean,
+    noOpinion?: boolean
   ) => {
     if (selectedReviewId !== null) {
       const targetId = selectedReviewId;
@@ -261,7 +285,8 @@ export default function ReviewPage() {
         prev.map((c) => {
           if (c.reviewId !== targetId) return c;
           // ① 현재 유저의 의견 저장 시각 + 본인 의견 상태 즉시 반영
-          const currentUserRec: "추천" | "제외" | null =
+          const currentUserRec: "추천" | "제외" | "의견없음" | null =
+            noOpinion ? "의견없음" :
             recommendation === true ? "추천" :
             recommendation === false ? "제외" :
             null;
@@ -286,19 +311,22 @@ export default function ReviewPage() {
   };
 
   // ── 추천여부 드롭다운 (HR_TEAM / SYSTEM_ADMIN 전용) ──────────
-  const handleRecommendationChange = async (reviewId: string, value: string) => {
+  const doSaveRecommendation = useCallback(async (
+    reviewId: string,
+    value: string, // "true" | "false" | "none" | ""
+    reason: string | null = null
+  ) => {
+    const noOpinion = value === "none";
     const recommendation = value === "true" ? true : value === "false" ? false : null;
-    // Optimistic update
+    const status: "추천" | "제외" | "의견없음" | null =
+      noOpinion ? "의견없음" :
+      recommendation === true ? "추천" :
+      recommendation === false ? "제외" : null;
+
     setCandidates((prev) =>
       prev.map((c) =>
         c.reviewId === reviewId
-          ? {
-              ...c,
-              recommendationStatus:
-                recommendation === true ? "추천" :
-                recommendation === false ? "제외" :
-                null,
-            }
+          ? { ...c, recommendationStatus: status, recommendationReason: reason }
           : c
       )
     );
@@ -306,7 +334,7 @@ export default function ReviewPage() {
       const res = await fetch(`/api/reviews/${reviewId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ recommendation }),
+        body: JSON.stringify({ recommendation, recommendationReason: reason, noOpinion }),
       });
       if (!res.ok) {
         const data = await res.json();
@@ -314,8 +342,34 @@ export default function ReviewPage() {
       }
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "추천여부 변경 실패");
-      setRefreshKey((k) => k + 1); // 실패 시 서버 데이터로 복원
+      setRefreshKey((k) => k + 1);
     }
+  }, []);
+
+  const handleRecommendationChange = (reviewId: string, value: string) => {
+    if (value === "true" || value === "false") {
+      // 추천/미추천: 사유 팝업 먼저
+      const prev = candidates.find((c) => c.reviewId === reviewId);
+      setRecReasonPopup({
+        reviewId,
+        targetValue: value as "true" | "false",
+        reason: prev?.recommendationReason ?? "",
+      });
+    } else {
+      // "" (선택 해제) 또는 "none" (의견없음): 팝업 없이 바로 저장
+      doSaveRecommendation(reviewId, value, null);
+    }
+  };
+
+  const handleRecReasonConfirm = () => {
+    if (!recReasonPopup) return;
+    const { reviewId, targetValue, reason } = recReasonPopup;
+    setRecReasonPopup(null);
+    doSaveRecommendation(reviewId, targetValue, reason || null);
+  };
+
+  const handleRecReasonCancel = () => {
+    setRecReasonPopup(null);
   };
 
   const handleGenerateAiReport = async (candidate: ReviewCandidate) => {
@@ -750,40 +804,63 @@ export default function ReviewPage() {
                     {/* 추천여부: HR_TEAM/ADMIN은 드롭다운, 나머지는 읽기 전용 */}
                     <td className="border px-2 py-1.5">
                       {isHROrAdmin && c.reviewId ? (
-                        <select
-                          value={
-                            c.recommendationStatus === "추천" ? "true" :
-                            c.recommendationStatus === "제외" ? "false" : ""
-                          }
-                          onChange={(e) => handleRecommendationChange(c.reviewId!, e.target.value)}
-                          className={`w-full text-xs rounded border px-1 py-0.5 focus:outline-none ${
-                            c.recommendationStatus === "추천"
-                              ? "border-green-400 text-green-700 bg-green-50"
-                              : c.recommendationStatus === "제외"
-                              ? "border-red-400 text-red-600 bg-red-50"
-                              : "border-gray-300 text-gray-400 bg-white"
-                          }`}
-                        >
-                          <option value="">-</option>
-                          <option value="true">추천</option>
-                          <option value="false">미추천</option>
-                        </select>
+                        <div className="flex flex-col gap-0.5">
+                          <select
+                            value={
+                              c.recommendationStatus === "추천" ? "true" :
+                              c.recommendationStatus === "제외" ? "false" :
+                              c.recommendationStatus === "의견없음" ? "none" : ""
+                            }
+                            onChange={(e) => handleRecommendationChange(c.reviewId!, e.target.value)}
+                            className={`w-full text-xs rounded border px-1 py-0.5 focus:outline-none ${
+                              c.recommendationStatus === "추천"
+                                ? "border-green-400 text-green-700 bg-green-50"
+                                : c.recommendationStatus === "제외"
+                                ? "border-red-400 text-red-600 bg-red-50"
+                                : c.recommendationStatus === "의견없음"
+                                ? "border-gray-400 text-gray-500 bg-gray-50"
+                                : "border-gray-300 text-gray-400 bg-white"
+                            }`}
+                          >
+                            <option value="">-</option>
+                            <option value="true">추천</option>
+                            <option value="false">미추천</option>
+                            <option value="none">의견없음</option>
+                          </select>
+                          {c.recommendationReason && (
+                            <ReasonTooltip reason={c.recommendationReason}>
+                              <span className="text-[10px] text-gray-400 truncate max-w-[90px] cursor-default">
+                                사유: {c.recommendationReason}
+                              </span>
+                            </ReasonTooltip>
+                          )}
+                        </div>
                       ) : (() => {
                         // 타본부장이 타본부 직원 볼 때 → 본인 recommendation 표시
                         const recStatus = (isDeptHead && c.department !== currentDeptName)
                           ? c.currentUserRecommendation
                           : c.recommendationStatus;
-                        return recStatus === "추천" ? (
-                          <span className="flex items-center justify-center gap-0.5 text-green-600 text-xs font-medium">
-                            <CheckCircle2 className="w-3.5 h-3.5" /> 추천
-                          </span>
-                        ) : recStatus === "제외" ? (
-                          <span className="flex items-center justify-center gap-0.5 text-red-500 text-xs font-medium">
-                            <AlertTriangle className="w-3.5 h-3.5" /> 미추천
-                          </span>
-                        ) : (
-                          <span className="text-gray-400 text-xs">-</span>
+                        const reason = (isDeptHead && c.department !== currentDeptName)
+                          ? c.currentUserRecommendationReason
+                          : c.recommendationReason;
+                        if (recStatus === "추천") return (
+                          <ReasonTooltip reason={reason}>
+                            <span className="flex items-center justify-center gap-0.5 text-green-600 text-xs font-medium">
+                              <CheckCircle2 className="w-3.5 h-3.5" /> 추천
+                            </span>
+                          </ReasonTooltip>
                         );
+                        if (recStatus === "제외") return (
+                          <ReasonTooltip reason={reason}>
+                            <span className="flex items-center justify-center gap-0.5 text-red-500 text-xs font-medium">
+                              <AlertTriangle className="w-3.5 h-3.5" /> 미추천
+                            </span>
+                          </ReasonTooltip>
+                        );
+                        if (recStatus === "의견없음") return (
+                          <span className="text-gray-500 text-xs">의견없음</span>
+                        );
+                        return <span className="text-gray-400 text-xs">-</span>;
                       })()}
                     </td>
                   </tr>
@@ -884,6 +961,41 @@ export default function ReviewPage() {
             )}
             <DialogFooter className="flex-shrink-0">
               <Button variant="outline" size="sm" onClick={() => { setAiDetailTarget(null); setAiReport(null); }}>닫기</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* ── 추천/미추천 사유 입력 팝업 (HR/ADMIN 테이블 드롭다운) ── */}
+      {recReasonPopup && (
+        <Dialog open onOpenChange={(o) => !o && handleRecReasonCancel()}>
+          <DialogContent className="max-w-sm">
+            <DialogHeader>
+              <DialogTitle>
+                {recReasonPopup.targetValue === "true" ? "추천 사유 입력" : "미추천 사유 입력"}
+              </DialogTitle>
+              <DialogDescription>
+                사유를 입력하고 확인을 누르면 저장됩니다.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="mt-2">
+              <textarea
+                className="w-full text-sm border rounded px-3 py-2 resize-none h-24 focus:outline-none focus:ring-1 focus:ring-blue-300"
+                placeholder="사유를 입력하세요"
+                value={recReasonPopup.reason}
+                maxLength={500}
+                onChange={(e) =>
+                  setRecReasonPopup((prev) => prev ? { ...prev, reason: e.target.value } : null)
+                }
+                autoFocus
+              />
+              <div className="text-right text-xs text-gray-400 mt-0.5">
+                {recReasonPopup.reason.length} / 500자
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={handleRecReasonCancel}>취소</Button>
+              <Button onClick={handleRecReasonConfirm}>확인</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>

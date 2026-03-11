@@ -7,6 +7,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogFooter,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
 
@@ -20,6 +21,8 @@ interface Reviewer {
   opinionId: string | null;
   opinionText: string | null;
   recommendation: boolean | null;
+  noOpinion: boolean;
+  recommendationReason: string | null;
   savedAt: string | null;
   modifiedBy: string | null;
   modifiedAt: string | null;
@@ -50,10 +53,18 @@ interface OpinionData {
 
 interface RowState {
   text: string;
-  rec: "추천" | "미추천" | "";
+  rec: "추천" | "미추천" | "의견없음" | "";
+  reason: string;
   isDirty: boolean;
   saving: boolean;
   savedJustNow: boolean;
+}
+
+interface ReasonPopupState {
+  userId: string;
+  targetRec: "추천" | "미추천";
+  reason: string;
+  prevRec: "추천" | "미추천" | "의견없음" | "";
 }
 
 interface AiScoreInfo {
@@ -95,7 +106,7 @@ interface OpinionModalProps {
   reviewId: string;
   onClose: () => void;
   /** 저장 성공 시 서버가 확정한 값 전달. reviewUpdated=true면 Review.recommendation도 업데이트됨 */
-  onSaved: (reviewerRole: string, recommendation: boolean | null, reviewUpdated: boolean) => void;
+  onSaved: (reviewerRole: string, recommendation: boolean | null, reviewUpdated: boolean, noOpinion?: boolean) => void;
   /** 제출 초기화 성공 시 호출 — 부모가 isSubmitted 상태를 false로 갱신 */
   onReset?: () => void;
   isSubmitted?: boolean;
@@ -115,6 +126,7 @@ export function OpinionModal({
   const [data, setData] = useState<OpinionData | null>(null);
   const [loading, setLoading] = useState(true);
   const [rowStates, setRowStates] = useState<Record<string, RowState>>({});
+  const [reasonPopup, setReasonPopup] = useState<ReasonPopupState | null>(null);
   const [aiReport, setAiReport] = useState<string | null>(null);
   const [aiReportLoading, setAiReportLoading] = useState(false);
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
@@ -136,12 +148,14 @@ export function OpinionModal({
         for (const r of json.reviewers) {
           initial[r.userId] = {
             text: r.opinionText ?? "",
-            rec:
-              r.recommendation === true
-                ? "추천"
-                : r.recommendation === false
-                ? "미추천"
-                : "",
+            rec: r.noOpinion
+              ? "의견없음"
+              : r.recommendation === true
+              ? "추천"
+              : r.recommendation === false
+              ? "미추천"
+              : "",
+            reason: r.recommendationReason ?? "",
             isDirty: false,
             saving: false,
             savedJustNow: false,
@@ -195,10 +209,13 @@ export function OpinionModal({
     }));
 
     try {
+      const noOpinion = rs.rec === "의견없음";
       const body: Record<string, unknown> = {
         opinionText: rs.text,
         recommendation:
           rs.rec === "추천" ? true : rs.rec === "미추천" ? false : null,
+        noOpinion,
+        recommendationReason: noOpinion ? null : (rs.reason || null),
       };
 
       // admin이 타인 행을 저장할 때 reviewerId 전달
@@ -244,7 +261,8 @@ export function OpinionModal({
       onSaved(
         resData.reviewerRole ?? "",
         resData.recommendation ?? null,
-        resData.reviewUpdated === true
+        resData.reviewUpdated === true,
+        resData.noOpinion === true
       );
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "저장 중 오류가 발생했습니다.");
@@ -253,6 +271,52 @@ export function OpinionModal({
         [reviewer.userId]: { ...prev[reviewer.userId], saving: false },
       }));
     }
+  }
+
+  // 추천 드롭다운 변경 핸들러 — 추천/미추천 선택 시 사유 팝업, 의견없음은 바로 반영
+  function handleRecChange(reviewer: Reviewer, value: "추천" | "미추천" | "의견없음" | "") {
+    if (value === "추천" || value === "미추천") {
+      const currentRec = rowStates[reviewer.userId]?.rec ?? "";
+      const currentReason = rowStates[reviewer.userId]?.reason ?? "";
+      setReasonPopup({
+        userId: reviewer.userId,
+        targetRec: value,
+        reason: currentReason,
+        prevRec: currentRec,
+      });
+    } else {
+      // "의견없음" 또는 "" — 바로 반영
+      setRowStates((prev) => ({
+        ...prev,
+        [reviewer.userId]: {
+          ...prev[reviewer.userId],
+          rec: value,
+          reason: "",
+          isDirty: true,
+          savedJustNow: false,
+        },
+      }));
+    }
+  }
+
+  function handleReasonConfirm() {
+    if (!reasonPopup) return;
+    setRowStates((prev) => ({
+      ...prev,
+      [reasonPopup.userId]: {
+        ...prev[reasonPopup.userId],
+        rec: reasonPopup.targetRec,
+        reason: reasonPopup.reason,
+        isDirty: true,
+        savedJustNow: false,
+      },
+    }));
+    setReasonPopup(null);
+  }
+
+  function handleReasonCancel() {
+    setReasonPopup(null);
+    // rowStates는 변경하지 않음 — prevRec 값이 그대로 유지됨
   }
 
   async function handleGenerateAiReport() {
@@ -318,6 +382,7 @@ export function OpinionModal({
   }
 
   return (
+    <>
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col overflow-hidden">
         <DialogHeader className="flex-shrink-0">
@@ -474,17 +539,27 @@ export function OpinionModal({
                                       ? "border-green-400 text-green-700 focus:ring-green-300"
                                       : rs.rec === "미추천"
                                       ? "border-red-400 text-red-600 focus:ring-red-300"
+                                      : rs.rec === "의견없음"
+                                      ? "border-gray-400 text-gray-500 focus:ring-gray-300"
                                       : "border-gray-300 text-gray-400"
                                   }`}
                                   value={rs.rec}
                                   onChange={(e) =>
-                                    handleChange(reviewer.userId, "rec", e.target.value)
+                                    handleRecChange(reviewer, e.target.value as "추천" | "미추천" | "의견없음" | "")
                                   }
                                 >
                                   <option value="">선택</option>
                                   <option value="추천">추천</option>
                                   <option value="미추천">미추천</option>
+                                  {/* 타본부장 전용: 의견없음 */}
+                                  {!isOwn && <option value="의견없음">의견없음</option>}
                                 </select>
+                                {/* 사유 표시 */}
+                                {(rs.rec === "추천" || rs.rec === "미추천") && rs.reason && (
+                                  <div className="text-[10px] text-gray-500 mt-0.5 truncate w-full" title={rs.reason}>
+                                    사유: {rs.reason}
+                                  </div>
+                                )}
 
                                 {/* 저장 버튼 */}
                                 <Button
@@ -515,21 +590,32 @@ export function OpinionModal({
                               </>
                             ) : (
                               /* 읽기 전용: rs.rec 기반으로 표시 (저장 후 모달 내에서도 최신값 반영) */
-                              <span
-                                className={`text-xs font-medium ${
-                                  rs.rec === "추천"
-                                    ? "text-green-600"
-                                    : rs.rec === "미추천"
-                                    ? "text-red-500"
-                                    : "text-gray-400"
-                                }`}
-                              >
-                                {rs.rec === "추천"
-                                  ? "추천"
-                                  : rs.rec === "미추천"
-                                  ? "미추천"
-                                  : "-"}
-                              </span>
+                              <div className="flex flex-col items-end gap-0.5">
+                                <span
+                                  className={`text-xs font-medium ${
+                                    rs.rec === "추천"
+                                      ? "text-green-600"
+                                      : rs.rec === "미추천"
+                                      ? "text-red-500"
+                                      : rs.rec === "의견없음"
+                                      ? "text-gray-500"
+                                      : "text-gray-400"
+                                  }`}
+                                >
+                                  {rs.rec === "추천" ? "추천"
+                                    : rs.rec === "미추천" ? "미추천"
+                                    : rs.rec === "의견없음" ? "의견없음"
+                                    : "-"}
+                                </span>
+                                {rs.reason && (rs.rec === "추천" || rs.rec === "미추천") && (
+                                  <div className="relative group">
+                                    <span className="text-[10px] text-gray-400 cursor-default">ℹ️ 사유</span>
+                                    <div className="absolute bottom-full right-0 mb-1 z-50 hidden group-hover:block max-w-[300px] min-w-[120px] bg-gray-800 text-white text-xs rounded-md shadow-lg px-2 py-1.5 whitespace-pre-wrap">
+                                      {rs.reason}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
                             )}
                           </div>
                         )}
@@ -613,5 +699,38 @@ export function OpinionModal({
         )}
       </DialogContent>
     </Dialog>
+
+    {/* ── 추천/미추천 사유 입력 팝업 ── */}
+    {reasonPopup && (
+      <Dialog open onOpenChange={(o) => !o && handleReasonCancel()}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>
+              {reasonPopup.targetRec === "추천" ? "추천 사유 입력" : "미추천 사유 입력"}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="mt-2">
+            <textarea
+              className="w-full text-sm border rounded px-3 py-2 resize-none h-24 focus:outline-none focus:ring-1 focus:ring-blue-300"
+              placeholder="사유를 입력하세요"
+              value={reasonPopup.reason}
+              maxLength={500}
+              onChange={(e) =>
+                setReasonPopup((prev) => prev ? { ...prev, reason: e.target.value } : null)
+              }
+              autoFocus
+            />
+            <div className="text-right text-xs text-gray-400 mt-0.5">
+              {reasonPopup.reason.length} / 500자
+            </div>
+          </div>
+          <DialogFooter className="mt-2">
+            <Button variant="outline" size="sm" onClick={handleReasonCancel}>취소</Button>
+            <Button size="sm" onClick={handleReasonConfirm}>확인</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    )}
+    </>
   );
 }
