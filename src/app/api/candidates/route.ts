@@ -287,13 +287,15 @@ export async function GET(req: NextRequest) {
   // null = 제외 처리된 대상자 (source="excluded")
   const filteredEmployees = (allEmployeesData.filter(Boolean) as NonNullable<(typeof allEmployeesData)[number]>[]).filter((emp) => {
     const isManual = emp.source === "manual";
-    // 포인트+학점 모두 충족 또는 수동 추가
+    // 등록된 대상자(candidateId 있음)는 포인트/학점 재계산 결과와 무관하게 항상 표시
+    const hasExistingRecord = emp.candidateId !== null;
+    // 포인트+학점 모두 충족 또는 수동 추가 또는 기존 레코드 존재
     const isQualified = emp.pointMet && emp.creditMet;
-    if (!isQualified && !isManual) return false;
+    if (!isQualified && !isManual && !hasExistingRecord) return false;
 
-    if (meetType === "point") { if (!emp.pointMet && !isManual) return false; }
-    else if (meetType === "credit") { if (!emp.creditMet && !isManual) return false; }
-    else if (meetType === "both") { if (!(emp.pointMet && emp.creditMet) && !isManual) return false; }
+    if (meetType === "point") { if (!emp.pointMet && !isManual && !hasExistingRecord) return false; }
+    else if (meetType === "credit") { if (!emp.creditMet && !isManual && !hasExistingRecord) return false; }
+    else if (meetType === "both") { if (!(emp.pointMet && emp.creditMet) && !isManual && !hasExistingRecord) return false; }
     if (promotionFilter === "normal") return emp.promotionType === "normal";
     if (promotionFilter === "special") return emp.promotionType === "special";
     return true;
