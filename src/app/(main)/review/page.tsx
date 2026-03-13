@@ -18,7 +18,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { CheckCircle2, AlertTriangle, Send, ChevronDown, ChevronUp } from "lucide-react";
+import { CheckCircle2, AlertTriangle, Send, ChevronDown, ChevronUp, Info } from "lucide-react";
 import { OpinionModal } from "@/components/review/OpinionModal";
 import { toast } from "sonner";
 
@@ -80,6 +80,7 @@ interface CurrentUser {
   id: string;
   role: string;
   department: string;
+  currentPhase?: number;
 }
 
 type TargetType = "all" | "own" | "other";
@@ -355,6 +356,10 @@ export default function ReviewPage() {
   // 비고 NoteModal
   const [noteModal, setNoteModal] = useState<{ candidateId: string; candidateName: string; note: CandidateNoteData | null } | null>(null);
 
+  // Phase 전환
+  const [phaseChanging, setPhaseChanging] = useState(false);
+  const [confirmPhaseOpen, setConfirmPhaseOpen] = useState(false);
+
   // 제출 상태
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [submittedDepts, setSubmittedDepts] = useState<Set<string>>(new Set());
@@ -419,6 +424,7 @@ export default function ReviewPage() {
   const isDeptHead = currentUser?.role === "DEPT_HEAD";
   const isAdmin = currentUser?.role === "SYSTEM_ADMIN";
   const isHROrAdmin = currentUser?.role === "HR_TEAM" || currentUser?.role === "SYSTEM_ADMIN";
+  const currentPhase = currentUser?.currentPhase ?? 1;
   const canEditNote = isHROrAdmin;
   // 비고 컬럼: 본부장에게는 숨김 (내부 심사 메모는 인사팀/관리자/CEO 전용)
   const showNoteColumn = !isDeptHead;
@@ -664,6 +670,28 @@ export default function ReviewPage() {
     setCandidates((prev) => prev.map((c) => c.candidateId === candidateId ? { ...c, note } : c));
   };
 
+  const handlePhaseChange = async (newPhase: number) => {
+    setPhaseChanging(true);
+    try {
+      const res = await fetch("/api/review-phase", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ year: query.year, phase: newPhase }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error ?? "Phase 변경 실패");
+      }
+      toast.success(`${newPhase}차 심사 단계로 전환되었습니다.`);
+      setConfirmPhaseOpen(false);
+      setRefreshKey((k) => k + 1);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Phase 변경 중 오류가 발생했습니다.");
+    } finally {
+      setPhaseChanging(false);
+    }
+  };
+
   const formatDate = (iso: string | null) => (iso ? iso.slice(0, 10) : "-");
 
   // ── Render ───────────────────────────────────────────────────
@@ -672,8 +700,36 @@ export default function ReviewPage() {
     <div className="p-6">
       <h1 className="text-xl font-bold mb-4">레벨업 심사</h1>
 
-      {/* ── 어드민 패널: 본부별 제출 현황 (SYSTEM_ADMIN 전용) ── */}
-      {isAdmin && (
+      {/* ── Phase 상태 배너 ────────────────────────────────────── */}
+      <div className={`flex items-center justify-between gap-3 border rounded-md px-4 py-2.5 mb-4 text-sm font-medium ${
+        currentPhase === 1
+          ? "bg-blue-50 border-blue-300 text-blue-700"
+          : "bg-orange-50 border-orange-300 text-orange-700"
+      }`}>
+        <div className="flex items-center gap-2">
+          <Info className="w-4 h-4 flex-shrink-0" />
+          {currentPhase === 1
+            ? "1차 심사 진행 중 — 소속 본부 직원에 대한 역량평가 및 의견을 입력해주세요."
+            : "2차 심사 진행 중 — 타 본부 추천 직원에 대한 의견을 입력해주세요."}
+        </div>
+        {isHROrAdmin && (
+          <Button
+            size="sm"
+            variant="outline"
+            className={`h-7 text-xs flex-shrink-0 ${
+              currentPhase === 1
+                ? "border-blue-400 text-blue-700 hover:bg-blue-100"
+                : "border-orange-400 text-orange-700 hover:bg-orange-100"
+            }`}
+            onClick={() => setConfirmPhaseOpen(true)}
+          >
+            {currentPhase === 1 ? "2차 심사 오픈" : "1차 심사로 되돌리기"}
+          </Button>
+        )}
+      </div>
+
+      {/* ── 어드민 패널: 본부별 제출 현황 (HR_TEAM / SYSTEM_ADMIN) ── */}
+      {isHROrAdmin && (
         <div className="border rounded-md mb-4 bg-white">
           <button
             className="w-full flex items-center justify-between px-4 py-2.5 text-sm font-medium hover:bg-gray-50"
@@ -862,7 +918,10 @@ export default function ReviewPage() {
               ))}
               <th className="border px-2 py-2 font-medium">구분</th>
               <th className="border px-2 py-2 font-medium text-xs text-purple-700">AI 점수</th>
-              <th className="border px-2 py-2 font-medium">의견</th>
+              <th className="border px-2 py-2 font-medium">
+                의견
+                {isDeptHead && <span className="text-[10px] text-gray-400 block font-normal">(본인 의견만 표시)</span>}
+              </th>
               <th className="border px-2 py-2 font-medium">추천여부</th>
               {showNoteColumn && <th className="border px-2 py-2 font-medium">비고</th>}
             </tr>
@@ -877,24 +936,34 @@ export default function ReviewPage() {
             ) : sortedCandidates.length === 0 ? (
               <tr>
                 <td colSpan={COL_COUNT + (showNoteColumn ? 1 : 0)} className="text-center py-10 text-muted-foreground">
-                  심사 대상자가 없습니다.
+                  {isDeptHead && currentPhase === 2
+                    ? "2차 심사 대상자가 없습니다. (추천된 타 본부 직원이 없습니다.)"
+                    : "심사 대상자가 없습니다."}
                 </td>
               </tr>
             ) : (
               sortedCandidates.map((c, idx) => {
                 const rowDeptSubmitted = submittedDepts.has(c.department);
+                const isOtherDeptRow = isDeptHead && c.department !== currentDeptName;
+                // Phase 1: 본부장이 타본부 직원 의견 입력 불가 (잠금)
+                const opinionLocked = isDeptHead && currentPhase === 1 && isOtherDeptRow;
+                // Phase 2: 본부장이 소속 본부 직원 의견 수정 불가 (읽기전용)
+                const opinionReadOnly = isDeptHead && currentPhase === 2 && !isOtherDeptRow;
 
                 return (
                   <tr
                     key={c.candidateId}
-                    className="text-center hover:bg-gray-50"
+                    className={`text-center hover:bg-gray-50 ${isOtherDeptRow ? "bg-gray-50/60" : ""}`}
                   >
-                    <td className="border px-2 py-1.5 text-gray-500 sticky left-0 bg-white z-10">
+                    <td className={`border px-2 py-1.5 text-gray-500 sticky left-0 z-10 ${isOtherDeptRow ? "bg-gray-50" : "bg-white"}`}>
                       {idx + 1}
                     </td>
-                    <td className="border px-2 py-1.5 text-left sticky left-10 bg-white z-10">
+                    <td className={`border px-2 py-1.5 text-left sticky left-10 z-10 ${isOtherDeptRow ? "bg-gray-50" : "bg-white"}`}>
                       <span>{c.department || "-"}</span>
-                      {isAdmin && rowDeptSubmitted && (
+                      {isOtherDeptRow && (
+                        <span className="ml-1 text-[10px] bg-purple-100 text-purple-600 px-1 py-0.5 rounded">타본부</span>
+                      )}
+                      {isHROrAdmin && rowDeptSubmitted && (
                         <span className="ml-1.5 text-xs bg-green-100 text-green-700 px-1 py-0.5 rounded font-medium">
                           제출
                         </span>
@@ -973,22 +1042,31 @@ export default function ReviewPage() {
 
                     {/* 의견 */}
                     <td className="border px-2 py-1.5">
-                      <button
-                        onClick={() => { if (c.reviewId) { setSelectedReviewId(c.reviewId); setSelectedCandidate(c); } }}
-                        disabled={!c.reviewId}
-                        className="flex items-center justify-center gap-0.5 w-full cursor-pointer disabled:cursor-default"
-                      >
-                        {/* 타본부장이 타본부 직원 볼 때 → 본인 의견 기준, 그 외 → 소속본부장 의견 기준 */}
-                        {(isDeptHead && c.department !== currentDeptName ? c.currentUserHasOpinion : c.ownDeptHeadHasOpinion) ? (
-                          <span className="flex items-center gap-0.5 text-green-600 text-xs">
-                            <CheckCircle2 className="w-3.5 h-3.5" /> 입력완료
-                          </span>
-                        ) : (
-                          <span className="flex items-center gap-0.5 text-orange-500 text-xs">
-                            <AlertTriangle className="w-3.5 h-3.5" /> 미입력
-                          </span>
-                        )}
-                      </button>
+                      {opinionLocked ? (
+                        <span className="flex items-center justify-center gap-0.5 text-gray-400 text-xs cursor-not-allowed" title="1차 심사에서는 소속 본부 직원에 대해서만 의견 입력 가능합니다.">
+                          <Info className="w-3.5 h-3.5" /> 잠금
+                        </span>
+                      ) : (
+                        <button
+                          onClick={() => { if (c.reviewId) { setSelectedReviewId(c.reviewId); setSelectedCandidate(c); } }}
+                          disabled={!c.reviewId}
+                          className="flex items-center justify-center gap-0.5 w-full cursor-pointer disabled:cursor-default"
+                        >
+                          {opinionReadOnly ? (
+                            <span className="flex items-center gap-0.5 text-gray-500 text-xs">
+                              <CheckCircle2 className="w-3.5 h-3.5 text-green-500" /> 1차완료
+                            </span>
+                          ) : (isDeptHead && c.department !== currentDeptName ? c.currentUserHasOpinion : c.ownDeptHeadHasOpinion) ? (
+                            <span className="flex items-center gap-0.5 text-green-600 text-xs">
+                              <CheckCircle2 className="w-3.5 h-3.5" /> 입력완료
+                            </span>
+                          ) : (
+                            <span className="flex items-center gap-0.5 text-orange-500 text-xs">
+                              <AlertTriangle className="w-3.5 h-3.5" /> 미입력
+                            </span>
+                          )}
+                        </button>
+                      )}
                     </td>
 
                     {/* 추천여부: HR_TEAM/ADMIN은 드롭다운, 나머지는 읽기 전용 */}
@@ -1095,14 +1173,17 @@ export default function ReviewPage() {
       </div>
 
       {/* ── 의견 입력 팝업 ──────────────────────────────────── */}
-      {selectedReviewId && (
+      {selectedReviewId && selectedCandidate && (
         <OpinionModal
           reviewId={selectedReviewId}
           onClose={() => { setSelectedReviewId(null); setSelectedCandidate(null); }}
           onSaved={handleOpinionSaved}
           onReset={isDeptHead ? () => setRefreshKey((k) => k + 1) : undefined}
-          isSubmitted={isSubmitted && isDeptHead}
-          candidateInfo={selectedCandidate ?? undefined}
+          isSubmitted={
+            (isSubmitted && isDeptHead) ||
+            (isDeptHead && currentPhase === 2 && selectedCandidate.department === currentDeptName)
+          }
+          candidateInfo={selectedCandidate}
         />
       )}
 
@@ -1275,6 +1356,44 @@ export default function ReviewPage() {
             </Button>
             <Button variant="destructive" onClick={handleCancelSubmit} disabled={submitting}>
               {submitting ? "취소 중..." : "제출 취소"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Phase 전환 확인 다이얼로그 ─────────────────────── */}
+      <Dialog open={confirmPhaseOpen} onOpenChange={(o) => !o && setConfirmPhaseOpen(false)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>
+              {currentPhase === 1 ? "2차 심사 오픈" : "1차 심사로 되돌리기"}
+            </DialogTitle>
+            <DialogDescription>
+              {currentPhase === 1 ? (
+                <>
+                  <strong>{query.year}년 심사를 2차 단계로 전환합니다.</strong>
+                  <br />
+                  이후 본부장은 타 본부 추천 직원에 대해서만 의견을 입력할 수 있습니다.
+                </>
+              ) : (
+                <>
+                  <strong>{query.year}년 심사를 1차 단계로 되돌립니다.</strong>
+                  <br />
+                  이후 본부장은 소속 본부 직원에 대해서만 의견을 입력할 수 있습니다.
+                </>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConfirmPhaseOpen(false)} disabled={phaseChanging}>
+              취소
+            </Button>
+            <Button
+              onClick={() => handlePhaseChange(currentPhase === 1 ? 2 : 1)}
+              disabled={phaseChanging}
+              className={currentPhase === 1 ? "bg-orange-600 hover:bg-orange-700" : ""}
+            >
+              {phaseChanging ? "전환 중..." : currentPhase === 1 ? "2차 심사 오픈" : "1차로 되돌리기"}
             </Button>
           </DialogFooter>
         </DialogContent>

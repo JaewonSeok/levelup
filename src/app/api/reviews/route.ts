@@ -30,6 +30,10 @@ export async function GET(req: NextRequest) {
   // [QA] try/catch 추가 — 이전에는 전체 함수에 에러 처리 없었음
   try {
 
+  // ── 현재 심사 Phase 조회 (없으면 1차 기본값) ──────────────────────
+  const reviewPhaseRecord = await prisma.reviewPhase.findUnique({ where: { year } }).catch(() => null);
+  const currentPhase = reviewPhaseRecord?.currentPhase ?? 1;
+
   const userConditions: Prisma.UserWhereInput[] = [
     { role: { not: Role.DEPT_HEAD } },
     { isActive: true },
@@ -37,27 +41,35 @@ export async function GET(req: NextRequest) {
   ];
   if (department) userConditions.push({ department: { contains: department, mode: "insensitive" } });
   if (team) userConditions.push({ team: { contains: team, mode: "insensitive" } });
-  if (targetType === "own") {
+
+  // ── DEPT_HEAD: Phase에 따라 조회 범위 분기 ────────────────────────
+  // Phase 1: 소속 본부만 (targetType 무관하게 강제 적용)
+  // Phase 2: 기존 targetType 로직 유지 (own/other/all)
+  if (session.user.role === Role.DEPT_HEAD && currentPhase === 1) {
     userConditions.push({ department: currentDept });
-  } else if (targetType === "other") {
-    userConditions.push({ NOT: { department: currentDept } });
-    // 타본부장은 L3, L4, L5 승진 심사 담당 (수정 4: L3 포함)
-    if (session.user.role === Role.DEPT_HEAD) {
-      userConditions.push({ level: { in: [Level.L3, Level.L4, Level.L5] } });
+  } else {
+    if (targetType === "own") {
+      userConditions.push({ department: currentDept });
+    } else if (targetType === "other") {
+      userConditions.push({ NOT: { department: currentDept } });
+      // 타본부장은 L3, L4, L5 승진 심사 담당
+      if (session.user.role === Role.DEPT_HEAD) {
+        userConditions.push({ level: { in: [Level.L3, Level.L4, Level.L5] } });
+      }
+    } else if (targetType === "all" && session.user.role === Role.DEPT_HEAD) {
+      // 본부장 전체: 본인소속 L1~L5 전부 + 타본부 L3,L4,L5
+      userConditions.push({
+        OR: [
+          { department: currentDept },
+          {
+            AND: [
+              { NOT: { department: currentDept } },
+              { level: { in: [Level.L3, Level.L4, Level.L5] } },
+            ],
+          },
+        ],
+      });
     }
-  } else if (targetType === "all" && session.user.role === Role.DEPT_HEAD) {
-    // 본부장 전체: 본인소속 L1~L5 전부 + 타본부 L3,L4,L5 (수정 4: L3 포함)
-    userConditions.push({
-      OR: [
-        { department: currentDept },
-        {
-          AND: [
-            { NOT: { department: currentDept } },
-            { level: { in: [Level.L3, Level.L4, Level.L5] } },
-          ],
-        },
-      ],
-    });
   }
 
   const candidateWhere: Prisma.CandidateWhereInput = {
@@ -105,23 +117,43 @@ export async function GET(req: NextRequest) {
         departments: metaDepts.map((d) => d.department).filter(Boolean),
         teams: metaTeams.map((t) => t.team).filter(Boolean),
       },
-      currentUser: { id: session.user.id, role: session.user.role, department: currentDept },
+      currentUser: { id: session.user.id, role: session.user.role, department: currentDept, currentPhase },
     });
   }
 
-  const candidateIds = candidates.map((c) => c.id);
-  const userIds = candidates.map((c) => c.userId);
-  const levelSet = candidates
-    .map((c) => c.user.level)
-    .filter((l): l is Level => l != null);
-  const levels = Array.from(new Set(levelSet));
+  let candidateIds = candidates.map((c) => c.id);
 
-  // Fetch existing reviews
+  // Fetch existing reviews (auto-create 전에 먼저 조회)
   const existingReviews = await prisma.review.findMany({
     where: { candidateId: { in: candidateIds } },
     include: { opinions: true },
   });
   const reviewMap = new Map(existingReviews.map((r) => [r.candidateId, r]));
+
+  // ── Phase 2 + DEPT_HEAD: 타본부 후보자를 1차 추천자로만 제한 ──────
+  // [보안] 백엔드에서 필터링 — 타본부장이 1차에서 추천(recommendation=true)한 후보만 반환
+  let workingCandidates = candidates;
+  if (
+    session.user.role === Role.DEPT_HEAD &&
+    currentPhase === 2 &&
+    targetType !== "own"
+  ) {
+    const recommendedIds = new Set(
+      existingReviews
+        .filter((r) => r.recommendation === true)
+        .map((r) => r.candidateId)
+    );
+    workingCandidates = candidates.filter(
+      (c) => c.user.department === currentDept || recommendedIds.has(c.id)
+    );
+    candidateIds = workingCandidates.map((c) => c.id);
+  }
+
+  const userIds = workingCandidates.map((c) => c.userId);
+  const levelSet = workingCandidates
+    .map((c) => c.user.level)
+    .filter((l): l is Level => l != null);
+  const levels = Array.from(new Set(levelSet));
 
   // Auto-create missing Review records
   const missingCandidateIds = candidateIds.filter((id) => !reviewMap.has(id));
@@ -190,7 +222,7 @@ export async function GET(req: NextRequest) {
   }
 
   // Build response rows
-  const result = candidates.map((candidate) => {
+  const result = workingCandidates.map((candidate) => {
     const review = reviewMap.get(candidate.id);
     const opinions = review?.opinions ?? [];
 
@@ -332,6 +364,7 @@ export async function GET(req: NextRequest) {
       id: session.user.id,
       role: session.user.role,
       department: currentDept,
+      currentPhase,
     },
   });
 

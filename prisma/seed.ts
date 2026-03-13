@@ -261,6 +261,14 @@ async function main() {
   }
   console.log("  ✓ LevelCriteria defaults ensured for 2026 (기존 값 유지)");
 
+  // 6. ReviewPhase 기본값 (재실행 시 Phase 리셋 않음 — update: {} 유지)
+  await prisma.reviewPhase.upsert({
+    where:  { year: 2026 },
+    update: {},
+    create: { year: 2026, currentPhase: 1, updatedBy: "system" },
+  });
+  console.log("  ✓ ReviewPhase default ensured for 2026 (currentPhase=1, 기존 값 유지)");
+
   console.log("\n✅ Seed complete!");
   console.log("   Admin    : admin@rsupport.com / admin1234");
   console.log("   본부장 계정은 seed에서 생성하지 않습니다.");

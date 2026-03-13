@@ -191,10 +191,30 @@ model Opinion {
   modifiedAt     DateTime?
   /// 관리자가 수정한 경우 SYSTEM_ADMIN User.id
   modifiedBy     String?
+  /// 저장 당시 심사 단계 (1 = 1차, 2 = 2차)
+  phase          Int       @default(1)
   review         Review    @relation(fields: [reviewId], references: [id], onDelete: Cascade)
 
   @@unique([reviewId, reviewerId])
   @@map("opinions")
+}
+
+/// 연도별 심사 단계 관리.
+/// 인사팀이 1차(소속본부) → 2차(타본부) 전환을 제어.
+model ReviewPhase {
+  id           String    @id @default(cuid())
+  year         Int       @unique
+  /// 1 = 1차 심사 (소속본부만), 2 = 2차 심사 (타본부 포함)
+  currentPhase Int       @default(1)
+  phase1Start  DateTime?
+  phase1End    DateTime?
+  phase2Start  DateTime?
+  phase2End    DateTime?
+  updatedAt    DateTime  @updatedAt
+  /// 마지막으로 Phase를 변경한 사용자 ID
+  updatedBy    String    @default("")
+
+  @@map("review_phases")
 }
 
 /// 본부장 최종 제출 이력.

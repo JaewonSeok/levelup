@@ -255,6 +255,7 @@ export async function POST(
     noOpinion?: boolean;
     recommendationReason?: string | null;
     reviewerId?: string; // SYSTEM_ADMIN만 사용 가능 — 지정된 reviewer 대신 저장
+    phase?: number;      // 저장 당시 심사 단계 (1 또는 2)
   };
   try {
     body = await req.json();
@@ -290,6 +291,39 @@ export async function POST(
     }
   }
 
+  // ── Phase 검증 (DEPT_HEAD 전용) ──────────────────────────────────
+  // HR_TEAM / SYSTEM_ADMIN은 Phase 제한 없음
+  if (session.user.role === Role.DEPT_HEAD) {
+    const candidateYear = review.candidate.year;
+    const reviewPhaseRecord = await prisma.reviewPhase
+      .findUnique({ where: { year: candidateYear } })
+      .catch(() => null);
+    const currentPhase = reviewPhaseRecord?.currentPhase ?? 1;
+
+    // body.phase가 명시된 경우 현재 Phase와 일치하는지 확인
+    if (body.phase !== undefined && body.phase !== currentPhase) {
+      return NextResponse.json(
+        { error: `현재 ${currentPhase}차 심사 단계입니다. 요청한 phase(${body.phase})와 다릅니다.` },
+        { status: 400 }
+      );
+    }
+
+    // Phase 1: 소속 본부 대상자에 대해서만 저장 가능
+    if (currentPhase === 1 && targetDept !== candidateDept) {
+      return NextResponse.json(
+        { error: "1차 심사에서는 소속 본부 직원에 대해서만 의견을 저장할 수 있습니다." },
+        { status: 403 }
+      );
+    }
+    // Phase 2: 타 본부 대상자에 대해서만 저장 가능
+    if (currentPhase === 2 && targetDept === candidateDept) {
+      return NextResponse.json(
+        { error: "2차 심사에서는 타 본부 직원에 대해서만 의견을 저장할 수 있습니다. (소속 본부는 1차 완료)" },
+        { status: 403 }
+      );
+    }
+  }
+
   // Determine reviewer role and name
   let reviewerRole: string;
   let reviewerName: string;
@@ -313,6 +347,15 @@ export async function POST(
   const isAdminSave = session.user.role === Role.SYSTEM_ADMIN;
   const now = new Date();
 
+  // 저장할 Phase 결정 — body.phase 미지정 시 DB에서 현재 phase 사용
+  // (이미 DEPT_HEAD 검증에서 일치 여부 확인됨; HR_TEAM/SYSTEM_ADMIN은 임의 지정 가능)
+  let savePhase = body.phase ?? 1;
+  if (body.phase === undefined) {
+    const yr = review.candidate.year;
+    const phRecord = await prisma.reviewPhase.findUnique({ where: { year: yr } }).catch(() => null);
+    savePhase = phRecord?.currentPhase ?? 1;
+  }
+
   // Opinion 저장 + Review.recommendation 업데이트 — 트랜잭션
   // 규칙: 소속본부장 → Review.recommendation 업데이트
   //       타본부장  → Opinion만 저장 (Review.recommendation 변경 없음)
@@ -333,6 +376,7 @@ export async function POST(
         recommendation,
         noOpinion,
         recommendationReason,
+        phase: savePhase,
         savedAt: now,
         modifiedBy: isAdminSave ? session.user.id : null,
         modifiedAt: isAdminSave ? now : null,
