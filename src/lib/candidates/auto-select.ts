@@ -74,20 +74,16 @@ export async function autoSelectCandidates(
     },
   });
 
-  // 4. BonusPenalty 전체 합산 (한 번에 조회)
-  const bpRecords = await prisma.bonusPenalty.findMany({
-    select: { userId: true, points: true },
-  });
-  const bpMap = new Map<string, number>();
-  for (const bp of bpRecords) {
-    bpMap.set(bp.userId, (bpMap.get(bp.userId) ?? 0) + bp.points);
-  }
-
   let added = 0;
   let total = 0;
 
   for (const user of users) {
     if (!user.level) continue;
+
+    // 5-0. 당해 입사자 제외 (해당 연도에 입사한 신규자는 심사 대상 아님)
+    const hireYear = user.hireDate ? new Date(user.hireDate).getFullYear() : 0;
+    if (hireYear === year) continue;
+
     const nextLevelKey = getNextLevel(user.level as string);
     const criteria = nextLevelKey ? criteriaMap.get(nextLevelKey as typeof user.level) : null;
     if (!criteria) continue;
@@ -107,7 +103,7 @@ export async function autoSelectCandidates(
     // tenureRange = min(연차, minTenure) — 해당 레벨 기준 상한 내 최근 N년만 합산
     const tenureRange = Math.min(yearsOfService, minTenure > 0 ? minTenure : 5);
 
-    // 6. 포인트 윈도우 합산 (최근 tenureRange년)
+    // 6. 포인트 윈도우 합산 (최근 tenureRange년) — 가감점 미포함 (등급 기반만)
     const gradeMap = new Map(user.performanceGrades.map((pg) => [pg.year, pg.grade]));
     let windowPointSum = 0;
     for (let i = 0; i < tenureRange; i++) {
@@ -116,7 +112,6 @@ export async function autoSelectCandidates(
       const grade = gradeMap.get(yr) ?? "";
       windowPointSum += gradeToPoints(grade, yr);
     }
-    const adjustment = bpMap.get(user.id) ?? 0;
 
     // 7. 학점 = MAX_DATA_YEAR(2025) 이하 가장 최근 연도의 score 사용
     // (levelUpYear < 2025인 경우 학점이 해당 연도에 저장됐을 수 있으므로 폴백 처리)
@@ -126,8 +121,8 @@ export async function autoSelectCandidates(
     const windowCreditSum = latestCredit?.score ?? 0;
 
     // 8. 포인트와 학점 별도 판정 (일반/특진 동일 기준)
-    const gradePoints = windowPointSum + adjustment; // 포인트 = 등급 합산 + 가감점
-    const creditScore = windowCreditSum;             // 학점 = 2025년 값
+    const gradePoints = windowPointSum; // 포인트 = 등급 합산만 (가감점 제외)
+    const creditScore = windowCreditSum; // 학점 = 2025년 값
     const reqPts = criteria.requiredPoints ?? 0;
     const reqCredits = criteria.requiredCredits ?? 0;
 
@@ -138,8 +133,14 @@ export async function autoSelectCandidates(
     const pointMet = reqPts <= 0 ? true : gradePoints >= reqPts;
     const creditMet = reqCredits <= 0 ? true : creditScore >= reqCredits;
 
-    // 포인트+학점 모두 충족해야 대상자; 체류연수로 일반/특진 구분
+    // 포인트+학점 모두 충족해야 대상자
     if (!pointMet || !creditMet) continue;
+
+    // 일반/특진 구분:
+    //   - 일반: 연차 충족
+    //   - 특진: 연차 미충족 + 최소 2년차 이상 (1년차 = 전년도 입사자는 특진 불가)
+    const canBeSpecial = !tenureMet && hireYear < year - 1;
+    if (!tenureMet && !canBeSpecial) continue; // 1년차여서 특진 조건 미충족 → 제외
     const promotionType = tenureMet ? "normal" : "special";
 
     total++;
