@@ -198,8 +198,8 @@ export async function GET(req: NextRequest) {
     let cumulative: number;
     if (gradeCriteriaAll.length > 0) {
       // 등급 기준이 설정된 경우: 공통 함수로 grade + merit/penalty + adjustment 합산
-      const minTenure = userLc?.minTenure ?? 0;
-      cumulative = calculateFinalPoints(userGrades, gradeCriteriaAll, CURRENT_YEAR, user.yearsOfService ?? 0, totalMerit, totalPenalty, adjustment, minTenure);
+      // minTenure 미전달 → 기본값 5 사용 (레벨 관리 페이지와 동일 로직)
+      cumulative = calculateFinalPoints(userGrades, gradeCriteriaAll, CURRENT_YEAR, user.yearsOfService ?? 0, totalMerit, totalPenalty, adjustment);
     } else {
       // GradeCriteria 미설정 시 DB Point 값 fallback (cumulative에 merit/penalty 포함) + 가감점
       const latestPoint = user.points[user.points.length - 1];
