@@ -141,6 +141,12 @@ export default function Sidebar({ user }: SidebarProps) {
   return (
     <aside className="w-60 bg-white border-r flex flex-col">
       <div className="p-4 border-b">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src="/RSUPPORT_logo.png"
+          alt="RSUPPORT"
+          style={{ height: 28, width: "auto", objectFit: "contain", marginBottom: 8 }}
+        />
         <h1 className="text-sm font-bold text-gray-900">레벨업 관리 시스템</h1>
         <p className="text-xs text-muted-foreground mt-1 truncate">{user.name}</p>
         <p className="text-xs text-muted-foreground truncate">

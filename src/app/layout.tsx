@@ -17,8 +17,12 @@ const geistMono = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "레벨업 관리 시스템",
+  title: "레벨업 관리 시스템 | RSUPPORT",
   description: "사내 직원 레벨업(승진) 관리 시스템",
+  icons: {
+    icon: "/RSUPPORT_logo.png",
+    apple: "/RSUPPORT_logo.png",
+  },
 };
 
 export default function RootLayout({

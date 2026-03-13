@@ -157,7 +157,7 @@ function LoginForm() {
           position: "absolute", bottom: 32, left: 70,
           color: "rgba(148,176,215,0.35)", fontSize: 12,
         }}>
-          © 2026 LevelUp HR System
+          © 2026 RSUPPORT LevelUp HR System
         </div>
       </div>
 
@@ -174,19 +174,14 @@ function LoginForm() {
           width: "100%", maxWidth: 400,
           animation: "fadeUp 0.6s ease-out 0.2s both",
         }}>
-          {/* Icon */}
-          <div style={{
-            width: 44, height: 44,
-            background: "linear-gradient(135deg, #2563eb, #4f46e5)",
-            borderRadius: 12,
-            display: "flex", alignItems: "center", justifyContent: "center",
-            marginBottom: 32,
-            boxShadow: "0 4px 14px -3px rgba(37,99,235,0.3)",
-          }}>
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/>
-              <polyline points="16 7 22 7 22 13"/>
-            </svg>
+          {/* Logo */}
+          <div style={{ marginBottom: 32 }}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/RSUPPORT_logo.png"
+              alt="RSUPPORT"
+              style={{ height: 44, width: "auto", objectFit: "contain" }}
+            />
           </div>
 
           <h2 style={{ fontSize: 26, fontWeight: 700, color: "#111827", letterSpacing: "-0.02em", margin: 0 }}>
