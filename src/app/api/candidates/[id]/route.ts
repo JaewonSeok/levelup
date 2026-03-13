@@ -56,7 +56,7 @@ export async function PATCH(
 
 // ── DELETE /api/candidates/[id] (SYSTEM_ADMIN only) ──────────────
 export async function DELETE(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: { id: string } }
 ) {
   const session = await getServerSession(authOptions);
@@ -68,17 +68,36 @@ export async function DELETE(
   }
 
   const { id } = params;
+  const { searchParams } = new URL(req.url);
+  const fallbackUserId = searchParams.get("userId") ?? "";
+  const fallbackYear   = Number(searchParams.get("year") ?? "0");
 
-  const existing = await prisma.candidate.findUnique({ where: { id } });
-  if (!existing) {
-    return NextResponse.json({ error: "대상자 레코드를 찾을 수 없습니다." }, { status: 404 });
+  const existing = id && id !== "null"
+    ? await prisma.candidate.findUnique({ where: { id } })
+    : null;
+
+  if (existing) {
+    // 레코드 있음 — source="excluded"로 소프트 삭제 (GET 시 재생성 방지)
+    await prisma.candidate.update({
+      where: { id },
+      data: { source: "excluded" },
+    });
+    return NextResponse.json({ success: true });
   }
 
-  // 삭제 대신 제외 표시 — GET 시 재생성 방지 (source="excluded")
-  await prisma.candidate.update({
-    where: { id },
-    data: { source: "excluded" },
-  });
+  // 레코드 없음 — userId+year 폴백: excluded 레코드 생성하여 자동 표시 차단
+  if (fallbackUserId && fallbackYear > 0) {
+    const user = await prisma.user.findUnique({ where: { id: fallbackUserId }, select: { id: true } });
+    if (user) {
+      await prisma.candidate.upsert({
+        where:  { userId_year: { userId: fallbackUserId, year: fallbackYear } },
+        create: { userId: fallbackUserId, year: fallbackYear, pointMet: false, creditMet: false,
+                  isReviewTarget: false, source: "excluded", promotionType: "normal" },
+        update: { source: "excluded" },
+      });
+      return NextResponse.json({ success: true });
+    }
+  }
 
-  return NextResponse.json({ success: true });
+  return NextResponse.json({ error: "대상자 레코드를 찾을 수 없습니다." }, { status: 404 });
 }

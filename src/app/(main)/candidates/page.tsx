@@ -185,7 +185,7 @@ export default function CandidatesPage() {
   const [addSubmitting, setAddSubmitting] = useState(false);
 
   // Admin: delete candidate
-  const [deleteTarget, setDeleteTarget] = useState<{ candidateId: string; name: string } | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<{ candidateId: string | null; userId: string; name: string } | null>(null);
   const [deleting, setDeleting] = useState(false);
 
   // AI 점수 상세 팝업
@@ -356,7 +356,8 @@ export default function CandidatesPage() {
     if (!deleteTarget) return;
     setDeleting(true);
     try {
-      const res = await fetch(`/api/candidates/${deleteTarget.candidateId}`, { method: "DELETE" });
+      const deleteUrl = `/api/candidates/${deleteTarget.candidateId ?? "null"}?userId=${deleteTarget.userId}&year=${query.year}`;
+      const res = await fetch(deleteUrl, { method: "DELETE" });
       if (!res.ok) {
         let errMsg = "삭제 실패";
         try { const e = await res.json(); errMsg = e.error ?? errMsg; } catch { /* non-JSON */ }
@@ -787,7 +788,7 @@ export default function CandidatesPage() {
                       <td className="border px-2 py-1.5 text-center">
                         <button
                           className="p-1 hover:bg-red-50 rounded text-red-500"
-                          onClick={() => setDeleteTarget({ candidateId: row.candidateId, name: row.name })}
+                          onClick={() => setDeleteTarget({ candidateId: row.candidateId, userId: row.userId, name: row.name })}
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
