@@ -51,6 +51,10 @@ export async function GET(
   const year = review.candidate.year;
   const userId = review.candidate.userId;
 
+  // 현재 심사 Phase 조회
+  const reviewPhaseRecord = await prisma.reviewPhase.findUnique({ where: { year } }).catch(() => null);
+  const currentPhase = reviewPhaseRecord?.currentPhase ?? 1;
+
   // Level criteria + cumulative values (순차 조회)
   const criteria = candidateLevel
     ? await prisma.levelCriteria.findFirst({ where: { level: candidateLevel, year } })
@@ -183,10 +187,25 @@ export async function GET(
     });
   }
 
-  // 수정 3: DEPT_HEAD는 자기 의견 행만 반환 (타 본부장 의견 비공개)
-  const filteredReviewers = session.user.role === Role.DEPT_HEAD
-    ? reviewers.filter((r) => r.isCurrentUser)
-    : reviewers;
+  // DEPT_HEAD: Phase별 표시 행 결정
+  // Phase 1: 본인 행만 (소속 본부 직원 심사)
+  // Phase 2 + 타본부 후보자: 본인 행 + 소속본부장 행(참고용 읽기전용)
+  // Phase 2 + 소속본부 후보자: 본인 행만 (1차 완료, 읽기전용 표시는 모달에서 처리)
+  let filteredReviewers: typeof reviewers;
+  if (session.user.role === Role.DEPT_HEAD) {
+    const currentUserDept = session.user.department ?? "";
+    if (currentPhase === 2 && currentUserDept !== candidateDept) {
+      // 타본부장이 타본부 후보자를 Phase 2에서 조회: 본인 행 + 소속본부장 행
+      filteredReviewers = reviewers.filter(
+        (r) => r.isCurrentUser || r.reviewerRole === "소속본부장"
+      );
+    } else {
+      // Phase 1 또는 Phase 2 + 소속본부 후보자: 본인 행만
+      filteredReviewers = reviewers.filter((r) => r.isCurrentUser);
+    }
+  } else {
+    filteredReviewers = reviewers;
+  }
 
   return NextResponse.json({
     review: {
@@ -211,6 +230,7 @@ export async function GET(
     requiredPoints: criteria?.requiredPoints ?? null,
     requiredCredits: criteria?.requiredCredits ?? null,
     reviewers: filteredReviewers,
+    currentPhase,
     currentUser: {
       id: session.user.id,
       role: session.user.role,
