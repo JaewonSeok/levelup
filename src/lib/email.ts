@@ -28,6 +28,58 @@ function createTransporter() {
   });
 }
 
+export async function sendPhase2CompletionEmail(data: {
+  year: number;
+  submissions: { department: string; submittedAt: Date }[];
+}) {
+  const transporter = createTransporter();
+  if (!transporter) {
+    console.warn("[email] SMTP 미설정 — Phase 2 완료 이메일 발송 생략");
+    return;
+  }
+
+  const recipients = ["jwseok@rsupport.com", "shyun@rsupport.com", "shjeong@rsupport.com"];
+  const safeYear = Number(data.year);
+  const systemUrl = "https://levelup-2026.vercel.app/review";
+
+  const rows = data.submissions
+    .map((s) => {
+      const safeDept = escapeHtml(s.department);
+      const dateStr = s.submittedAt.toLocaleString("ko-KR", { timeZone: "Asia/Seoul" });
+      return `<tr>
+        <td style="padding:5px 16px 5px 0;color:#374151;">${safeDept}</td>
+        <td style="padding:5px 0;color:#6b7280;">${dateStr}</td>
+      </tr>`;
+    })
+    .join("");
+
+  await transporter.sendMail({
+    from: process.env.SMTP_FROM ?? `"레벨업 HR" <${process.env.SMTP_USER}>`,
+    to: recipients.join(", "),
+    subject: `[레벨업 관리 시스템] ${safeYear}년 2차 심사가 완료되었습니다`,
+    html: `
+      <h2 style="color:#ea580c;">2차 레벨업 심사 완료 알림</h2>
+      <p>모든 본부장의 <strong>${safeYear}년 2차 심사 제출</strong>이 완료되었습니다.</p>
+      <h3 style="color:#374151;font-size:14px;margin-top:20px;">본부별 제출 완료 일시</h3>
+      <table style="border-collapse:collapse;font-size:14px;">
+        <thead>
+          <tr>
+            <th style="text-align:left;padding:5px 16px 5px 0;color:#6b7280;font-weight:normal;border-bottom:1px solid #e5e7eb;">본부</th>
+            <th style="text-align:left;padding:5px 0;color:#6b7280;font-weight:normal;border-bottom:1px solid #e5e7eb;">제출 일시</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+      <p style="margin-top:20px;">
+        <a href="${systemUrl}" style="display:inline-block;background:#ea580c;color:white;padding:8px 16px;border-radius:6px;text-decoration:none;font-size:14px;">
+          심사 페이지 바로가기
+        </a>
+      </p>
+      <p style="color:#9ca3af;font-size:12px;margin-top:16px;">레벨업 관리 시스템 · ${systemUrl}</p>
+    `,
+  });
+}
+
 export async function sendSubmissionEmail(data: {
   department: string;
   submittedByName: string;

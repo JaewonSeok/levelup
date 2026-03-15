@@ -362,10 +362,13 @@ export default function ReviewPage() {
 
   // 제출 상태
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [isPhase2Submitted, setIsPhase2Submitted] = useState(false);
   const [submittedDepts, setSubmittedDepts] = useState<Set<string>>(new Set());
   const [submittedDeptMap, setSubmittedDeptMap] = useState<Map<string, string>>(new Map());
+  const [phase2SubmittedDeptMap, setPhase2SubmittedDeptMap] = useState<Map<string, string>>(new Map());
   const [submitting, setSubmitting] = useState(false);
   const [confirmSubmitOpen, setConfirmSubmitOpen] = useState(false);
+  const [confirmPhase2SubmitOpen, setConfirmPhase2SubmitOpen] = useState(false);
   const [confirmCancelOpen, setConfirmCancelOpen] = useState(false);
   const [adminPanelOpen, setAdminPanelOpen] = useState(true);
   const [cancelingDept, setCancelingDept] = useState<string | null>(null);
@@ -378,9 +381,12 @@ export default function ReviewPage() {
       if (!res.ok) return;
       const data = await res.json();
       setIsSubmitted(data.isSubmitted ?? false);
+      setIsPhase2Submitted(data.isPhase2Submitted ?? false);
       const deptList: { department: string; submittedAt: string }[] = data.submittedDepartments ?? [];
       setSubmittedDepts(new Set(deptList.map((s) => s.department)));
       setSubmittedDeptMap(new Map(deptList.map((s) => [s.department, s.submittedAt])));
+      const phase2List: { department: string; submittedAt: string }[] = data.phase2SubmittedDepts ?? [];
+      setPhase2SubmittedDeptMap(new Map(phase2List.map((s) => [s.department, s.submittedAt])));
     } catch {
       // ignore
     }
@@ -452,6 +458,13 @@ export default function ReviewPage() {
       })
     : displayCandidates;
   const displayTotal = isDeptHead ? displayCandidates.length : total;
+
+  // Phase 2 제출 가능 여부: 타본부 L3/L4 후보자 전원에 대해 의견 입력 완료
+  const phase2OtherCandidates = isDeptHead && currentPhase === 2
+    ? displayCandidates.filter((c) => c.department !== currentDeptName)
+    : [];
+  const canPhase2Submit = phase2OtherCandidates.length > 0
+    && phase2OtherCandidates.every((c) => c.currentUserHasOpinion);
 
   // 본부별 제출 현황: 실제 대상자가 있는 본부만 표시
   const candidateDepartments = Array.from(
@@ -651,18 +664,62 @@ export default function ReviewPage() {
       const res = await fetch("/api/reviews/submit", {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ year: query.year, department: dept }),
+        body: JSON.stringify({ year: query.year, department: dept, phase: 1 }),
       });
       if (!res.ok) {
         const data = await res.json();
         throw new Error(data.error ?? "취소 실패");
       }
-      toast.success(`${dept} 제출이 취소되었습니다.`);
+      toast.success(`${dept} 1차 제출이 취소되었습니다.`);
       fetchSubmissionStatus(query.year);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "취소 중 오류가 발생했습니다.");
     } finally {
       setCancelingDept(null);
+    }
+  };
+
+  const handleAdminCancelPhase2Submit = async (dept: string) => {
+    setCancelingDept(`p2-${dept}`);
+    try {
+      const res = await fetch("/api/reviews/submit", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ year: query.year, department: dept, phase: 2 }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error ?? "취소 실패");
+      }
+      toast.success(`${dept} 2차 제출이 취소되었습니다.`);
+      fetchSubmissionStatus(query.year);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "취소 중 오류가 발생했습니다.");
+    } finally {
+      setCancelingDept(null);
+    }
+  };
+
+  const handlePhase2Submit = async () => {
+    setSubmitting(true);
+    try {
+      const res = await fetch("/api/reviews/submit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ year: query.year, phase: 2 }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error ?? "제출 실패");
+      }
+      setIsPhase2Submitted(true);
+      toast.success("2차 심사 최종 제출이 완료되었습니다.");
+      setConfirmPhase2SubmitOpen(false);
+      fetchSubmissionStatus(query.year);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "제출 중 오류가 발생했습니다.");
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -739,66 +796,129 @@ export default function ReviewPage() {
             {adminPanelOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
           </button>
           {adminPanelOpen && (
-            <div className="border-t overflow-x-auto">
-              <table className="w-full text-sm border-collapse">
-                <thead>
-                  <tr className="bg-gray-50 text-center">
-                    <th className="border-b px-3 py-2 font-medium text-left">본부</th>
-                    <th className="border-b px-3 py-2 font-medium">제출 상태</th>
-                    <th className="border-b px-3 py-2 font-medium">제출 일시</th>
-                    <th className="border-b px-3 py-2 font-medium w-24">관리</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {candidateDepartments.map((dept) => {
-                    const submittedAt = submittedDeptMap.get(dept);
-                    const isSubm = !!submittedAt;
-                    const isCanceling = cancelingDept === dept;
-                    return (
-                      <tr key={dept} className="text-center hover:bg-gray-50">
-                        <td className="border-b px-3 py-1.5 text-left">{dept}</td>
-                        <td className="border-b px-3 py-1.5">
-                          {isSubm ? (
-                            <span className="inline-flex items-center gap-1 text-xs text-green-700 bg-green-50 px-2 py-0.5 rounded-full font-medium">
-                              <CheckCircle2 className="w-3 h-3" /> 제출 완료
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1 text-xs text-orange-600 bg-orange-50 px-2 py-0.5 rounded-full font-medium">
-                              <AlertTriangle className="w-3 h-3" /> 미제출
-                            </span>
-                          )}
-                        </td>
-                        <td className="border-b px-3 py-1.5 text-xs text-gray-500">
-                          {submittedAt ? new Date(submittedAt).toLocaleString("ko-KR", { timeZone: "Asia/Seoul" }) : "-"}
-                        </td>
-                        <td className="border-b px-3 py-1.5">
-                          {isSubm && (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="h-6 text-xs px-2 text-red-600 border-red-300 hover:bg-red-50"
-                              disabled={isCanceling}
-                              onClick={() => handleAdminCancelSubmit(dept)}
-                            >
-                              {isCanceling ? "취소 중..." : "제출 취소"}
-                            </Button>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+            <div className="border-t">
+              {/* 1차 제출 현황 */}
+              <div className="px-4 py-2 bg-blue-50 text-xs font-semibold text-blue-700 border-b">1차 심사 제출 현황</div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm border-collapse">
+                  <thead>
+                    <tr className="bg-gray-50 text-center">
+                      <th className="border-b px-3 py-2 font-medium text-left">본부</th>
+                      <th className="border-b px-3 py-2 font-medium">제출 상태</th>
+                      <th className="border-b px-3 py-2 font-medium">제출 일시</th>
+                      <th className="border-b px-3 py-2 font-medium w-24">관리</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {candidateDepartments.map((dept) => {
+                      const submittedAt = submittedDeptMap.get(dept);
+                      const isSubm = !!submittedAt;
+                      const isCanceling = cancelingDept === dept;
+                      return (
+                        <tr key={dept} className="text-center hover:bg-gray-50">
+                          <td className="border-b px-3 py-1.5 text-left">{dept}</td>
+                          <td className="border-b px-3 py-1.5">
+                            {isSubm ? (
+                              <span className="inline-flex items-center gap-1 text-xs text-green-700 bg-green-50 px-2 py-0.5 rounded-full font-medium">
+                                <CheckCircle2 className="w-3 h-3" /> 제출 완료
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 text-xs text-orange-600 bg-orange-50 px-2 py-0.5 rounded-full font-medium">
+                                <AlertTriangle className="w-3 h-3" /> 미제출
+                              </span>
+                            )}
+                          </td>
+                          <td className="border-b px-3 py-1.5 text-xs text-gray-500">
+                            {submittedAt ? new Date(submittedAt).toLocaleString("ko-KR", { timeZone: "Asia/Seoul" }) : "-"}
+                          </td>
+                          <td className="border-b px-3 py-1.5">
+                            {isSubm && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-6 text-xs px-2 text-red-600 border-red-300 hover:bg-red-50"
+                                disabled={isCanceling}
+                                onClick={() => handleAdminCancelSubmit(dept)}
+                              >
+                                {isCanceling ? "취소 중..." : "제출 취소"}
+                              </Button>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              {/* 2차 제출 현황 */}
+              <div className="px-4 py-2 bg-orange-50 text-xs font-semibold text-orange-700 border-t border-b">2차 심사 제출 현황</div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm border-collapse">
+                  <thead>
+                    <tr className="bg-gray-50 text-center">
+                      <th className="border-b px-3 py-2 font-medium text-left">본부</th>
+                      <th className="border-b px-3 py-2 font-medium">제출 상태</th>
+                      <th className="border-b px-3 py-2 font-medium">제출 일시</th>
+                      <th className="border-b px-3 py-2 font-medium w-24">관리</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {candidateDepartments.map((dept) => {
+                      const submittedAt = phase2SubmittedDeptMap.get(dept);
+                      const isSubm = !!submittedAt;
+                      const isCanceling = cancelingDept === `p2-${dept}`;
+                      return (
+                        <tr key={dept} className="text-center hover:bg-gray-50">
+                          <td className="border-b px-3 py-1.5 text-left">{dept}</td>
+                          <td className="border-b px-3 py-1.5">
+                            {isSubm ? (
+                              <span className="inline-flex items-center gap-1 text-xs text-green-700 bg-green-50 px-2 py-0.5 rounded-full font-medium">
+                                <CheckCircle2 className="w-3 h-3" /> 제출 완료
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 text-xs text-gray-400 bg-gray-50 px-2 py-0.5 rounded-full font-medium">
+                                미제출
+                              </span>
+                            )}
+                          </td>
+                          <td className="border-b px-3 py-1.5 text-xs text-gray-500">
+                            {submittedAt ? new Date(submittedAt).toLocaleString("ko-KR", { timeZone: "Asia/Seoul" }) : "-"}
+                          </td>
+                          <td className="border-b px-3 py-1.5">
+                            {isSubm && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-6 text-xs px-2 text-red-600 border-red-300 hover:bg-red-50"
+                                disabled={isCanceling}
+                                onClick={() => handleAdminCancelPhase2Submit(dept)}
+                              >
+                                {isCanceling ? "취소 중..." : "제출 취소"}
+                              </Button>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
         </div>
       )}
 
       {/* ── 제출 완료 배너 (본부장) ──────────────────────────── */}
-      {isDeptHead && isSubmitted && (
+      {isDeptHead && currentPhase === 1 && isSubmitted && (
         <div className="flex items-center gap-2 bg-green-50 border border-green-300 rounded-md px-4 py-2.5 mb-4 text-green-700 text-sm font-medium">
           <CheckCircle2 className="w-4 h-4" />
-          최종 제출 완료 — 더 이상 수정할 수 없습니다.
+          1차 심사 최종 제출 완료 — 더 이상 수정할 수 없습니다.
+        </div>
+      )}
+      {isDeptHead && currentPhase === 2 && isPhase2Submitted && (
+        <div className="flex items-center gap-2 bg-orange-50 border border-orange-300 rounded-md px-4 py-2.5 mb-4 text-orange-700 text-sm font-medium">
+          <CheckCircle2 className="w-4 h-4" />
+          2차 심사 최종 제출 완료 — 타본부 심사 의견이 제출되었습니다.
         </div>
       )}
 
@@ -886,15 +1006,28 @@ export default function ReviewPage() {
         </Button>
         <span className="text-sm text-muted-foreground">총 {displayTotal}명</span>
 
-        {/* 최종 제출 버튼 (본부장만) */}
-        {isDeptHead && !isSubmitted && (
+        {/* 1차 최종 제출 버튼 (본부장 + Phase 1) */}
+        {isDeptHead && currentPhase === 1 && !isSubmitted && (
           <Button
             size="sm"
             className="h-8 ml-auto bg-blue-600 hover:bg-blue-700"
             onClick={() => setConfirmSubmitOpen(true)}
           >
             <Send className="w-3.5 h-3.5 mr-1.5" />
-            최종 제출
+            최종 제출 (1차)
+          </Button>
+        )}
+        {/* 2차 최종 제출 버튼 (본부장 + Phase 2) */}
+        {isDeptHead && currentPhase === 2 && !isPhase2Submitted && (
+          <Button
+            size="sm"
+            className={`h-8 ml-auto ${canPhase2Submit ? "bg-orange-600 hover:bg-orange-700" : "bg-gray-400 cursor-not-allowed"}`}
+            disabled={!canPhase2Submit}
+            onClick={() => setConfirmPhase2SubmitOpen(true)}
+            title={!canPhase2Submit ? "타본부 후보자 전원에 대한 의견을 입력해야 제출할 수 있습니다." : undefined}
+          >
+            <Send className="w-3.5 h-3.5 mr-1.5" />
+            최종 제출 (2차)
           </Button>
         )}
       </div>
@@ -1316,13 +1449,13 @@ export default function ReviewPage() {
         />
       )}
 
-      {/* ── 최종 제출 확인 다이얼로그 ───────────────────────── */}
+      {/* ── 1차 최종 제출 확인 다이얼로그 ──────────────────── */}
       <Dialog open={confirmSubmitOpen} onOpenChange={(o) => !o && setConfirmSubmitOpen(false)}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
-            <DialogTitle>최종 제출</DialogTitle>
+            <DialogTitle>1차 심사 최종 제출</DialogTitle>
             <DialogDescription>
-              <strong>{currentUser?.department}</strong> 본부의 {query.year}년 심사 의견을
+              <strong>{currentUser?.department}</strong> 본부의 {query.year}년 1차 심사 의견을
               최종 제출하시겠습니까?
               <br />
               제출 후에는 추천여부 변경 및 의견 수정이 불가합니다.
@@ -1333,6 +1466,29 @@ export default function ReviewPage() {
               취소
             </Button>
             <Button onClick={handleSubmit} disabled={submitting}>
+              {submitting ? "제출 중..." : "최종 제출"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── 2차 최종 제출 확인 다이얼로그 ──────────────────── */}
+      <Dialog open={confirmPhase2SubmitOpen} onOpenChange={(o) => !o && setConfirmPhase2SubmitOpen(false)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>2차 심사 최종 제출</DialogTitle>
+            <DialogDescription>
+              <strong>{currentUser?.department}</strong> 본부의 {query.year}년 2차 심사(타본부 교차심사) 의견을
+              최종 제출하시겠습니까?
+              <br />
+              제출 후에는 타본부 의견 수정이 불가합니다.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConfirmPhase2SubmitOpen(false)} disabled={submitting}>
+              취소
+            </Button>
+            <Button className="bg-orange-600 hover:bg-orange-700" onClick={handlePhase2Submit} disabled={submitting}>
               {submitting ? "제출 중..." : "최종 제출"}
             </Button>
           </DialogFooter>

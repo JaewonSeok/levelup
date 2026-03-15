@@ -219,14 +219,16 @@ model ReviewPhase {
 
 /// 본부장 최종 제출 이력.
 /// 제출 시 SMTP 메일 발송, 이후 입력 잠금.
+/// phase: 1=1차 심사(소속본부 직원), 2=2차 심사(타본부 교차심사)
 model Submission {
   id          String   @id @default(cuid())
   department  String
   year        Int
+  phase       Int      @default(1)
   submittedBy String
   submittedAt DateTime @default(now())
 
-  @@unique([department, year])
+  @@unique([department, year, phase])
   @@map("submissions")
 }
 
