@@ -52,16 +52,16 @@ export async function GET(req: NextRequest) {
       userConditions.push({ department: currentDept });
     } else if (targetType === "other") {
       userConditions.push({ NOT: { department: currentDept } });
-      // 타본부장은 L3, L4, L5 승진 심사 담당
+      // 타본부장 교차심사 대상: L3→L4, L4→L5 승급자만 (L3, L4)
       if (session.user.role === Role.DEPT_HEAD) {
-        userConditions.push({ level: { in: [Level.L3, Level.L4, Level.L5] } });
+        userConditions.push({ level: { in: [Level.L3, Level.L4] } });
       }
     } else if (targetType === "all" && session.user.role === Role.DEPT_HEAD) {
-      // Phase 2 본부장 전체: 타본부 L3,L4,L5만 (본인소속은 targetType=own으로만 조회)
+      // Phase 2 본부장 전체: 타본부 L3,L4만 (타본부장 교차심사 대상 = L3→L4, L4→L5 승급자)
       userConditions.push({
         AND: [
           { NOT: { department: currentDept } },
-          { level: { in: [Level.L3, Level.L4, Level.L5] } },
+          { level: { in: [Level.L3, Level.L4] } },
         ],
       });
     }
@@ -139,7 +139,7 @@ export async function GET(req: NextRequest) {
         .map((r) => r.candidateId)
     );
     workingCandidates = candidates.filter(
-      (c) => recommendedIds.has(c.id)
+      (c) => recommendedIds.has(c.id) && (c.user.level === Level.L3 || c.user.level === Level.L4)
     );
     candidateIds = workingCandidates.map((c) => c.id);
   }
