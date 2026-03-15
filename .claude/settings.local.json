@@ -69,7 +69,23 @@
       "Bash(grep:*)",
       "Bash(head:*)",
       "Bash(kill 1527:*)",
-      "Bash(npx tsx:*)"
+      "Bash(npx tsx:*)",
+      "Bash(cat -n \"C:\\\\Users\\\\RSUPPORT\\\\Desktop\\\\2026 레벨업\\\\src\\\\app\\\\\\(main\\)\\\\review\\\\page.tsx\" | sed -n '200,500p')",
+      "Bash(cat -n \"C:\\\\Users\\\\RSUPPORT\\\\Desktop\\\\2026 레벨업\\\\src\\\\app\\\\\\(main\\)\\\\review\\\\page.tsx\" | sed -n '500,900p')",
+      "Bash(cat -n \"C:\\\\Users\\\\RSUPPORT\\\\Desktop\\\\2026 레벨업\\\\src\\\\app\\\\\\(main\\)\\\\review\\\\page.tsx\" | sed -n '900,1100p')",
+      "Bash(cd \"C:\\\\Users\\\\RSUPPORT\\\\Desktop\\\\2026 레벨업\\\\qa-test\" && npm run test:features 2>&1)",
+      "Bash(wc -l \"C:\\\\Users\\\\RSUPPORT\\\\Desktop\\\\2026 레벨업\\\\src\\\\app\\\\\\(main\\)\\\\review\\\\page.tsx\")",
+      "Bash(cd \"C:\\\\Users\\\\RSUPPORT\\\\Desktop\\\\2026 레벨업\\\\qa-test\" && npm run test:phase 2>&1)",
+      "Bash(cd \"C:\\\\Users\\\\RSUPPORT\\\\Desktop\\\\2026 레벨업\\\\qa-test\" && npm run test:visibility 2>&1)",
+      "Bash(cd \"C:\\\\Users\\\\RSUPPORT\\\\Desktop\\\\2026 레벨업\\\\qa-test\" && npm run test:security 2>&1)",
+      "Bash(cd \"C:\\\\Users\\\\RSUPPORT\\\\Desktop\\\\2026 레벨업\\\\qa-test\" && npm run test:concurrent-phase 2>&1)",
+      "Bash(cd \"C:\\\\Users\\\\RSUPPORT\\\\Desktop\\\\2026 레벨업\\\\qa-test\" && npm run test:all 2>&1)",
+      "Bash(cd \"C:\\\\Users\\\\RSUPPORT\\\\Desktop\\\\2026 레벨업\\\\qa-test\" && npx playwright test tests/smoke-login.spec.ts --workers=1 2>&1)",
+      "Bash(cd \"C:\\\\Users\\\\RSUPPORT\\\\Desktop\\\\2026 레벨업\" && node -e \"\nrequire\\('dotenv'\\).config\\(\\);\nconst url = process.env.DIRECT_URL || process.env.DATABASE_URL || '';\nconsole.log\\('URL prefix:', url.slice\\(0, 40\\) + '...'\\);\n\")",
+      "Bash(cd \"C:\\\\Users\\\\RSUPPORT\\\\Desktop\\\\2026 레벨업\" && node -e \"\nrequire\\('dotenv'\\).config\\(\\);\nconst { PrismaClient } = require\\('@prisma/client'\\);\nconst prisma = new PrismaClient\\({ datasources: { db: { url: process.env.DIRECT_URL } } }\\);\nasync function main\\(\\) {\n  const users = await prisma.user.findMany\\({ where: { name: '김채린' }, select: { id: true, name: true, department: true, team: true, level: true } }\\);\n  for \\(const u of users\\) {\n    const c = await prisma.candidate.findUnique\\({ where: { userId_year: { userId: u.id, year: 2026 } }, select: { id: true, source: true, promotionType: true, isReviewTarget: true } }\\);\n    console.log\\('USER:', JSON.stringify\\(u\\)\\);\n    console.log\\('CANDIDATE:', JSON.stringify\\(c\\)\\);\n  }\n  await prisma.\\\\$disconnect\\(\\);\n}\nmain\\(\\).catch\\(e => { console.error\\(e.message\\); process.exit\\(1\\); }\\);\n\" 2>&1 | grep -v dotenv)",
+      "Bash(cd \"C:\\\\Users\\\\RSUPPORT\\\\Desktop\\\\2026 레벨업\" && npx ts-node --compiler-options '{\"module\":\"CommonJS\"}' -e \"\nimport * as dotenv from 'dotenv';\ndotenv.config\\(\\);\nimport { PrismaClient } from '@prisma/client';\nconst prisma = new PrismaClient\\({ datasources: { db: { url: process.env.DIRECT_URL } } }\\);\nasync function main\\(\\) {\n  const users = await prisma.user.findMany\\({ where: { name: '김채린' }, select: { id: true, name: true, department: true, team: true } }\\);\n  for \\(const u of users\\) {\n    const c = await prisma.candidate.findUnique\\({ where: { userId_year: { userId: u.id, year: 2026 } }, select: { id: true, source: true } }\\);\n    console.log\\('USER id=' + u.id + ' dept=' + u.department + '/' + u.team\\);\n    console.log\\('CANDIDATE=' + JSON.stringify\\(c\\)\\);\n  }\n  const total = await prisma.candidate.count\\({ where: { year: 2026, source: { not: 'excluded' } } }\\);\n  console.log\\('현재 대상자 수\\(non-excluded\\):', total\\);\n  const totalAll = await prisma.candidate.count\\({ where: { year: 2026 } }\\);\n  console.log\\('전체\\(excluded 포함\\):', totalAll\\);\n  await prisma.\\\\$disconnect\\(\\);\n}\nmain\\(\\).catch\\(e => { console.error\\(e.message\\); process.exit\\(1\\); }\\);\n\" 2>&1 | grep -v \"dotenv\\\\|tip:\")",
+      "Bash(cd \"C:\\\\Users\\\\RSUPPORT\\\\Desktop\\\\2026 레벨업\" && mkdir -p public && cp RSUPPORT_logo.png public/RSUPPORT_logo.png && echo \"OK\" && ls public/)",
+      "Bash(pip install:*)"
     ]
   }
 }

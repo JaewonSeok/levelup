@@ -1,0 +1,526 @@
+{
+  "generated_at": "2026-03-13T01:08:54.830Z",
+  "base_url": "https://levelup-2026.vercel.app",
+  "summary": {
+    "total_users": 10,
+    "login_success": 10,
+    "login_fail": 0,
+    "avg_login_time_ms": 2051,
+    "logout_success": 0,
+    "logout_fail": 10,
+    "feature_tests_passed": 60,
+    "feature_tests_failed": 10
+  },
+  "per_user": [
+    {
+      "email": "qa-hr01@rsupport.com",
+      "role": "HR_TEAM",
+      "description": "인사팀 01",
+      "login_success": true,
+      "login_time_ms": 2178,
+      "logout_success": false,
+      "logout_time_ms": 0,
+      "features": {
+        "레벨 관리": {
+          "passed": true,
+          "duration_ms": 441,
+          "detail": "HTTP 200 (441 ms)"
+        },
+        "대상자 관리": {
+          "passed": true,
+          "duration_ms": 127,
+          "detail": "HTTP 200 (127 ms)"
+        },
+        "심사": {
+          "passed": true,
+          "duration_ms": 290,
+          "detail": "HTTP 200 (290 ms)"
+        },
+        "확정": {
+          "passed": true,
+          "duration_ms": 100,
+          "detail": "HTTP 200 (100 ms)"
+        },
+        "포인트 관리": {
+          "passed": true,
+          "duration_ms": 117,
+          "detail": "HTTP 200 (117 ms)"
+        },
+        "학점 관리": {
+          "passed": true,
+          "duration_ms": 188,
+          "detail": "HTTP 200 (188 ms)"
+        },
+        "레벨 관리 테이블 렌더링": {
+          "passed": false,
+          "duration_ms": 80,
+          "detail": "테이블 렌더링 타임아웃"
+        }
+      },
+      "session_isolation": {},
+      "errors": [],
+      "screenshots": [
+        "C:\\Users\\RSUPPORT\\Desktop\\2026 레벨업\\qa-test\\reports\\screenshots\\qa-hr01_at_rsupport.com_table_render_1773364133222.png"
+      ]
+    },
+    {
+      "email": "qa-hr02@rsupport.com",
+      "role": "HR_TEAM",
+      "description": "인사팀 02",
+      "login_success": true,
+      "login_time_ms": 1846,
+      "logout_success": false,
+      "logout_time_ms": 0,
+      "features": {
+        "레벨 관리": {
+          "passed": true,
+          "duration_ms": 120,
+          "detail": "HTTP 200 (120 ms)"
+        },
+        "대상자 관리": {
+          "passed": true,
+          "duration_ms": 288,
+          "detail": "HTTP 200 (288 ms)"
+        },
+        "심사": {
+          "passed": true,
+          "duration_ms": 513,
+          "detail": "HTTP 200 (513 ms)"
+        },
+        "확정": {
+          "passed": true,
+          "duration_ms": 219,
+          "detail": "HTTP 200 (219 ms)"
+        },
+        "포인트 관리": {
+          "passed": true,
+          "duration_ms": 119,
+          "detail": "HTTP 200 (119 ms)"
+        },
+        "학점 관리": {
+          "passed": true,
+          "duration_ms": 189,
+          "detail": "HTTP 200 (189 ms)"
+        },
+        "레벨 관리 테이블 렌더링": {
+          "passed": false,
+          "duration_ms": 21,
+          "detail": "테이블 렌더링 타임아웃"
+        }
+      },
+      "session_isolation": {},
+      "errors": [],
+      "screenshots": [
+        "C:\\Users\\RSUPPORT\\Desktop\\2026 레벨업\\qa-test\\reports\\screenshots\\qa-hr02_at_rsupport.com_table_render_1773364133293.png"
+      ]
+    },
+    {
+      "email": "qa-dept01@rsupport.com",
+      "role": "DEPT_HEAD",
+      "description": "본부장 A",
+      "login_success": true,
+      "login_time_ms": 1880,
+      "logout_success": false,
+      "logout_time_ms": 0,
+      "features": {
+        "레벨 관리": {
+          "passed": true,
+          "duration_ms": 298,
+          "detail": "HTTP 200 (298 ms)"
+        },
+        "대상자 관리": {
+          "passed": true,
+          "duration_ms": 73,
+          "detail": "HTTP 200 (73 ms)"
+        },
+        "심사": {
+          "passed": true,
+          "duration_ms": 500,
+          "detail": "HTTP 200 (500 ms)"
+        },
+        "확정": {
+          "passed": true,
+          "duration_ms": 138,
+          "detail": "HTTP 200 (138 ms)"
+        },
+        "포인트 관리": {
+          "passed": true,
+          "duration_ms": 125,
+          "detail": "HTTP 200 (125 ms)"
+        },
+        "학점 관리": {
+          "passed": true,
+          "duration_ms": 239,
+          "detail": "HTTP 200 (239 ms)"
+        },
+        "레벨 관리 테이블 렌더링": {
+          "passed": false,
+          "duration_ms": 21,
+          "detail": "테이블 렌더링 타임아웃"
+        }
+      },
+      "session_isolation": {},
+      "errors": [],
+      "screenshots": [
+        "C:\\Users\\RSUPPORT\\Desktop\\2026 레벨업\\qa-test\\reports\\screenshots\\qa-dept01_at_rsupport.com_table_render_1773364133230.png"
+      ]
+    },
+    {
+      "email": "qa-dept02@rsupport.com",
+      "role": "DEPT_HEAD",
+      "description": "본부장 B",
+      "login_success": true,
+      "login_time_ms": 2531,
+      "logout_success": false,
+      "logout_time_ms": 0,
+      "features": {
+        "레벨 관리": {
+          "passed": true,
+          "duration_ms": 181,
+          "detail": "HTTP 200 (181 ms)"
+        },
+        "대상자 관리": {
+          "passed": true,
+          "duration_ms": 124,
+          "detail": "HTTP 200 (124 ms)"
+        },
+        "심사": {
+          "passed": true,
+          "duration_ms": 166,
+          "detail": "HTTP 200 (166 ms)"
+        },
+        "확정": {
+          "passed": true,
+          "duration_ms": 144,
+          "detail": "HTTP 200 (144 ms)"
+        },
+        "포인트 관리": {
+          "passed": true,
+          "duration_ms": 305,
+          "detail": "HTTP 200 (305 ms)"
+        },
+        "학점 관리": {
+          "passed": true,
+          "duration_ms": 254,
+          "detail": "HTTP 200 (254 ms)"
+        },
+        "레벨 관리 테이블 렌더링": {
+          "passed": false,
+          "duration_ms": 77,
+          "detail": "테이블 렌더링 타임아웃"
+        }
+      },
+      "session_isolation": {},
+      "errors": [],
+      "screenshots": [
+        "C:\\Users\\RSUPPORT\\Desktop\\2026 레벨업\\qa-test\\reports\\screenshots\\qa-dept02_at_rsupport.com_table_render_1773364133216.png"
+      ]
+    },
+    {
+      "email": "qa-dept03@rsupport.com",
+      "role": "DEPT_HEAD",
+      "description": "본부장 C",
+      "login_success": true,
+      "login_time_ms": 2150,
+      "logout_success": false,
+      "logout_time_ms": 0,
+      "features": {
+        "레벨 관리": {
+          "passed": true,
+          "duration_ms": 377,
+          "detail": "HTTP 200 (377 ms)"
+        },
+        "대상자 관리": {
+          "passed": true,
+          "duration_ms": 115,
+          "detail": "HTTP 200 (115 ms)"
+        },
+        "심사": {
+          "passed": true,
+          "duration_ms": 637,
+          "detail": "HTTP 200 (637 ms)"
+        },
+        "확정": {
+          "passed": true,
+          "duration_ms": 133,
+          "detail": "HTTP 200 (133 ms)"
+        },
+        "포인트 관리": {
+          "passed": true,
+          "duration_ms": 226,
+          "detail": "HTTP 200 (226 ms)"
+        },
+        "학점 관리": {
+          "passed": true,
+          "duration_ms": 185,
+          "detail": "HTTP 200 (185 ms)"
+        },
+        "레벨 관리 테이블 렌더링": {
+          "passed": false,
+          "duration_ms": 12,
+          "detail": "테이블 렌더링 타임아웃"
+        }
+      },
+      "session_isolation": {},
+      "errors": [],
+      "screenshots": [
+        "C:\\Users\\RSUPPORT\\Desktop\\2026 레벨업\\qa-test\\reports\\screenshots\\qa-dept03_at_rsupport.com_table_render_1773364133689.png"
+      ]
+    },
+    {
+      "email": "qa-section@rsupport.com",
+      "role": "SECTION_CHIEF",
+      "description": "실장 01",
+      "login_success": true,
+      "login_time_ms": 2097,
+      "logout_success": false,
+      "logout_time_ms": 0,
+      "features": {
+        "레벨 관리": {
+          "passed": true,
+          "duration_ms": 315,
+          "detail": "HTTP 200 (315 ms)"
+        },
+        "대상자 관리": {
+          "passed": true,
+          "duration_ms": 155,
+          "detail": "HTTP 200 (155 ms)"
+        },
+        "심사": {
+          "passed": true,
+          "duration_ms": 285,
+          "detail": "HTTP 200 (285 ms)"
+        },
+        "확정": {
+          "passed": true,
+          "duration_ms": 129,
+          "detail": "HTTP 200 (129 ms)"
+        },
+        "포인트 관리": {
+          "passed": true,
+          "duration_ms": 144,
+          "detail": "HTTP 200 (144 ms)"
+        },
+        "학점 관리": {
+          "passed": true,
+          "duration_ms": 275,
+          "detail": "HTTP 200 (275 ms)"
+        },
+        "레벨 관리 테이블 렌더링": {
+          "passed": false,
+          "duration_ms": 26,
+          "detail": "테이블 렌더링 타임아웃"
+        }
+      },
+      "session_isolation": {},
+      "errors": [],
+      "screenshots": [
+        "C:\\Users\\RSUPPORT\\Desktop\\2026 레벨업\\qa-test\\reports\\screenshots\\qa-section_at_rsupport.com_table_render_1773364133299.png"
+      ]
+    },
+    {
+      "email": "qa-leader01@rsupport.com",
+      "role": "TEAM_LEADER",
+      "description": "팀장 01",
+      "login_success": true,
+      "login_time_ms": 2066,
+      "logout_success": false,
+      "logout_time_ms": 0,
+      "features": {
+        "레벨 관리": {
+          "passed": true,
+          "duration_ms": 99,
+          "detail": "HTTP 200 (99 ms)"
+        },
+        "대상자 관리": {
+          "passed": true,
+          "duration_ms": 106,
+          "detail": "HTTP 200 (106 ms)"
+        },
+        "심사": {
+          "passed": true,
+          "duration_ms": 277,
+          "detail": "HTTP 200 (277 ms)"
+        },
+        "확정": {
+          "passed": true,
+          "duration_ms": 126,
+          "detail": "HTTP 200 (126 ms)"
+        },
+        "포인트 관리": {
+          "passed": true,
+          "duration_ms": 104,
+          "detail": "HTTP 200 (104 ms)"
+        },
+        "학점 관리": {
+          "passed": true,
+          "duration_ms": 174,
+          "detail": "HTTP 200 (174 ms)"
+        },
+        "레벨 관리 테이블 렌더링": {
+          "passed": false,
+          "duration_ms": 23,
+          "detail": "테이블 렌더링 타임아웃"
+        }
+      },
+      "session_isolation": {},
+      "errors": [],
+      "screenshots": [
+        "C:\\Users\\RSUPPORT\\Desktop\\2026 레벨업\\qa-test\\reports\\screenshots\\qa-leader01_at_rsupport.com_table_render_1773364133296.png"
+      ]
+    },
+    {
+      "email": "qa-leader02@rsupport.com",
+      "role": "TEAM_LEADER",
+      "description": "팀장 02",
+      "login_success": true,
+      "login_time_ms": 2406,
+      "logout_success": false,
+      "logout_time_ms": 0,
+      "features": {
+        "레벨 관리": {
+          "passed": true,
+          "duration_ms": 100,
+          "detail": "HTTP 200 (100 ms)"
+        },
+        "대상자 관리": {
+          "passed": true,
+          "duration_ms": 101,
+          "detail": "HTTP 200 (101 ms)"
+        },
+        "심사": {
+          "passed": true,
+          "duration_ms": 204,
+          "detail": "HTTP 200 (204 ms)"
+        },
+        "확정": {
+          "passed": true,
+          "duration_ms": 93,
+          "detail": "HTTP 200 (93 ms)"
+        },
+        "포인트 관리": {
+          "passed": true,
+          "duration_ms": 253,
+          "detail": "HTTP 200 (253 ms)"
+        },
+        "학점 관리": {
+          "passed": true,
+          "duration_ms": 251,
+          "detail": "HTTP 200 (251 ms)"
+        },
+        "레벨 관리 테이블 렌더링": {
+          "passed": false,
+          "duration_ms": 16,
+          "detail": "테이블 렌더링 타임아웃"
+        }
+      },
+      "session_isolation": {},
+      "errors": [],
+      "screenshots": [
+        "C:\\Users\\RSUPPORT\\Desktop\\2026 레벨업\\qa-test\\reports\\screenshots\\qa-leader02_at_rsupport.com_table_render_1773364133275.png"
+      ]
+    },
+    {
+      "email": "qa-member@rsupport.com",
+      "role": "TEAM_MEMBER",
+      "description": "팀원 01",
+      "login_success": true,
+      "login_time_ms": 1843,
+      "logout_success": false,
+      "logout_time_ms": 0,
+      "features": {
+        "레벨 관리": {
+          "passed": true,
+          "duration_ms": 111,
+          "detail": "HTTP 200 (111 ms)"
+        },
+        "대상자 관리": {
+          "passed": true,
+          "duration_ms": 88,
+          "detail": "HTTP 200 (88 ms)"
+        },
+        "심사": {
+          "passed": true,
+          "duration_ms": 325,
+          "detail": "HTTP 200 (325 ms)"
+        },
+        "확정": {
+          "passed": true,
+          "duration_ms": 520,
+          "detail": "HTTP 200 (520 ms)"
+        },
+        "포인트 관리": {
+          "passed": true,
+          "duration_ms": 263,
+          "detail": "HTTP 200 (263 ms)"
+        },
+        "학점 관리": {
+          "passed": true,
+          "duration_ms": 287,
+          "detail": "HTTP 200 (287 ms)"
+        },
+        "레벨 관리 테이블 렌더링": {
+          "passed": false,
+          "duration_ms": 13,
+          "detail": "테이블 렌더링 타임아웃"
+        }
+      },
+      "session_isolation": {},
+      "errors": [],
+      "screenshots": [
+        "C:\\Users\\RSUPPORT\\Desktop\\2026 레벨업\\qa-test\\reports\\screenshots\\qa-member_at_rsupport.com_table_render_1773364133694.png"
+      ]
+    },
+    {
+      "email": "qa-ceo@rsupport.com",
+      "role": "CEO",
+      "description": "대표이사",
+      "login_success": true,
+      "login_time_ms": 1511,
+      "logout_success": false,
+      "logout_time_ms": 0,
+      "features": {
+        "레벨 관리": {
+          "passed": true,
+          "duration_ms": 294,
+          "detail": "HTTP 200 (294 ms)"
+        },
+        "대상자 관리": {
+          "passed": true,
+          "duration_ms": 281,
+          "detail": "HTTP 200 (281 ms)"
+        },
+        "심사": {
+          "passed": true,
+          "duration_ms": 473,
+          "detail": "HTTP 200 (473 ms)"
+        },
+        "확정": {
+          "passed": true,
+          "duration_ms": 485,
+          "detail": "HTTP 200 (485 ms)"
+        },
+        "포인트 관리": {
+          "passed": true,
+          "duration_ms": 232,
+          "detail": "HTTP 200 (232 ms)"
+        },
+        "학점 관리": {
+          "passed": true,
+          "duration_ms": 185,
+          "detail": "HTTP 200 (185 ms)"
+        },
+        "레벨 관리 테이블 렌더링": {
+          "passed": false,
+          "duration_ms": 13,
+          "detail": "테이블 렌더링 타임아웃"
+        }
+      },
+      "session_isolation": {},
+      "errors": [],
+      "screenshots": [
+        "C:\\Users\\RSUPPORT\\Desktop\\2026 레벨업\\qa-test\\reports\\screenshots\\qa-ceo_at_rsupport.com_table_render_1773364133691.png"
+      ]
+    }
+  ]
+}

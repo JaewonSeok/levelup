@@ -1,0 +1,25 @@
+{
+  "name": "levelup-qa-test",
+  "version": "1.0.0",
+  "description": "동시 10명 사용자 QA 테스트 — LevelUp HR System",
+  "private": true,
+  "scripts": {
+    "install:browsers": "npx playwright install chromium",
+    "test": "npx playwright test --workers=1",
+    "test:login": "npx playwright test tests/concurrent-login.spec.ts --workers=1",
+    "test:features": "npx playwright test tests/concurrent-features.spec.ts --workers=1",
+    "test:isolation": "npx playwright test tests/session-isolation.spec.ts --workers=1",
+    "test:logout": "npx playwright test tests/concurrent-logout.spec.ts --workers=1",
+    "test:smoke": "npx playwright test tests/smoke-login.spec.ts --workers=1",
+    "test:phase": "npx playwright test tests/review-phase.spec.ts --workers=1",
+    "test:visibility": "npx playwright test tests/review-visibility.spec.ts --workers=1",
+    "test:security": "npx playwright test tests/review-security.spec.ts --workers=1",
+    "test:concurrent-phase": "npx playwright test tests/concurrent-phase.spec.ts --workers=1",
+    "test:all": "npx playwright test --workers=1",
+    "report": "npx playwright show-report reports/html"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.44.0",
+    "typescript": "^5.4.0"
+  }
+}

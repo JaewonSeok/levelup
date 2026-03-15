@@ -1,0 +1,536 @@
+{
+  "generated_at": "2026-03-13T02:32:50.798Z",
+  "base_url": "https://levelup-2026.vercel.app",
+  "summary": {
+    "total_users": 10,
+    "login_success": 10,
+    "login_fail": 0,
+    "avg_login_time_ms": 1827,
+    "logout_success": 0,
+    "logout_fail": 10,
+    "feature_tests_passed": 76,
+    "feature_tests_failed": 0
+  },
+  "per_user": [
+    {
+      "email": "qa-hr01@rsupport.com",
+      "role": "HR_TEAM",
+      "description": "인사팀 01",
+      "login_success": true,
+      "login_time_ms": 1676,
+      "logout_success": false,
+      "logout_time_ms": 0,
+      "features": {
+        "레벨 관리": {
+          "passed": true,
+          "duration_ms": 173,
+          "detail": "HTTP 200 (173 ms)"
+        },
+        "대상자 관리": {
+          "passed": true,
+          "duration_ms": 552,
+          "detail": "HTTP 200 (552 ms)"
+        },
+        "심사": {
+          "passed": true,
+          "duration_ms": 491,
+          "detail": "HTTP 200 (491 ms)"
+        },
+        "확정": {
+          "passed": true,
+          "duration_ms": 227,
+          "detail": "HTTP 200 (227 ms)"
+        },
+        "포인트 관리": {
+          "passed": true,
+          "duration_ms": 405,
+          "detail": "HTTP 200 (405 ms)"
+        },
+        "학점 관리": {
+          "passed": true,
+          "duration_ms": 405,
+          "detail": "HTTP 200 (405 ms)"
+        },
+        "레벨 관리 테이블 렌더링": {
+          "passed": true,
+          "duration_ms": 21,
+          "detail": "20개 행 렌더링"
+        },
+        "심사 Phase 배너 렌더링": {
+          "passed": true,
+          "duration_ms": 21,
+          "detail": "배너: \"1차 심사 진행 중 — 소속 본부 직원에 대한 역량평가 및 의견을 입력해\""
+        }
+      },
+      "session_isolation": {},
+      "errors": [],
+      "screenshots": []
+    },
+    {
+      "email": "qa-hr02@rsupport.com",
+      "role": "HR_TEAM",
+      "description": "인사팀 02",
+      "login_success": true,
+      "login_time_ms": 2286,
+      "logout_success": false,
+      "logout_time_ms": 0,
+      "features": {
+        "레벨 관리": {
+          "passed": true,
+          "duration_ms": 210,
+          "detail": "HTTP 200 (210 ms)"
+        },
+        "대상자 관리": {
+          "passed": true,
+          "duration_ms": 227,
+          "detail": "HTTP 200 (227 ms)"
+        },
+        "심사": {
+          "passed": true,
+          "duration_ms": 130,
+          "detail": "HTTP 200 (130 ms)"
+        },
+        "확정": {
+          "passed": true,
+          "duration_ms": 451,
+          "detail": "HTTP 200 (451 ms)"
+        },
+        "포인트 관리": {
+          "passed": true,
+          "duration_ms": 153,
+          "detail": "HTTP 200 (153 ms)"
+        },
+        "학점 관리": {
+          "passed": true,
+          "duration_ms": 424,
+          "detail": "HTTP 200 (424 ms)"
+        },
+        "레벨 관리 테이블 렌더링": {
+          "passed": true,
+          "duration_ms": 24,
+          "detail": "20개 행 렌더링"
+        },
+        "심사 Phase 배너 렌더링": {
+          "passed": true,
+          "duration_ms": 18,
+          "detail": "배너: \"1차 심사 진행 중 — 소속 본부 직원에 대한 역량평가 및 의견을 입력해\""
+        }
+      },
+      "session_isolation": {},
+      "errors": [],
+      "screenshots": []
+    },
+    {
+      "email": "qa-dept01@rsupport.com",
+      "role": "DEPT_HEAD",
+      "description": "본부장 A",
+      "login_success": true,
+      "login_time_ms": 1625,
+      "logout_success": false,
+      "logout_time_ms": 0,
+      "features": {
+        "레벨 관리": {
+          "passed": true,
+          "duration_ms": 193,
+          "detail": "HTTP 200 (193 ms)"
+        },
+        "대상자 관리": {
+          "passed": true,
+          "duration_ms": 512,
+          "detail": "HTTP 200 (512 ms)"
+        },
+        "심사": {
+          "passed": true,
+          "duration_ms": 106,
+          "detail": "HTTP 200 (106 ms)"
+        },
+        "확정": {
+          "passed": true,
+          "duration_ms": 386,
+          "detail": "HTTP 200 (386 ms)"
+        },
+        "포인트 관리": {
+          "passed": true,
+          "duration_ms": 425,
+          "detail": "HTTP 200 (425 ms)"
+        },
+        "학점 관리": {
+          "passed": true,
+          "duration_ms": 399,
+          "detail": "HTTP 200 (399 ms)"
+        },
+        "레벨 관리 테이블 렌더링": {
+          "passed": true,
+          "duration_ms": 24,
+          "detail": "10개 행 렌더링"
+        },
+        "심사 Phase 배너 렌더링": {
+          "passed": true,
+          "duration_ms": 18,
+          "detail": "배너: \"1차 심사 진행 중 — 소속 본부 직원에 대한 역량평가 및 의견을 입력해\""
+        }
+      },
+      "session_isolation": {},
+      "errors": [],
+      "screenshots": []
+    },
+    {
+      "email": "qa-dept02@rsupport.com",
+      "role": "DEPT_HEAD",
+      "description": "본부장 B",
+      "login_success": true,
+      "login_time_ms": 1896,
+      "logout_success": false,
+      "logout_time_ms": 0,
+      "features": {
+        "레벨 관리": {
+          "passed": true,
+          "duration_ms": 190,
+          "detail": "HTTP 200 (190 ms)"
+        },
+        "대상자 관리": {
+          "passed": true,
+          "duration_ms": 345,
+          "detail": "HTTP 200 (345 ms)"
+        },
+        "심사": {
+          "passed": true,
+          "duration_ms": 316,
+          "detail": "HTTP 200 (316 ms)"
+        },
+        "확정": {
+          "passed": true,
+          "duration_ms": 405,
+          "detail": "HTTP 200 (405 ms)"
+        },
+        "포인트 관리": {
+          "passed": true,
+          "duration_ms": 358,
+          "detail": "HTTP 200 (358 ms)"
+        },
+        "학점 관리": {
+          "passed": true,
+          "duration_ms": 452,
+          "detail": "HTTP 200 (452 ms)"
+        },
+        "레벨 관리 테이블 렌더링": {
+          "passed": true,
+          "duration_ms": 19,
+          "detail": "6개 행 렌더링"
+        },
+        "심사 Phase 배너 렌더링": {
+          "passed": true,
+          "duration_ms": 23,
+          "detail": "배너: \"1차 심사 진행 중 — 소속 본부 직원에 대한 역량평가 및 의견을 입력해\""
+        }
+      },
+      "session_isolation": {},
+      "errors": [],
+      "screenshots": []
+    },
+    {
+      "email": "qa-dept03@rsupport.com",
+      "role": "DEPT_HEAD",
+      "description": "본부장 C",
+      "login_success": true,
+      "login_time_ms": 1855,
+      "logout_success": false,
+      "logout_time_ms": 0,
+      "features": {
+        "레벨 관리": {
+          "passed": true,
+          "duration_ms": 490,
+          "detail": "HTTP 200 (490 ms)"
+        },
+        "대상자 관리": {
+          "passed": true,
+          "duration_ms": 118,
+          "detail": "HTTP 200 (118 ms)"
+        },
+        "심사": {
+          "passed": true,
+          "duration_ms": 96,
+          "detail": "HTTP 200 (96 ms)"
+        },
+        "확정": {
+          "passed": true,
+          "duration_ms": 209,
+          "detail": "HTTP 200 (209 ms)"
+        },
+        "포인트 관리": {
+          "passed": true,
+          "duration_ms": 446,
+          "detail": "HTTP 200 (446 ms)"
+        },
+        "학점 관리": {
+          "passed": true,
+          "duration_ms": 432,
+          "detail": "HTTP 200 (432 ms)"
+        },
+        "레벨 관리 테이블 렌더링": {
+          "passed": true,
+          "duration_ms": 16,
+          "detail": "6개 행 렌더링"
+        },
+        "심사 Phase 배너 렌더링": {
+          "passed": true,
+          "duration_ms": 18,
+          "detail": "배너: \"1차 심사 진행 중 — 소속 본부 직원에 대한 역량평가 및 의견을 입력해\""
+        }
+      },
+      "session_isolation": {},
+      "errors": [],
+      "screenshots": []
+    },
+    {
+      "email": "qa-section@rsupport.com",
+      "role": "SECTION_CHIEF",
+      "description": "실장 01",
+      "login_success": true,
+      "login_time_ms": 1497,
+      "logout_success": false,
+      "logout_time_ms": 0,
+      "features": {
+        "레벨 관리": {
+          "passed": true,
+          "duration_ms": 201,
+          "detail": "HTTP 200 (201 ms)"
+        },
+        "대상자 관리": {
+          "passed": true,
+          "duration_ms": 529,
+          "detail": "HTTP 200 (529 ms)"
+        },
+        "심사": {
+          "passed": true,
+          "duration_ms": 216,
+          "detail": "HTTP 200 (216 ms)"
+        },
+        "확정": {
+          "passed": true,
+          "duration_ms": 427,
+          "detail": "HTTP 200 (427 ms)"
+        },
+        "포인트 관리": {
+          "passed": true,
+          "duration_ms": 435,
+          "detail": "HTTP 200 (435 ms)"
+        },
+        "학점 관리": {
+          "passed": true,
+          "duration_ms": 427,
+          "detail": "HTTP 200 (427 ms)"
+        },
+        "레벨 관리 테이블 렌더링": {
+          "passed": true,
+          "duration_ms": 28,
+          "detail": "10개 행 렌더링"
+        }
+      },
+      "session_isolation": {},
+      "errors": [],
+      "screenshots": []
+    },
+    {
+      "email": "qa-leader01@rsupport.com",
+      "role": "TEAM_LEADER",
+      "description": "팀장 01",
+      "login_success": true,
+      "login_time_ms": 2067,
+      "logout_success": false,
+      "logout_time_ms": 0,
+      "features": {
+        "레벨 관리": {
+          "passed": true,
+          "duration_ms": 224,
+          "detail": "HTTP 200 (224 ms)"
+        },
+        "대상자 관리": {
+          "passed": true,
+          "duration_ms": 219,
+          "detail": "HTTP 200 (219 ms)"
+        },
+        "심사": {
+          "passed": true,
+          "duration_ms": 105,
+          "detail": "HTTP 200 (105 ms)"
+        },
+        "확정": {
+          "passed": true,
+          "duration_ms": 480,
+          "detail": "HTTP 200 (480 ms)"
+        },
+        "포인트 관리": {
+          "passed": true,
+          "duration_ms": 172,
+          "detail": "HTTP 200 (172 ms)"
+        },
+        "학점 관리": {
+          "passed": true,
+          "duration_ms": 411,
+          "detail": "HTTP 200 (411 ms)"
+        },
+        "레벨 관리 테이블 렌더링": {
+          "passed": true,
+          "duration_ms": 29,
+          "detail": "4개 행 렌더링"
+        }
+      },
+      "session_isolation": {},
+      "errors": [],
+      "screenshots": []
+    },
+    {
+      "email": "qa-leader02@rsupport.com",
+      "role": "TEAM_LEADER",
+      "description": "팀장 02",
+      "login_success": true,
+      "login_time_ms": 2043,
+      "logout_success": false,
+      "logout_time_ms": 0,
+      "features": {
+        "레벨 관리": {
+          "passed": true,
+          "duration_ms": 259,
+          "detail": "HTTP 200 (259 ms)"
+        },
+        "대상자 관리": {
+          "passed": true,
+          "duration_ms": 272,
+          "detail": "HTTP 200 (272 ms)"
+        },
+        "심사": {
+          "passed": true,
+          "duration_ms": 119,
+          "detail": "HTTP 200 (119 ms)"
+        },
+        "확정": {
+          "passed": true,
+          "duration_ms": 512,
+          "detail": "HTTP 200 (512 ms)"
+        },
+        "포인트 관리": {
+          "passed": true,
+          "duration_ms": 136,
+          "detail": "HTTP 200 (136 ms)"
+        },
+        "학점 관리": {
+          "passed": true,
+          "duration_ms": 407,
+          "detail": "HTTP 200 (407 ms)"
+        },
+        "레벨 관리 테이블 렌더링": {
+          "passed": true,
+          "duration_ms": 20,
+          "detail": "3개 행 렌더링"
+        }
+      },
+      "session_isolation": {},
+      "errors": [],
+      "screenshots": []
+    },
+    {
+      "email": "qa-member@rsupport.com",
+      "role": "TEAM_MEMBER",
+      "description": "팀원 01",
+      "login_success": true,
+      "login_time_ms": 1712,
+      "logout_success": false,
+      "logout_time_ms": 0,
+      "features": {
+        "레벨 관리": {
+          "passed": true,
+          "duration_ms": 137,
+          "detail": "HTTP 200 (137 ms)"
+        },
+        "대상자 관리": {
+          "passed": true,
+          "duration_ms": 334,
+          "detail": "HTTP 200 (334 ms)"
+        },
+        "심사": {
+          "passed": true,
+          "duration_ms": 217,
+          "detail": "HTTP 200 (217 ms)"
+        },
+        "확정": {
+          "passed": true,
+          "duration_ms": 426,
+          "detail": "HTTP 200 (426 ms)"
+        },
+        "포인트 관리": {
+          "passed": true,
+          "duration_ms": 449,
+          "detail": "HTTP 200 (449 ms)"
+        },
+        "학점 관리": {
+          "passed": true,
+          "duration_ms": 380,
+          "detail": "HTTP 200 (380 ms)"
+        },
+        "레벨 관리 테이블 렌더링": {
+          "passed": true,
+          "duration_ms": 18,
+          "detail": "1개 행 렌더링"
+        }
+      },
+      "session_isolation": {},
+      "errors": [],
+      "screenshots": []
+    },
+    {
+      "email": "qa-ceo@rsupport.com",
+      "role": "CEO",
+      "description": "대표이사",
+      "login_success": true,
+      "login_time_ms": 1609,
+      "logout_success": false,
+      "logout_time_ms": 0,
+      "features": {
+        "레벨 관리": {
+          "passed": true,
+          "duration_ms": 183,
+          "detail": "HTTP 200 (183 ms)"
+        },
+        "대상자 관리": {
+          "passed": true,
+          "duration_ms": 352,
+          "detail": "HTTP 200 (352 ms)"
+        },
+        "심사": {
+          "passed": true,
+          "duration_ms": 204,
+          "detail": "HTTP 200 (204 ms)"
+        },
+        "확정": {
+          "passed": true,
+          "duration_ms": 390,
+          "detail": "HTTP 200 (390 ms)"
+        },
+        "포인트 관리": {
+          "passed": true,
+          "duration_ms": 375,
+          "detail": "HTTP 200 (375 ms)"
+        },
+        "학점 관리": {
+          "passed": true,
+          "duration_ms": 376,
+          "detail": "HTTP 200 (376 ms)"
+        },
+        "레벨 관리 테이블 렌더링": {
+          "passed": true,
+          "duration_ms": 22,
+          "detail": "20개 행 렌더링"
+        },
+        "심사 Phase 배너 렌더링": {
+          "passed": true,
+          "duration_ms": 17,
+          "detail": "배너: \"1차 심사 진행 중 — 소속 본부 직원에 대한 역량평가 및 의견을 입력해\""
+        }
+      },
+      "session_isolation": {},
+      "errors": [],
+      "screenshots": []
+    }
+  ]
+}

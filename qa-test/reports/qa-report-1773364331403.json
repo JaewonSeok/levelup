@@ -1,0 +1,506 @@
+{
+  "generated_at": "2026-03-13T01:12:11.400Z",
+  "base_url": "https://levelup-2026.vercel.app",
+  "summary": {
+    "total_users": 10,
+    "login_success": 10,
+    "login_fail": 0,
+    "avg_login_time_ms": 1940,
+    "logout_success": 0,
+    "logout_fail": 10,
+    "feature_tests_passed": 70,
+    "feature_tests_failed": 0
+  },
+  "per_user": [
+    {
+      "email": "qa-hr01@rsupport.com",
+      "role": "HR_TEAM",
+      "description": "인사팀 01",
+      "login_success": true,
+      "login_time_ms": 2100,
+      "logout_success": false,
+      "logout_time_ms": 0,
+      "features": {
+        "레벨 관리": {
+          "passed": true,
+          "duration_ms": 415,
+          "detail": "HTTP 200 (415 ms)"
+        },
+        "대상자 관리": {
+          "passed": true,
+          "duration_ms": 268,
+          "detail": "HTTP 200 (268 ms)"
+        },
+        "심사": {
+          "passed": true,
+          "duration_ms": 308,
+          "detail": "HTTP 200 (308 ms)"
+        },
+        "확정": {
+          "passed": true,
+          "duration_ms": 169,
+          "detail": "HTTP 200 (169 ms)"
+        },
+        "포인트 관리": {
+          "passed": true,
+          "duration_ms": 163,
+          "detail": "HTTP 200 (163 ms)"
+        },
+        "학점 관리": {
+          "passed": true,
+          "duration_ms": 171,
+          "detail": "HTTP 200 (171 ms)"
+        },
+        "레벨 관리 테이블 렌더링": {
+          "passed": true,
+          "duration_ms": 42,
+          "detail": "20개 행 렌더링"
+        }
+      },
+      "session_isolation": {},
+      "errors": [],
+      "screenshots": []
+    },
+    {
+      "email": "qa-hr02@rsupport.com",
+      "role": "HR_TEAM",
+      "description": "인사팀 02",
+      "login_success": true,
+      "login_time_ms": 2016,
+      "logout_success": false,
+      "logout_time_ms": 0,
+      "features": {
+        "레벨 관리": {
+          "passed": true,
+          "duration_ms": 100,
+          "detail": "HTTP 200 (100 ms)"
+        },
+        "대상자 관리": {
+          "passed": true,
+          "duration_ms": 350,
+          "detail": "HTTP 200 (350 ms)"
+        },
+        "심사": {
+          "passed": true,
+          "duration_ms": 258,
+          "detail": "HTTP 200 (258 ms)"
+        },
+        "확정": {
+          "passed": true,
+          "duration_ms": 260,
+          "detail": "HTTP 200 (260 ms)"
+        },
+        "포인트 관리": {
+          "passed": true,
+          "duration_ms": 335,
+          "detail": "HTTP 200 (335 ms)"
+        },
+        "학점 관리": {
+          "passed": true,
+          "duration_ms": 295,
+          "detail": "HTTP 200 (295 ms)"
+        },
+        "레벨 관리 테이블 렌더링": {
+          "passed": true,
+          "duration_ms": 22,
+          "detail": "20개 행 렌더링"
+        }
+      },
+      "session_isolation": {},
+      "errors": [],
+      "screenshots": []
+    },
+    {
+      "email": "qa-dept01@rsupport.com",
+      "role": "DEPT_HEAD",
+      "description": "본부장 A",
+      "login_success": true,
+      "login_time_ms": 1972,
+      "logout_success": false,
+      "logout_time_ms": 0,
+      "features": {
+        "레벨 관리": {
+          "passed": true,
+          "duration_ms": 448,
+          "detail": "HTTP 200 (448 ms)"
+        },
+        "대상자 관리": {
+          "passed": true,
+          "duration_ms": 269,
+          "detail": "HTTP 200 (269 ms)"
+        },
+        "심사": {
+          "passed": true,
+          "duration_ms": 295,
+          "detail": "HTTP 200 (295 ms)"
+        },
+        "확정": {
+          "passed": true,
+          "duration_ms": 337,
+          "detail": "HTTP 200 (337 ms)"
+        },
+        "포인트 관리": {
+          "passed": true,
+          "duration_ms": 303,
+          "detail": "HTTP 200 (303 ms)"
+        },
+        "학점 관리": {
+          "passed": true,
+          "duration_ms": 268,
+          "detail": "HTTP 200 (268 ms)"
+        },
+        "레벨 관리 테이블 렌더링": {
+          "passed": true,
+          "duration_ms": 25,
+          "detail": "20개 행 렌더링"
+        }
+      },
+      "session_isolation": {},
+      "errors": [],
+      "screenshots": []
+    },
+    {
+      "email": "qa-dept02@rsupport.com",
+      "role": "DEPT_HEAD",
+      "description": "본부장 B",
+      "login_success": true,
+      "login_time_ms": 1663,
+      "logout_success": false,
+      "logout_time_ms": 0,
+      "features": {
+        "레벨 관리": {
+          "passed": true,
+          "duration_ms": 244,
+          "detail": "HTTP 200 (244 ms)"
+        },
+        "대상자 관리": {
+          "passed": true,
+          "duration_ms": 148,
+          "detail": "HTTP 200 (148 ms)"
+        },
+        "심사": {
+          "passed": true,
+          "duration_ms": 272,
+          "detail": "HTTP 200 (272 ms)"
+        },
+        "확정": {
+          "passed": true,
+          "duration_ms": 127,
+          "detail": "HTTP 200 (127 ms)"
+        },
+        "포인트 관리": {
+          "passed": true,
+          "duration_ms": 162,
+          "detail": "HTTP 200 (162 ms)"
+        },
+        "학점 관리": {
+          "passed": true,
+          "duration_ms": 146,
+          "detail": "HTTP 200 (146 ms)"
+        },
+        "레벨 관리 테이블 렌더링": {
+          "passed": true,
+          "duration_ms": 30,
+          "detail": "20개 행 렌더링"
+        }
+      },
+      "session_isolation": {},
+      "errors": [],
+      "screenshots": []
+    },
+    {
+      "email": "qa-dept03@rsupport.com",
+      "role": "DEPT_HEAD",
+      "description": "본부장 C",
+      "login_success": true,
+      "login_time_ms": 1847,
+      "logout_success": false,
+      "logout_time_ms": 0,
+      "features": {
+        "레벨 관리": {
+          "passed": true,
+          "duration_ms": 390,
+          "detail": "HTTP 200 (390 ms)"
+        },
+        "대상자 관리": {
+          "passed": true,
+          "duration_ms": 266,
+          "detail": "HTTP 200 (266 ms)"
+        },
+        "심사": {
+          "passed": true,
+          "duration_ms": 312,
+          "detail": "HTTP 200 (312 ms)"
+        },
+        "확정": {
+          "passed": true,
+          "duration_ms": 191,
+          "detail": "HTTP 200 (191 ms)"
+        },
+        "포인트 관리": {
+          "passed": true,
+          "duration_ms": 272,
+          "detail": "HTTP 200 (272 ms)"
+        },
+        "학점 관리": {
+          "passed": true,
+          "duration_ms": 270,
+          "detail": "HTTP 200 (270 ms)"
+        },
+        "레벨 관리 테이블 렌더링": {
+          "passed": true,
+          "duration_ms": 25,
+          "detail": "20개 행 렌더링"
+        }
+      },
+      "session_isolation": {},
+      "errors": [],
+      "screenshots": []
+    },
+    {
+      "email": "qa-section@rsupport.com",
+      "role": "SECTION_CHIEF",
+      "description": "실장 01",
+      "login_success": true,
+      "login_time_ms": 2212,
+      "logout_success": false,
+      "logout_time_ms": 0,
+      "features": {
+        "레벨 관리": {
+          "passed": true,
+          "duration_ms": 278,
+          "detail": "HTTP 200 (278 ms)"
+        },
+        "대상자 관리": {
+          "passed": true,
+          "duration_ms": 143,
+          "detail": "HTTP 200 (143 ms)"
+        },
+        "심사": {
+          "passed": true,
+          "duration_ms": 178,
+          "detail": "HTTP 200 (178 ms)"
+        },
+        "확정": {
+          "passed": true,
+          "duration_ms": 156,
+          "detail": "HTTP 200 (156 ms)"
+        },
+        "포인트 관리": {
+          "passed": true,
+          "duration_ms": 242,
+          "detail": "HTTP 200 (242 ms)"
+        },
+        "학점 관리": {
+          "passed": true,
+          "duration_ms": 190,
+          "detail": "HTTP 200 (190 ms)"
+        },
+        "레벨 관리 테이블 렌더링": {
+          "passed": true,
+          "duration_ms": 19,
+          "detail": "20개 행 렌더링"
+        }
+      },
+      "session_isolation": {},
+      "errors": [],
+      "screenshots": []
+    },
+    {
+      "email": "qa-leader01@rsupport.com",
+      "role": "TEAM_LEADER",
+      "description": "팀장 01",
+      "login_success": true,
+      "login_time_ms": 1875,
+      "logout_success": false,
+      "logout_time_ms": 0,
+      "features": {
+        "레벨 관리": {
+          "passed": true,
+          "duration_ms": 179,
+          "detail": "HTTP 200 (179 ms)"
+        },
+        "대상자 관리": {
+          "passed": true,
+          "duration_ms": 303,
+          "detail": "HTTP 200 (303 ms)"
+        },
+        "심사": {
+          "passed": true,
+          "duration_ms": 180,
+          "detail": "HTTP 200 (180 ms)"
+        },
+        "확정": {
+          "passed": true,
+          "duration_ms": 137,
+          "detail": "HTTP 200 (137 ms)"
+        },
+        "포인트 관리": {
+          "passed": true,
+          "duration_ms": 190,
+          "detail": "HTTP 200 (190 ms)"
+        },
+        "학점 관리": {
+          "passed": true,
+          "duration_ms": 120,
+          "detail": "HTTP 200 (120 ms)"
+        },
+        "레벨 관리 테이블 렌더링": {
+          "passed": true,
+          "duration_ms": 29,
+          "detail": "2개 행 렌더링"
+        }
+      },
+      "session_isolation": {},
+      "errors": [],
+      "screenshots": []
+    },
+    {
+      "email": "qa-leader02@rsupport.com",
+      "role": "TEAM_LEADER",
+      "description": "팀장 02",
+      "login_success": true,
+      "login_time_ms": 1744,
+      "logout_success": false,
+      "logout_time_ms": 0,
+      "features": {
+        "레벨 관리": {
+          "passed": true,
+          "duration_ms": 294,
+          "detail": "HTTP 200 (294 ms)"
+        },
+        "대상자 관리": {
+          "passed": true,
+          "duration_ms": 294,
+          "detail": "HTTP 200 (294 ms)"
+        },
+        "심사": {
+          "passed": true,
+          "duration_ms": 326,
+          "detail": "HTTP 200 (326 ms)"
+        },
+        "확정": {
+          "passed": true,
+          "duration_ms": 279,
+          "detail": "HTTP 200 (279 ms)"
+        },
+        "포인트 관리": {
+          "passed": true,
+          "duration_ms": 133,
+          "detail": "HTTP 200 (133 ms)"
+        },
+        "학점 관리": {
+          "passed": true,
+          "duration_ms": 64,
+          "detail": "HTTP 200 (64 ms)"
+        },
+        "레벨 관리 테이블 렌더링": {
+          "passed": true,
+          "duration_ms": 21,
+          "detail": "1개 행 렌더링"
+        }
+      },
+      "session_isolation": {},
+      "errors": [],
+      "screenshots": []
+    },
+    {
+      "email": "qa-member@rsupport.com",
+      "role": "TEAM_MEMBER",
+      "description": "팀원 01",
+      "login_success": true,
+      "login_time_ms": 1515,
+      "logout_success": false,
+      "logout_time_ms": 0,
+      "features": {
+        "레벨 관리": {
+          "passed": true,
+          "duration_ms": 280,
+          "detail": "HTTP 200 (280 ms)"
+        },
+        "대상자 관리": {
+          "passed": true,
+          "duration_ms": 293,
+          "detail": "HTTP 200 (293 ms)"
+        },
+        "심사": {
+          "passed": true,
+          "duration_ms": 174,
+          "detail": "HTTP 200 (174 ms)"
+        },
+        "확정": {
+          "passed": true,
+          "duration_ms": 131,
+          "detail": "HTTP 200 (131 ms)"
+        },
+        "포인트 관리": {
+          "passed": true,
+          "duration_ms": 243,
+          "detail": "HTTP 200 (243 ms)"
+        },
+        "학점 관리": {
+          "passed": true,
+          "duration_ms": 188,
+          "detail": "HTTP 200 (188 ms)"
+        },
+        "레벨 관리 테이블 렌더링": {
+          "passed": true,
+          "duration_ms": 20,
+          "detail": "1개 행 렌더링"
+        }
+      },
+      "session_isolation": {},
+      "errors": [],
+      "screenshots": []
+    },
+    {
+      "email": "qa-ceo@rsupport.com",
+      "role": "CEO",
+      "description": "대표이사",
+      "login_success": true,
+      "login_time_ms": 2453,
+      "logout_success": false,
+      "logout_time_ms": 0,
+      "features": {
+        "레벨 관리": {
+          "passed": true,
+          "duration_ms": 94,
+          "detail": "HTTP 200 (94 ms)"
+        },
+        "대상자 관리": {
+          "passed": true,
+          "duration_ms": 261,
+          "detail": "HTTP 200 (261 ms)"
+        },
+        "심사": {
+          "passed": true,
+          "duration_ms": 191,
+          "detail": "HTTP 200 (191 ms)"
+        },
+        "확정": {
+          "passed": true,
+          "duration_ms": 82,
+          "detail": "HTTP 200 (82 ms)"
+        },
+        "포인트 관리": {
+          "passed": true,
+          "duration_ms": 80,
+          "detail": "HTTP 200 (80 ms)"
+        },
+        "학점 관리": {
+          "passed": true,
+          "duration_ms": 60,
+          "detail": "HTTP 200 (60 ms)"
+        },
+        "레벨 관리 테이블 렌더링": {
+          "passed": true,
+          "duration_ms": 23,
+          "detail": "20개 행 렌더링"
+        }
+      },
+      "session_isolation": {},
+      "errors": [],
+      "screenshots": []
+    }
+  ]
+}

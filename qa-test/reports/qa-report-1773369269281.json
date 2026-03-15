@@ -1,0 +1,175 @@
+{
+  "generated_at": "2026-03-13T02:34:29.281Z",
+  "base_url": "https://levelup-2026.vercel.app",
+  "summary": {
+    "total_users": 10,
+    "login_success": 10,
+    "login_fail": 0,
+    "avg_login_time_ms": 1595,
+    "logout_success": 0,
+    "logout_fail": 10,
+    "feature_tests_passed": 0,
+    "feature_tests_failed": 0
+  },
+  "per_user": [
+    {
+      "email": "qa-hr01@rsupport.com",
+      "role": "HR_TEAM",
+      "description": "인사팀 01",
+      "login_success": true,
+      "login_time_ms": 1687,
+      "logout_success": false,
+      "logout_time_ms": 0,
+      "features": {},
+      "session_isolation": {
+        "session_email_match": true
+      },
+      "errors": [],
+      "screenshots": []
+    },
+    {
+      "email": "qa-hr02@rsupport.com",
+      "role": "HR_TEAM",
+      "description": "인사팀 02",
+      "login_success": true,
+      "login_time_ms": 1763,
+      "logout_success": false,
+      "logout_time_ms": 0,
+      "features": {},
+      "session_isolation": {
+        "session_email_match": true,
+        "unaffected_by_other_logout": true
+      },
+      "errors": [],
+      "screenshots": []
+    },
+    {
+      "email": "qa-dept01@rsupport.com",
+      "role": "DEPT_HEAD",
+      "description": "본부장 A",
+      "login_success": true,
+      "login_time_ms": 1401,
+      "logout_success": false,
+      "logout_time_ms": 0,
+      "features": {},
+      "session_isolation": {
+        "session_email_match": true,
+        "unaffected_by_other_logout": true
+      },
+      "errors": [],
+      "screenshots": []
+    },
+    {
+      "email": "qa-dept02@rsupport.com",
+      "role": "DEPT_HEAD",
+      "description": "본부장 B",
+      "login_success": true,
+      "login_time_ms": 1685,
+      "logout_success": false,
+      "logout_time_ms": 0,
+      "features": {},
+      "session_isolation": {
+        "session_email_match": true,
+        "unaffected_by_other_logout": true
+      },
+      "errors": [],
+      "screenshots": []
+    },
+    {
+      "email": "qa-dept03@rsupport.com",
+      "role": "DEPT_HEAD",
+      "description": "본부장 C",
+      "login_success": true,
+      "login_time_ms": 1767,
+      "logout_success": false,
+      "logout_time_ms": 0,
+      "features": {},
+      "session_isolation": {
+        "session_email_match": true,
+        "unaffected_by_other_logout": true
+      },
+      "errors": [],
+      "screenshots": []
+    },
+    {
+      "email": "qa-section@rsupport.com",
+      "role": "SECTION_CHIEF",
+      "description": "실장 01",
+      "login_success": true,
+      "login_time_ms": 1330,
+      "logout_success": false,
+      "logout_time_ms": 0,
+      "features": {},
+      "session_isolation": {
+        "session_email_match": true,
+        "unaffected_by_other_logout": true
+      },
+      "errors": [],
+      "screenshots": []
+    },
+    {
+      "email": "qa-leader01@rsupport.com",
+      "role": "TEAM_LEADER",
+      "description": "팀장 01",
+      "login_success": true,
+      "login_time_ms": 1529,
+      "logout_success": false,
+      "logout_time_ms": 0,
+      "features": {},
+      "session_isolation": {
+        "session_email_match": true,
+        "unaffected_by_other_logout": true
+      },
+      "errors": [],
+      "screenshots": []
+    },
+    {
+      "email": "qa-leader02@rsupport.com",
+      "role": "TEAM_LEADER",
+      "description": "팀장 02",
+      "login_success": true,
+      "login_time_ms": 1740,
+      "logout_success": false,
+      "logout_time_ms": 0,
+      "features": {},
+      "session_isolation": {
+        "session_email_match": true,
+        "unaffected_by_other_logout": true
+      },
+      "errors": [],
+      "screenshots": []
+    },
+    {
+      "email": "qa-member@rsupport.com",
+      "role": "TEAM_MEMBER",
+      "description": "팀원 01",
+      "login_success": true,
+      "login_time_ms": 1476,
+      "logout_success": false,
+      "logout_time_ms": 0,
+      "features": {},
+      "session_isolation": {
+        "session_email_match": true,
+        "unaffected_by_other_logout": true
+      },
+      "errors": [],
+      "screenshots": []
+    },
+    {
+      "email": "qa-ceo@rsupport.com",
+      "role": "CEO",
+      "description": "대표이사",
+      "login_success": true,
+      "login_time_ms": 1572,
+      "logout_success": false,
+      "logout_time_ms": 0,
+      "features": {},
+      "session_isolation": {
+        "session_email_match": true,
+        "unaffected_by_other_logout": true
+      },
+      "errors": [],
+      "screenshots": []
+    }
+  ]
+}

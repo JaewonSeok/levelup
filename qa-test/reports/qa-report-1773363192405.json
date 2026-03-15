@@ -1,0 +1,186 @@
+{
+  "generated_at": "2026-03-13T00:53:12.404Z",
+  "base_url": "https://levelup-2026.vercel.app",
+  "summary": {
+    "total_users": 10,
+    "login_success": 0,
+    "login_fail": 10,
+    "avg_login_time_ms": 0,
+    "logout_success": 0,
+    "logout_fail": 10,
+    "feature_tests_passed": 0,
+    "feature_tests_failed": 0
+  },
+  "per_user": [
+    {
+      "email": "qa-hr01@rsupport.com",
+      "role": "HR_TEAM",
+      "description": "인사팀 01",
+      "login_success": false,
+      "login_time_ms": 30925,
+      "logout_success": false,
+      "logout_time_ms": 0,
+      "features": {},
+      "session_isolation": {},
+      "errors": [
+        "login: page.waitForURL: Timeout 30000ms exceeded.\n=========================== logs ===========================\nwaiting for navigation to \"https://levelup-2026.vercel.app/level-management\" until \"load\"\n============================================================"
+      ],
+      "screenshots": [
+        "C:\\Users\\RSUPPORT\\Desktop\\2026 레벨업\\qa-test\\reports\\screenshots\\qa-hr01_at_rsupport.com_login_fail_1773363187595.png"
+      ]
+    },
+    {
+      "email": "qa-hr02@rsupport.com",
+      "role": "HR_TEAM",
+      "description": "인사팀 02",
+      "login_success": false,
+      "login_time_ms": 30706,
+      "logout_success": false,
+      "logout_time_ms": 0,
+      "features": {},
+      "session_isolation": {},
+      "errors": [
+        "login: page.waitForURL: Timeout 30000ms exceeded.\n=========================== logs ===========================\nwaiting for navigation to \"https://levelup-2026.vercel.app/level-management\" until \"load\"\n============================================================"
+      ],
+      "screenshots": [
+        "C:\\Users\\RSUPPORT\\Desktop\\2026 레벨업\\qa-test\\reports\\screenshots\\qa-hr02_at_rsupport.com_login_fail_1773363187408.png"
+      ]
+    },
+    {
+      "email": "qa-dept01@rsupport.com",
+      "role": "DEPT_HEAD",
+      "description": "본부장 A",
+      "login_success": false,
+      "login_time_ms": 30673,
+      "logout_success": false,
+      "logout_time_ms": 0,
+      "features": {},
+      "session_isolation": {},
+      "errors": [
+        "login: page.waitForURL: Timeout 30000ms exceeded.\n=========================== logs ===========================\nwaiting for navigation to \"https://levelup-2026.vercel.app/level-management\" until \"load\"\n============================================================"
+      ],
+      "screenshots": [
+        "C:\\Users\\RSUPPORT\\Desktop\\2026 레벨업\\qa-test\\reports\\screenshots\\qa-dept01_at_rsupport.com_login_fail_1773363187406.png"
+      ]
+    },
+    {
+      "email": "qa-dept02@rsupport.com",
+      "role": "DEPT_HEAD",
+      "description": "본부장 B",
+      "login_success": false,
+      "login_time_ms": 30725,
+      "logout_success": false,
+      "logout_time_ms": 0,
+      "features": {},
+      "session_isolation": {},
+      "errors": [
+        "login: page.waitForURL: Timeout 30000ms exceeded.\n=========================== logs ===========================\nwaiting for navigation to \"https://levelup-2026.vercel.app/level-management\" until \"load\"\n============================================================"
+      ],
+      "screenshots": [
+        "C:\\Users\\RSUPPORT\\Desktop\\2026 레벨업\\qa-test\\reports\\screenshots\\qa-dept02_at_rsupport.com_login_fail_1773363187500.png"
+      ]
+    },
+    {
+      "email": "qa-dept03@rsupport.com",
+      "role": "DEPT_HEAD",
+      "description": "본부장 C",
+      "login_success": false,
+      "login_time_ms": 30719,
+      "logout_success": false,
+      "logout_time_ms": 0,
+      "features": {},
+      "session_isolation": {},
+      "errors": [
+        "login: page.waitForURL: Timeout 30000ms exceeded.\n=========================== logs ===========================\nwaiting for navigation to \"https://levelup-2026.vercel.app/level-management\" until \"load\"\n============================================================"
+      ],
+      "screenshots": [
+        "C:\\Users\\RSUPPORT\\Desktop\\2026 레벨업\\qa-test\\reports\\screenshots\\qa-dept03_at_rsupport.com_login_fail_1773363187531.png"
+      ]
+    },
+    {
+      "email": "qa-section@rsupport.com",
+      "role": "SECTION_CHIEF",
+      "description": "실장 01",
+      "login_success": false,
+      "login_time_ms": 30816,
+      "logout_success": false,
+      "logout_time_ms": 0,
+      "features": {},
+      "session_isolation": {},
+      "errors": [
+        "login: page.waitForURL: Timeout 30000ms exceeded.\n=========================== logs ===========================\nwaiting for navigation to \"https://levelup-2026.vercel.app/level-management\" until \"load\"\n============================================================"
+      ],
+      "screenshots": [
+        "C:\\Users\\RSUPPORT\\Desktop\\2026 레벨업\\qa-test\\reports\\screenshots\\qa-section_at_rsupport.com_login_fail_1773363187703.png"
+      ]
+    },
+    {
+      "email": "qa-leader01@rsupport.com",
+      "role": "TEAM_LEADER",
+      "description": "팀장 01",
+      "login_success": false,
+      "login_time_ms": 30722,
+      "logout_success": false,
+      "logout_time_ms": 0,
+      "features": {},
+      "session_isolation": {},
+      "errors": [
+        "login: page.waitForURL: Timeout 30000ms exceeded.\n=========================== logs ===========================\nwaiting for navigation to \"https://levelup-2026.vercel.app/level-management\" until \"load\"\n============================================================"
+      ],
+      "screenshots": [
+        "C:\\Users\\RSUPPORT\\Desktop\\2026 레벨업\\qa-test\\reports\\screenshots\\qa-leader01_at_rsupport.com_login_fail_1773363187689.png"
+      ]
+    },
+    {
+      "email": "qa-leader02@rsupport.com",
+      "role": "TEAM_LEADER",
+      "description": "팀장 02",
+      "login_success": false,
+      "login_time_ms": 30571,
+      "logout_success": false,
+      "logout_time_ms": 0,
+      "features": {},
+      "session_isolation": {},
+      "errors": [
+        "login: page.waitForURL: Timeout 30000ms exceeded.\n=========================== logs ===========================\nwaiting for navigation to \"https://levelup-2026.vercel.app/level-management\" until \"load\"\n============================================================"
+      ],
+      "screenshots": [
+        "C:\\Users\\RSUPPORT\\Desktop\\2026 레벨업\\qa-test\\reports\\screenshots\\qa-leader02_at_rsupport.com_login_fail_1773363187735.png"
+      ]
+    },
+    {
+      "email": "qa-member@rsupport.com",
+      "role": "TEAM_MEMBER",
+      "description": "팀원 01",
+      "login_success": false,
+      "login_time_ms": 30655,
+      "logout_success": false,
+      "logout_time_ms": 0,
+      "features": {},
+      "session_isolation": {},
+      "errors": [
+        "login: page.waitForURL: Timeout 30000ms exceeded.\n=========================== logs ===========================\nwaiting for navigation to \"https://levelup-2026.vercel.app/level-management\" until \"load\"\n============================================================"
+      ],
+      "screenshots": [
+        "C:\\Users\\RSUPPORT\\Desktop\\2026 레벨업\\qa-test\\reports\\screenshots\\qa-member_at_rsupport.com_login_fail_1773363187937.png"
+      ]
+    },
+    {
+      "email": "qa-ceo@rsupport.com",
+      "role": "CEO",
+      "description": "대표이사",
+      "login_success": false,
+      "login_time_ms": 30566,
+      "logout_success": false,
+      "logout_time_ms": 0,
+      "features": {},
+      "session_isolation": {},
+      "errors": [
+        "login: page.waitForURL: Timeout 30000ms exceeded.\n=========================== logs ===========================\nwaiting for navigation to \"https://levelup-2026.vercel.app/level-management\" until \"load\"\n============================================================"
+      ],
+      "screenshots": [
+        "C:\\Users\\RSUPPORT\\Desktop\\2026 레벨업\\qa-test\\reports\\screenshots\\qa-ceo_at_rsupport.com_login_fail_1773363187844.png"
+      ]
+    }
+  ]
+}

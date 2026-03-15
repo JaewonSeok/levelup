@@ -1,0 +1,166 @@
+{
+  "generated_at": "2026-03-13T01:03:08.849Z",
+  "base_url": "https://levelup-2026.vercel.app",
+  "summary": {
+    "total_users": 10,
+    "login_success": 10,
+    "login_fail": 0,
+    "avg_login_time_ms": 3774,
+    "logout_success": 10,
+    "logout_fail": 0,
+    "feature_tests_passed": 0,
+    "feature_tests_failed": 0
+  },
+  "per_user": [
+    {
+      "email": "qa-hr01@rsupport.com",
+      "role": "HR_TEAM",
+      "description": "인사팀 01",
+      "login_success": true,
+      "login_time_ms": 4405,
+      "logout_success": true,
+      "logout_time_ms": 422,
+      "features": {},
+      "session_isolation": {
+        "protected_route_blocked_after_logout": true
+      },
+      "errors": [],
+      "screenshots": []
+    },
+    {
+      "email": "qa-hr02@rsupport.com",
+      "role": "HR_TEAM",
+      "description": "인사팀 02",
+      "login_success": true,
+      "login_time_ms": 2897,
+      "logout_success": true,
+      "logout_time_ms": 422,
+      "features": {},
+      "session_isolation": {
+        "protected_route_blocked_after_logout": true
+      },
+      "errors": [],
+      "screenshots": []
+    },
+    {
+      "email": "qa-dept01@rsupport.com",
+      "role": "DEPT_HEAD",
+      "description": "본부장 A",
+      "login_success": true,
+      "login_time_ms": 3138,
+      "logout_success": true,
+      "logout_time_ms": 410,
+      "features": {},
+      "session_isolation": {
+        "protected_route_blocked_after_logout": true
+      },
+      "errors": [],
+      "screenshots": []
+    },
+    {
+      "email": "qa-dept02@rsupport.com",
+      "role": "DEPT_HEAD",
+      "description": "본부장 B",
+      "login_success": true,
+      "login_time_ms": 2965,
+      "logout_success": true,
+      "logout_time_ms": 390,
+      "features": {},
+      "session_isolation": {
+        "protected_route_blocked_after_logout": true
+      },
+      "errors": [],
+      "screenshots": []
+    },
+    {
+      "email": "qa-dept03@rsupport.com",
+      "role": "DEPT_HEAD",
+      "description": "본부장 C",
+      "login_success": true,
+      "login_time_ms": 4491,
+      "logout_success": true,
+      "logout_time_ms": 414,
+      "features": {},
+      "session_isolation": {
+        "protected_route_blocked_after_logout": true
+      },
+      "errors": [],
+      "screenshots": []
+    },
+    {
+      "email": "qa-section@rsupport.com",
+      "role": "SECTION_CHIEF",
+      "description": "실장 01",
+      "login_success": true,
+      "login_time_ms": 3253,
+      "logout_success": true,
+      "logout_time_ms": 383,
+      "features": {},
+      "session_isolation": {
+        "protected_route_blocked_after_logout": true
+      },
+      "errors": [],
+      "screenshots": []
+    },
+    {
+      "email": "qa-leader01@rsupport.com",
+      "role": "TEAM_LEADER",
+      "description": "팀장 01",
+      "login_success": true,
+      "login_time_ms": 3825,
+      "logout_success": true,
+      "logout_time_ms": 420,
+      "features": {},
+      "session_isolation": {
+        "protected_route_blocked_after_logout": true
+      },
+      "errors": [],
+      "screenshots": []
+    },
+    {
+      "email": "qa-leader02@rsupport.com",
+      "role": "TEAM_LEADER",
+      "description": "팀장 02",
+      "login_success": true,
+      "login_time_ms": 4412,
+      "logout_success": true,
+      "logout_time_ms": 409,
+      "features": {},
+      "session_isolation": {
+        "protected_route_blocked_after_logout": true
+      },
+      "errors": [],
+      "screenshots": []
+    },
+    {
+      "email": "qa-member@rsupport.com",
+      "role": "TEAM_MEMBER",
+      "description": "팀원 01",
+      "login_success": true,
+      "login_time_ms": 4485,
+      "logout_success": true,
+      "logout_time_ms": 416,
+      "features": {},
+      "session_isolation": {
+        "protected_route_blocked_after_logout": true
+      },
+      "errors": [],
+      "screenshots": []
+    },
+    {
+      "email": "qa-ceo@rsupport.com",
+      "role": "CEO",
+      "description": "대표이사",
+      "login_success": true,
+      "login_time_ms": 3864,
+      "logout_success": true,
+      "logout_time_ms": 385,
+      "features": {},
+      "session_isolation": {
+        "protected_route_blocked_after_logout": true
+      },
+      "errors": [],
+      "screenshots": []
+    }
+  ]
+}
