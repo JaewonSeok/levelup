@@ -433,13 +433,13 @@ export default function ReviewPage() {
   const currentDeptName = currentUser?.department ?? "";
   const displayCandidates = isDeptHead
     ? candidates.filter((c) => {
-        if (query.targetType === "other")
-          // 수정 4: L3 포함
-          return c.department !== currentDeptName && (c.level === "L3" || c.level === "L4" || c.level === "L5");
-        if (query.targetType === "all")
-          // 수정 4: L3 포함
-          return c.department === currentDeptName || c.level === "L3" || c.level === "L4" || c.level === "L5";
-        return true; // "own": API가 이미 소속 본부만 필터링
+        if (query.targetType === "own") return true; // "own": API가 이미 소속 본부만 반환
+        if (currentPhase === 2) {
+          // Phase 2: 타본부장 교차심사 — 본인소속 제외 + L3/L4만 (이중 보장)
+          return c.department !== currentDeptName && (c.level === "L3" || c.level === "L4");
+        }
+        // Phase 1: API가 이미 본인소속만 반환하므로 그대로 통과
+        return true;
       })
     : candidates;
   // 본부장 "전체" 선택 시 본인 소속 먼저, 타본부 뒤에 정렬
