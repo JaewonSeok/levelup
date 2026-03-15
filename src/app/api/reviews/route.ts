@@ -57,16 +57,11 @@ export async function GET(req: NextRequest) {
         userConditions.push({ level: { in: [Level.L3, Level.L4, Level.L5] } });
       }
     } else if (targetType === "all" && session.user.role === Role.DEPT_HEAD) {
-      // 본부장 전체: 본인소속 L1~L5 전부 + 타본부 L3,L4,L5
+      // Phase 2 본부장 전체: 타본부 L3,L4,L5만 (본인소속은 targetType=own으로만 조회)
       userConditions.push({
-        OR: [
-          { department: currentDept },
-          {
-            AND: [
-              { NOT: { department: currentDept } },
-              { level: { in: [Level.L3, Level.L4, Level.L5] } },
-            ],
-          },
+        AND: [
+          { NOT: { department: currentDept } },
+          { level: { in: [Level.L3, Level.L4, Level.L5] } },
         ],
       });
     }
@@ -144,7 +139,7 @@ export async function GET(req: NextRequest) {
         .map((r) => r.candidateId)
     );
     workingCandidates = candidates.filter(
-      (c) => c.user.department === currentDept || recommendedIds.has(c.id)
+      (c) => recommendedIds.has(c.id)
     );
     candidateIds = workingCandidates.map((c) => c.id);
   }
