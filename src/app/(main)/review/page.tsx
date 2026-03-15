@@ -1313,8 +1313,13 @@ export default function ReviewPage() {
           onSaved={handleOpinionSaved}
           onReset={isDeptHead ? () => setRefreshKey((k) => k + 1) : undefined}
           isSubmitted={
-            (isSubmitted && isDeptHead) ||
-            (isDeptHead && currentPhase === 2 && selectedCandidate.department === currentDeptName)
+            isDeptHead && (
+              currentPhase === 1
+                ? isSubmitted // Phase 1: 1차 제출 여부로 잠금
+                : selectedCandidate.department === currentDeptName
+                  ? true // Phase 2 + 소속본부 직원: 1차 완료 → 항상 잠금
+                  : isPhase2Submitted // Phase 2 + 타본부 직원: 2차 제출 여부로 잠금
+            )
           }
           candidateInfo={selectedCandidate}
         />

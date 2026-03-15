@@ -187,22 +187,11 @@ export async function GET(
     });
   }
 
-  // DEPT_HEAD: Phase별 표시 행 결정
-  // Phase 1: 본인 행만 (소속 본부 직원 심사)
-  // Phase 2 + 타본부 후보자: 본인 행 + 소속본부장 행(참고용 읽기전용)
-  // Phase 2 + 소속본부 후보자: 본인 행만 (1차 완료, 읽기전용 표시는 모달에서 처리)
+  // DEPT_HEAD: 본인 행만 반환 (Phase 무관)
+  // 타 본부장의 의견은 어떤 Phase에서도 다른 본부장에게 노출하지 않음
   let filteredReviewers: typeof reviewers;
   if (session.user.role === Role.DEPT_HEAD) {
-    const currentUserDept = session.user.department ?? "";
-    if (currentPhase === 2 && currentUserDept !== candidateDept) {
-      // 타본부장이 타본부 후보자를 Phase 2에서 조회: 본인 행 + 소속본부장 행
-      filteredReviewers = reviewers.filter(
-        (r) => r.isCurrentUser || r.reviewerRole === "소속본부장"
-      );
-    } else {
-      // Phase 1 또는 Phase 2 + 소속본부 후보자: 본인 행만
-      filteredReviewers = reviewers.filter((r) => r.isCurrentUser);
-    }
+    filteredReviewers = reviewers.filter((r) => r.isCurrentUser);
   } else {
     filteredReviewers = reviewers;
   }

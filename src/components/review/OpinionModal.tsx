@@ -456,12 +456,8 @@ export function OpinionModal({
               </h3>
               <div className="space-y-2">
                 {data.reviewers.map((reviewer) => {
-                  // Phase-aware 행 표시 필터 (DEPT_HEAD 전용)
-                  // Phase 1: 본인 행만
-                  // Phase 2: 본인 행 + 소속본부장 행(참고용, API가 이미 필터링해서 전달)
-                  // → API가 이미 filteredReviewers를 반환하므로 프론트는 단순 비현재유저 제외만 수행
-                  if (isDeptHead && !reviewer.isCurrentUser && currentPhase !== 2) return null;
-                  if (isDeptHead && !reviewer.isCurrentUser && currentPhase === 2 && reviewer.reviewerRole !== "소속본부장") return null;
+                  // DEPT_HEAD: 본인 행만 렌더링 (API도 동일하게 필터링하나 이중 보장)
+                  if (isDeptHead && !reviewer.isCurrentUser) return null;
 
                   const isHR = reviewer.reviewerRole === "인사팀장";
                   const isOwn = reviewer.reviewerRole === "소속본부장";
@@ -505,9 +501,7 @@ export function OpinionModal({
                             {reviewer.reviewerName}
                           </p>
                           {isOwn && (
-                            <p className="text-xs text-blue-500">
-                              {isDeptHead && currentPhase === 2 ? "(소속 · 1차의견)" : "(소속)"}
-                            </p>
+                            <p className="text-xs text-blue-500">(소속)</p>
                           )}
                           {isHR && (
                             <p className="text-xs text-amber-600">(추가보고용)</p>
