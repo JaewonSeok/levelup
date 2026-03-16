@@ -48,7 +48,9 @@ export const authOptions: NextAuthOptions = {
     GoogleProvider({
       clientId: process.env.GOOGLE_CLIENT_ID!,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
-      // [보안] allowDangerousEmailAccountLinking 제거 — Google 계정으로 기존 계정 탈취 방지
+      // 사내 내부 시스템: signIn 콜백에서 사전 등록된 이메일만 허용하므로
+      // 기존 계정에 Google OAuth 연결을 허용해도 보안 위험 없음
+      allowDangerousEmailAccountLinking: true,
     }),
     CredentialsProvider({
       name: "credentials",
