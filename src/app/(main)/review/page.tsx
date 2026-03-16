@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { linkifyText } from "@/utils/linkify";
 import { Button } from "@/components/ui/button";
 import { EmployeeTooltip } from "@/components/EmployeeTooltip";
 import {
@@ -172,25 +171,16 @@ function NoteModal({ candidateId, candidateName, initialNote, onClose, onSaved }
         <DialogHeader>
           <DialogTitle>비고 메모 — {candidateName}</DialogTitle>
         </DialogHeader>
-        <div className="space-y-3">
-          {/* 읽기 미리보기: URL을 클릭 가능한 링크로 렌더링 */}
-          {noteText.trim() && (
-            <div className="px-3 py-2 bg-gray-50 border rounded-md text-sm whitespace-pre-wrap leading-relaxed">
-              {linkifyText(noteText)}
-            </div>
-          )}
-          <div>
-            <label className="text-sm font-medium text-gray-700">메모 편집</label>
-            <textarea
-              className="mt-1 w-full border rounded-md px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-ring"
-              rows={5}
-              maxLength={2000}
-              value={noteText}
-              onChange={(e) => setNoteText(e.target.value)}
-              placeholder="개인별 메모를 입력하세요. (최대 2,000자)"
-            />
-            <p className="text-right text-xs text-muted-foreground">{noteText.length} / 2,000</p>
-          </div>
+        <div>
+          <textarea
+            className="w-full border rounded-md px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-ring"
+            rows={5}
+            maxLength={2000}
+            value={noteText}
+            onChange={(e) => setNoteText(e.target.value)}
+            placeholder="개인별 메모를 입력하세요. (최대 2,000자)"
+          />
+          <p className="text-right text-xs text-muted-foreground">{noteText.length} / 2,000</p>
         </div>
         <DialogFooter className="gap-2 mt-2">
           {hasNote && (
