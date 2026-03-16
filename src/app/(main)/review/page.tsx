@@ -115,14 +115,15 @@ interface NoteModalProps {
   candidateId: string;
   candidateName: string;
   initialNote: CandidateNoteData | null;
+  readOnly?: boolean;
   onClose: () => void;
   onSaved: (candidateId: string, note: CandidateNoteData | null) => void;
 }
 
-function NoteModal({ candidateId, candidateName, initialNote, onClose, onSaved }: NoteModalProps) {
+function NoteModal({ candidateId, candidateName, initialNote, readOnly = false, onClose, onSaved }: NoteModalProps) {
   const hasExisting = !!initialNote?.noteText;
-  // 기존 메모가 있으면 보기 모드, 없으면 바로 편집 모드
-  const [isEditing, setIsEditing] = useState(!hasExisting);
+  // readOnly면 항상 보기 모드 고정; 기존 메모 없으면 바로 편집 모드
+  const [isEditing, setIsEditing] = useState(!hasExisting && !readOnly);
   const [noteText, setNoteText] = useState(initialNote?.noteText ?? "");
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -215,13 +216,15 @@ function NoteModal({ candidateId, candidateName, initialNote, onClose, onSaved }
             </>
           ) : (
             <>
-              {hasExisting && (
+              {!readOnly && hasExisting && (
                 <Button variant="destructive" size="sm" onClick={handleDelete} disabled={deleting}>
                   {deleting ? "삭제 중..." : "삭제"}
                 </Button>
               )}
               <Button variant="outline" size="sm" onClick={onClose}>닫기</Button>
-              <Button size="sm" onClick={() => setIsEditing(true)}>편집</Button>
+              {!readOnly && (
+                <Button size="sm" onClick={() => setIsEditing(true)}>편집</Button>
+              )}
             </>
           )}
         </DialogFooter>
@@ -388,8 +391,8 @@ export default function ReviewPage() {
   const isHROrAdmin = currentUser?.role === "HR_TEAM" || currentUser?.role === "SYSTEM_ADMIN";
   const currentPhase = currentUser?.currentPhase ?? 1;
   const canEditNote = isHROrAdmin;
-  // 비고 컬럼: 본부장에게는 숨김 (내부 심사 메모는 인사팀/관리자/CEO 전용)
-  const showNoteColumn = !isDeptHead;
+  // 비고 컬럼: 전체 역할에 표시 (본부장은 읽기 전용)
+  const showNoteColumn = true;
 
   // 본부장: 전체/타본부소속 필터 (API 필터 + 프론트 이중 보장)
   const currentDeptName = currentUser?.department ?? "";
@@ -1220,7 +1223,7 @@ export default function ReviewPage() {
                         return <span className="text-gray-400 text-xs">-</span>;
                       })()}
                     </td>
-                    {/* 비고 (DEPT_HEAD 제외) */}
+                    {/* 비고 (DEPT_HEAD는 읽기 전용) */}
                     {showNoteColumn && (
                       <td className="border px-2 py-1.5 text-center">
                         {c.note?.noteText ? (
@@ -1400,11 +1403,12 @@ export default function ReviewPage() {
       )}
 
       {/* ── 비고 NoteModal ──────────────────────────────────── */}
-      {noteModal && showNoteColumn && (
+      {noteModal && (
         <NoteModal
           candidateId={noteModal.candidateId}
           candidateName={noteModal.candidateName}
           initialNote={noteModal.note}
+          readOnly={!canEditNote}
           onClose={() => setNoteModal(null)}
           onSaved={handleNoteSaved}
         />
