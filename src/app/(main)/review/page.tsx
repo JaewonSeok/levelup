@@ -174,7 +174,7 @@ function NoteModal({ candidateId, candidateName, initialNote, onClose, onSaved }
 
   return (
     <Dialog open onOpenChange={onClose}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="w-[90vw] min-w-[520px] max-w-[640px]">
         <DialogHeader>
           <DialogTitle>비고 메모 — {candidateName}</DialogTitle>
         </DialogHeader>
@@ -184,7 +184,7 @@ function NoteModal({ candidateId, candidateName, initialNote, onClose, onSaved }
           <div>
             <textarea
               className="w-full border rounded-md px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-ring"
-              rows={5}
+              style={{ minHeight: "200px" }}
               maxLength={2000}
               value={noteText}
               onChange={(e) => setNoteText(e.target.value)}
@@ -195,7 +195,7 @@ function NoteModal({ candidateId, candidateName, initialNote, onClose, onSaved }
           </div>
         ) : (
           /* ── 보기 모드 ── */
-          <div className="min-h-[80px] px-3 py-2 border rounded-md bg-gray-50 text-sm whitespace-pre-wrap leading-relaxed">
+          <div className="min-h-[200px] px-3 py-2 border rounded-md bg-gray-50 text-sm whitespace-pre-wrap leading-relaxed break-all">
             {noteText.trim() ? linkifyText(noteText) : <span className="text-muted-foreground">메모 없음</span>}
           </div>
         )}
