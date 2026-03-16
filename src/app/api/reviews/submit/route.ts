@@ -22,10 +22,12 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const year = Number(searchParams.get("year") ?? new Date().getFullYear());
 
-  const submissions = await prisma.submission.findMany({
-    where: { year },
-    orderBy: { submittedAt: "desc" },
-  });
+  const [submissions, deptHeads] = await Promise.all([
+    prisma.submission.findMany({ where: { year }, orderBy: { submittedAt: "desc" } }),
+    prisma.user.findMany({ where: { role: Role.DEPT_HEAD, isActive: true }, select: { department: true } }),
+  ]);
+
+  const allDepartments = Array.from(new Set(deptHeads.map((u) => u.department).filter(Boolean))).sort();
 
   const phase1Subs = submissions.filter((s) => s.phase === 1);
   const phase2Subs = submissions.filter((s) => s.phase === 2);
@@ -46,6 +48,7 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({
     isSubmitted,
     isPhase2Submitted,
+    allDepartments,
     submittedDepartments: phase1Subs.map((s) => ({
       department: s.department,
       submittedAt: s.submittedAt.toISOString(),

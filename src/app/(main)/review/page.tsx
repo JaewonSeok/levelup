@@ -322,6 +322,7 @@ export default function ReviewPage() {
   // 제출 상태
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [isPhase2Submitted, setIsPhase2Submitted] = useState(false);
+  const [allDeptHeadDepts, setAllDeptHeadDepts] = useState<string[]>([]);
   const [submittedDepts, setSubmittedDepts] = useState<Set<string>>(new Set());
   const [submittedDeptMap, setSubmittedDeptMap] = useState<Map<string, string>>(new Map());
   const [phase2SubmittedDeptMap, setPhase2SubmittedDeptMap] = useState<Map<string, string>>(new Map());
@@ -341,6 +342,7 @@ export default function ReviewPage() {
       const data = await res.json();
       setIsSubmitted(data.isSubmitted ?? false);
       setIsPhase2Submitted(data.isPhase2Submitted ?? false);
+      if (data.allDepartments) setAllDeptHeadDepts(data.allDepartments);
       const deptList: { department: string; submittedAt: string }[] = data.submittedDepartments ?? [];
       setSubmittedDepts(new Set(deptList.map((s) => s.department)));
       setSubmittedDeptMap(new Map(deptList.map((s) => [s.department, s.submittedAt])));
@@ -822,7 +824,7 @@ export default function ReviewPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {candidateDepartments.map((dept) => {
+                    {(allDeptHeadDepts.length > 0 ? allDeptHeadDepts : candidateDepartments).map((dept) => {
                       const submittedAt = phase2SubmittedDeptMap.get(dept);
                       const isSubm = !!submittedAt;
                       const isCanceling = cancelingDept === `p2-${dept}`;
