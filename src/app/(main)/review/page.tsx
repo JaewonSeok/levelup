@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { linkifyText } from "@/utils/linkify";
 import { Button } from "@/components/ui/button";
 import { EmployeeTooltip } from "@/components/EmployeeTooltip";
 import {
@@ -119,6 +120,9 @@ interface NoteModalProps {
 }
 
 function NoteModal({ candidateId, candidateName, initialNote, onClose, onSaved }: NoteModalProps) {
+  const hasExisting = !!initialNote?.noteText;
+  // 기존 메모가 있으면 보기 모드, 없으면 바로 편집 모드
+  const [isEditing, setIsEditing] = useState(!hasExisting);
   const [noteText, setNoteText] = useState(initialNote?.noteText ?? "");
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -163,7 +167,10 @@ function NoteModal({ candidateId, candidateName, initialNote, onClose, onSaved }
     }
   };
 
-  const hasNote = !!initialNote?.noteText;
+  const handleCancelEdit = () => {
+    setNoteText(initialNote?.noteText ?? "");
+    setIsEditing(false);
+  };
 
   return (
     <Dialog open onOpenChange={onClose}>
@@ -171,27 +178,52 @@ function NoteModal({ candidateId, candidateName, initialNote, onClose, onSaved }
         <DialogHeader>
           <DialogTitle>비고 메모 — {candidateName}</DialogTitle>
         </DialogHeader>
-        <div>
-          <textarea
-            className="w-full border rounded-md px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-ring"
-            rows={5}
-            maxLength={2000}
-            value={noteText}
-            onChange={(e) => setNoteText(e.target.value)}
-            placeholder="개인별 메모를 입력하세요. (최대 2,000자)"
-          />
-          <p className="text-right text-xs text-muted-foreground">{noteText.length} / 2,000</p>
-        </div>
+
+        {isEditing ? (
+          /* ── 편집 모드 ── */
+          <div>
+            <textarea
+              className="w-full border rounded-md px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-ring"
+              rows={5}
+              maxLength={2000}
+              value={noteText}
+              onChange={(e) => setNoteText(e.target.value)}
+              placeholder="개인별 메모를 입력하세요. (최대 2,000자)"
+              autoFocus
+            />
+            <p className="text-right text-xs text-muted-foreground">{noteText.length} / 2,000</p>
+          </div>
+        ) : (
+          /* ── 보기 모드 ── */
+          <div className="min-h-[80px] px-3 py-2 border rounded-md bg-gray-50 text-sm whitespace-pre-wrap leading-relaxed">
+            {noteText.trim() ? linkifyText(noteText) : <span className="text-muted-foreground">메모 없음</span>}
+          </div>
+        )}
+
         <DialogFooter className="gap-2 mt-2">
-          {hasNote && (
-            <Button variant="destructive" size="sm" onClick={handleDelete} disabled={deleting || saving}>
-              {deleting ? "삭제 중..." : "삭제"}
-            </Button>
+          {isEditing ? (
+            <>
+              {hasExisting && (
+                <Button variant="outline" size="sm" onClick={handleCancelEdit} disabled={saving || deleting}>
+                  취소
+                </Button>
+              )}
+              <Button variant="outline" size="sm" onClick={onClose} disabled={saving || deleting}>닫기</Button>
+              <Button size="sm" onClick={handleSave} disabled={saving || deleting}>
+                {saving ? "저장 중..." : "저장"}
+              </Button>
+            </>
+          ) : (
+            <>
+              {hasExisting && (
+                <Button variant="destructive" size="sm" onClick={handleDelete} disabled={deleting}>
+                  {deleting ? "삭제 중..." : "삭제"}
+                </Button>
+              )}
+              <Button variant="outline" size="sm" onClick={onClose}>닫기</Button>
+              <Button size="sm" onClick={() => setIsEditing(true)}>편집</Button>
+            </>
           )}
-          <Button variant="outline" size="sm" onClick={onClose} disabled={saving || deleting}>취소</Button>
-          <Button size="sm" onClick={handleSave} disabled={saving || deleting}>
-            {saving ? "저장 중..." : "저장"}
-          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
