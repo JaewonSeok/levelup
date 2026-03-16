@@ -2,6 +2,9 @@
   "version": 2,
   "regions": ["icn1"],
   "functions": {
+    "src/app/api/auth/[...nextauth]/route.ts": {
+      "maxDuration": 30
+    },
     "src/app/api/ai-report/route.ts": {
       "maxDuration": 60,
       "memory": 512

@@ -117,8 +117,10 @@ export const authOptions: NextAuthOptions = {
         token.department = (user as { department?: string }).department ?? token.department;
         token.team = (user as { team?: string }).team ?? token.team;
       }
-      // Google OAuth 첫 로그인 시 DB에서 role/department/team 보완
-      if (account?.provider === "google" && token.email && !token.role) {
+      // Google OAuth 첫 로그인: PrismaAdapter는 표준 필드(id, name, email, image)만 반환하므로
+      // role/department/team은 DB에서 직접 조회해 token에 보완.
+      // account는 sign-in 시에만 존재하므로 중복 실행되지 않음.
+      if (account?.provider === "google" && token.email) {
         const dbUser = await prisma.user.findUnique({
           where: { email: token.email as string },
           select: { id: true, role: true, department: true, team: true },
