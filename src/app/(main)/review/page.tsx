@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback } from "react";
+import { linkifyText } from "@/utils/linkify";
 import { Button } from "@/components/ui/button";
 import { EmployeeTooltip } from "@/components/EmployeeTooltip";
 import {
@@ -120,44 +121,8 @@ interface NoteModalProps {
 
 function NoteModal({ candidateId, candidateName, initialNote, onClose, onSaved }: NoteModalProps) {
   const [noteText, setNoteText] = useState(initialNote?.noteText ?? "");
-  const [fileUrl, setFileUrl] = useState(initialNote?.fileUrl ?? null);
-  const [fileName, setFileName] = useState(initialNote?.fileName ?? null);
-  const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setUploading(true);
-    const formData = new FormData();
-    formData.append("file", file);
-    try {
-      const res = await fetch("/api/candidate-notes/upload", { method: "POST", body: formData });
-      // res.ok 확인 전 .json() 호출 금지 — 빈 응답이면 SyntaxError 발생
-      let data: { success?: boolean; fileUrl?: string; fileName?: string; error?: string } = {};
-      const contentType = res.headers.get("content-type") ?? "";
-      if (contentType.includes("application/json")) {
-        data = await res.json();
-      }
-      if (!res.ok) throw new Error(data.error ?? `파일 업로드 실패 (HTTP ${res.status})`);
-      if (!data.fileUrl) throw new Error("서버 응답에 파일 URL이 없습니다.");
-      setFileUrl(data.fileUrl);
-      setFileName(data.fileName ?? file.name);
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "파일 업로드에 실패했습니다.");
-    } finally {
-      setUploading(false);
-      if (fileInputRef.current) fileInputRef.current.value = "";
-    }
-  };
-
-  const handleRemoveFile = () => {
-    setFileUrl(null);
-    setFileName(null);
-    if (fileInputRef.current) fileInputRef.current.value = "";
-  };
 
   const handleSave = async () => {
     setSaving(true);
@@ -165,13 +130,13 @@ function NoteModal({ candidateId, candidateName, initialNote, onClose, onSaved }
       const res = await fetch("/api/candidate-notes", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ candidateId, noteText: noteText.trim() || null, fileUrl, fileName }),
+        body: JSON.stringify({ candidateId, noteText: noteText.trim() || null, fileUrl: null, fileName: null }),
       });
       if (!res.ok) {
         const data = await res.json();
         throw new Error(data.error ?? "저장 실패");
       }
-      onSaved(candidateId, { noteText: noteText.trim() || null, fileUrl, fileName });
+      onSaved(candidateId, { noteText: noteText.trim() || null, fileUrl: null, fileName: null });
       toast.success("메모가 저장되었습니다.");
       onClose();
     } catch (err) {
@@ -199,7 +164,7 @@ function NoteModal({ candidateId, candidateName, initialNote, onClose, onSaved }
     }
   };
 
-  const hasNote = !!(initialNote?.noteText || initialNote?.fileUrl);
+  const hasNote = !!initialNote?.noteText;
 
   return (
     <Dialog open onOpenChange={onClose}>
@@ -208,8 +173,14 @@ function NoteModal({ candidateId, candidateName, initialNote, onClose, onSaved }
           <DialogTitle>비고 메모 — {candidateName}</DialogTitle>
         </DialogHeader>
         <div className="space-y-3">
+          {/* 읽기 미리보기: URL을 클릭 가능한 링크로 렌더링 */}
+          {noteText.trim() && (
+            <div className="px-3 py-2 bg-gray-50 border rounded-md text-sm whitespace-pre-wrap leading-relaxed">
+              {linkifyText(noteText)}
+            </div>
+          )}
           <div>
-            <label className="text-sm font-medium text-gray-700">메모</label>
+            <label className="text-sm font-medium text-gray-700">메모 편집</label>
             <textarea
               className="mt-1 w-full border rounded-md px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-ring"
               rows={5}
@@ -220,43 +191,6 @@ function NoteModal({ candidateId, candidateName, initialNote, onClose, onSaved }
             />
             <p className="text-right text-xs text-muted-foreground">{noteText.length} / 2,000</p>
           </div>
-          <div>
-            <label className="text-sm font-medium text-gray-700">첨부파일</label>
-            {fileName ? (
-              <div className="mt-1 flex items-center gap-2 px-3 py-2 border rounded-md bg-gray-50">
-                <span className="text-sm truncate flex-1">{fileName}</span>
-                {fileUrl && (
-                  <a href={fileUrl} target="_blank" rel="noreferrer" className="text-xs text-blue-600 hover:underline shrink-0">
-                    보기
-                  </a>
-                )}
-                <button type="button" className="text-xs text-red-500 hover:text-red-700 shrink-0" onClick={handleRemoveFile}>
-                  제거
-                </button>
-              </div>
-            ) : (
-              <div className="mt-1">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="h-8 text-xs"
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={uploading}
-                >
-                  {uploading ? "업로드 중..." : "파일 선택"}
-                </Button>
-                <span className="ml-2 text-xs text-muted-foreground">PDF, Excel, 이미지 (최대 10MB)</span>
-              </div>
-            )}
-            <input
-              ref={fileInputRef}
-              type="file"
-              className="hidden"
-              accept=".pdf,.xlsx,.xls,.jpg,.jpeg,.png,.gif,.webp"
-              onChange={handleFileChange}
-            />
-          </div>
         </div>
         <DialogFooter className="gap-2 mt-2">
           {hasNote && (
@@ -265,7 +199,7 @@ function NoteModal({ candidateId, candidateName, initialNote, onClose, onSaved }
             </Button>
           )}
           <Button variant="outline" size="sm" onClick={onClose} disabled={saving || deleting}>취소</Button>
-          <Button size="sm" onClick={handleSave} disabled={saving || uploading || deleting}>
+          <Button size="sm" onClick={handleSave} disabled={saving || deleting}>
             {saving ? "저장 중..." : "저장"}
           </Button>
         </DialogFooter>
@@ -1267,7 +1201,7 @@ export default function ReviewPage() {
                     {/* 비고 (DEPT_HEAD 제외) */}
                     {showNoteColumn && (
                       <td className="border px-2 py-1.5 text-center">
-                        {c.note?.noteText || c.note?.fileUrl ? (
+                        {c.note?.noteText ? (
                           <div className="relative group inline-block">
                             <button
                               type="button"
@@ -1275,7 +1209,7 @@ export default function ReviewPage() {
                               title={canEditNote ? "메모 보기/수정" : "메모 보기"}
                               onClick={() => setNoteModal({ candidateId: c.candidateId, candidateName: c.name, note: c.note ?? null })}
                             >
-                              📝{c.note?.fileUrl ? "📎" : ""}
+                              📝
                             </button>
                             {c.note?.noteText && (
                               <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 z-50 hidden group-hover:block max-w-[240px] bg-gray-800 text-white text-xs rounded-md shadow-lg px-2 py-1.5 whitespace-pre-wrap pointer-events-none text-left">
