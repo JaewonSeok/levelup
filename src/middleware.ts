@@ -34,15 +34,21 @@ export function middleware(req: NextRequest) {
     req.headers.get("purpose") === "prefetch";
   if (isInternalRequest) return NextResponse.next();
 
-  // 2. IP 확인
+  // 2. NextAuth 인증 API 제외 — /api/auth/* 는 IP 체크 없이 통과
+  //    (로그인 처리, OAuth 콜백, 세션/CSRF 엔드포인트 모두 포함)
+  //    로그인 페이지 자체가 IP로 차단되므로 보안 영향 없음
+  const { pathname } = req.nextUrl;
+  if (pathname.startsWith("/api/auth")) return NextResponse.next();
+
+  // 3. IP 확인
   const clientIp = getClientIp(req);
 
-  // 3. 로컬/개발 환경 자동 허용
+  // 4. 로컬/개발 환경 자동 허용
   if (!clientIp || clientIp === "::1" || clientIp === "127.0.0.1") {
     return NextResponse.next();
   }
 
-  // 4. 허용 IP 체크 — 모든 페이지/API 동일하게 적용
+  // 5. 허용 IP 체크 — 모든 페이지/API 동일하게 적용
   if (!ALLOWED_IPS.includes(clientIp)) {
     return new NextResponse(FORBIDDEN_HTML, {
       status: 403,

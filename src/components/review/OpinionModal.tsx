@@ -459,6 +459,11 @@ export function OpinionModal({
                   // DEPT_HEAD: 본인 행만 렌더링 (API도 동일하게 필터링하나 이중 보장)
                   if (isDeptHead && !reviewer.isCurrentUser) return null;
 
+                  // L0/L1/L2: 소속본부장 + 인사팀장 외 타본부장 행 숨김 (데이터는 유지, 표시만 제한)
+                  const candidateLevel = data.candidate.user.competencyLevel ?? data.candidate.user.level ?? "";
+                  const isLowLevel = ["L0", "L1", "L2"].includes(candidateLevel);
+                  if (isLowLevel && reviewer.reviewerRole !== "소속본부장" && reviewer.reviewerRole !== "인사팀장") return null;
+
                   const isHR = reviewer.reviewerRole === "인사팀장";
                   const isOwn = reviewer.reviewerRole === "소속본부장";
                   const editable = getEditable(reviewer);
