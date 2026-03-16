@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { getToken } from "next-auth/jwt";
 
 // 허용 IP 목록: 환경변수 ALLOWED_IPS (쉼표 구분) 우선, 없으면 기본값 사용
 const ALLOWED_IPS = (process.env.ALLOWED_IPS || "220.85.141.12")
@@ -20,7 +19,6 @@ const FORBIDDEN_HTML = `<!DOCTYPE html>
 </html>`;
 
 function getClientIp(req: NextRequest): string {
-  // Vercel은 x-forwarded-for로 실제 클라이언트 IP를 전달
   const forwarded = req.headers.get("x-forwarded-for");
   if (forwarded) return forwarded.split(",")[0].trim();
   const realIp = req.headers.get("x-real-ip");
@@ -28,7 +26,7 @@ function getClientIp(req: NextRequest): string {
   return req.ip ?? "";
 }
 
-export async function middleware(req: NextRequest) {
+export function middleware(req: NextRequest) {
   // 1. Vercel 내부 요청 허용 (SSR prefetch, Next.js data 요청 등)
   const isInternalRequest =
     req.headers.get("x-middleware-prefetch") ||
@@ -44,14 +42,8 @@ export async function middleware(req: NextRequest) {
     return NextResponse.next();
   }
 
-  // 4. JWT 토큰에서 role 확인
-  const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET });
-
-  // 5. 미로그인 사용자 → IP 제한 없음 (로그인 페이지 접근 허용)
-  if (!token) return NextResponse.next();
-
-  // 6. DEPT_HEAD만 IP 제한 적용
-  if (token.role === "DEPT_HEAD" && !ALLOWED_IPS.includes(clientIp)) {
+  // 4. 허용 IP 체크 — 모든 페이지/API 동일하게 적용
+  if (!ALLOWED_IPS.includes(clientIp)) {
     return new NextResponse(FORBIDDEN_HTML, {
       status: 403,
       headers: { "Content-Type": "text/html; charset=utf-8" },
@@ -61,10 +53,9 @@ export async function middleware(req: NextRequest) {
   return NextResponse.next();
 }
 
-// API 라우트와 정적 파일은 미들웨어에서 제외
-// (Vercel SSR/API 내부 호출이 IP 차단되는 문제 방지)
+// 정적 자산(_next/static, _next/image, favicon 등)만 제외, 나머지 전체 적용
 export const config = {
   matcher: [
-    "/((?!api|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|woff|woff2|ttf|otf)$).*)",
+    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|woff|woff2|ttf|otf)$).*)",
   ],
 };
