@@ -1,11 +1,8 @@
 import { NextAuthOptions } from "next-auth";
-import CredentialsProvider from "next-auth/providers/credentials";
 import GoogleProvider from "next-auth/providers/google";
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import { prisma } from "@/lib/prisma";
-import bcrypt from "bcryptjs";
 import { Role } from "@prisma/client";
-import { checkRateLimit, resetRateLimit } from "@/lib/rate-limit";
 
 declare module "next-auth" {
   interface Session {
@@ -39,7 +36,7 @@ export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma) as NextAuthOptions["adapter"],
   session: {
     strategy: "jwt",
-    maxAge: 8 * 60 * 60, // [보안] 8시간 — 기본값 30일에서 단축
+    maxAge: 8 * 60 * 60, // [보안] 8시간
   },
   pages: {
     signIn: "/login",
@@ -51,52 +48,6 @@ export const authOptions: NextAuthOptions = {
       // 사내 내부 시스템: signIn 콜백에서 사전 등록된 이메일만 허용하므로
       // 기존 계정에 Google OAuth 연결을 허용해도 보안 위험 없음
       allowDangerousEmailAccountLinking: true,
-    }),
-    CredentialsProvider({
-      name: "credentials",
-      credentials: {
-        email: { label: "이메일", type: "email" },
-        password: { label: "비밀번호", type: "password" },
-      },
-      async authorize(credentials) {
-        if (!credentials?.email || !credentials?.password) return null;
-
-        // [KISA2021-33] 로그인 시도 횟수 제한 (이메일 기준)
-        const rateLimitKey = `login:${credentials.email}`;
-        const rateCheck = checkRateLimit(rateLimitKey);
-        if (!rateCheck.allowed) {
-          const mins = Math.ceil(rateCheck.remainingMs / 60000);
-          throw new Error(`로그인 시도가 너무 많습니다. ${mins}분 후 다시 시도하세요.`);
-        }
-
-        try {
-          const user = await prisma.user.findUnique({
-            where: { email: credentials.email },
-          });
-
-          if (!user || !user.password) return null;
-
-          const isValid = await bcrypt.compare(credentials.password, user.password);
-          if (!isValid) return null;
-
-          // 로그인 성공 시 시도 횟수 초기화
-          resetRateLimit(rateLimitKey);
-
-          return {
-            id: user.id,
-            name: user.name,
-            email: user.email,
-            role: user.role,
-            department: user.department,
-            team: user.team,
-          };
-        } catch (e) {
-          // rate limit 에러는 그대로 전파 (fail-safe)
-          if (e instanceof Error && e.message.includes("로그인 시도가 너무")) throw e;
-          console.error("[auth] authorize error:", e);
-          return null;
-        }
-      },
     }),
   ],
   callbacks: {
@@ -119,12 +70,13 @@ export const authOptions: NextAuthOptions = {
         token.department = (user as { department?: string }).department ?? token.department;
         token.team = (user as { team?: string }).team ?? token.team;
       }
-      // Google OAuth 첫 로그인: PrismaAdapter는 표준 필드(id, name, email, image)만 반환하므로
-      // role/department/team은 DB에서 직접 조회해 token에 보완.
-      // account는 sign-in 시에만 존재하므로 중복 실행되지 않음.
-      if (account?.provider === "google" && token.email) {
+      // role/department/team을 항상 DB에서 최신 값으로 동기화.
+      // 관리자가 계정 role을 변경해도 재로그인 없이 즉시 반영.
+      // account가 있으면 최초 로그인(Google OAuth) 시점이므로 우선적으로 처리.
+      const lookupEmail = (account?.provider === "google" ? token.email : null) ?? token.email;
+      if (lookupEmail) {
         const dbUser = await prisma.user.findUnique({
-          where: { email: token.email as string },
+          where: { email: lookupEmail as string },
           select: { id: true, role: true, department: true, team: true },
         });
         if (dbUser) {
