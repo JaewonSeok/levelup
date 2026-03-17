@@ -162,6 +162,29 @@ async function main() {
   });
   console.log("  ✓ Admin upserted (admin@rsupport.com / admin1234)");
 
+  // 2-1. 인사팀 Google 로그인 계정 (비밀번호 없음, Google OAuth 전용)
+  const hrAdmins = [
+    { email: "jwseok@rsupport.com", name: "jwseok" },
+    { email: "shyun@rsupport.com",  name: "shyun"  },
+    { email: "shjeong@rsupport.com", name: "shjeong" },
+  ];
+  for (const acc of hrAdmins) {
+    await prisma.user.upsert({
+      where: { email: acc.email },
+      update: { role: Role.SYSTEM_ADMIN, isActive: true },
+      create: {
+        name: acc.name,
+        email: acc.email,
+        password: null,
+        role: Role.SYSTEM_ADMIN,
+        department: "인사팀",
+        team: "",
+        isActive: true,
+      },
+    });
+    console.log(`  ✓ HR admin upserted (${acc.email})`);
+  }
+
   // 3. 직원 + 포인트/학점/등급
   let empCount = 0;
   for (const emp of EMPLOYEES) {
