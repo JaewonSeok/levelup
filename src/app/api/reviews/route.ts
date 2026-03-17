@@ -25,7 +25,14 @@ export async function GET(req: NextRequest) {
   const team = searchParams.get("team") ?? "";
   const targetType = searchParams.get("targetType") ?? "all"; // all | own | other
 
-  const currentDept = session.user.department ?? "";
+  // ── 본부장 화면 보기 (impersonation) ──────────────────────────────
+  const impersonateDeptParam = searchParams.get("impersonate");
+  const isAdminOrHR = session.user.role === Role.SYSTEM_ADMIN || session.user.role === Role.HR_TEAM;
+  const isImpersonating = !!(isAdminOrHR && impersonateDeptParam);
+  const effectiveRole = isImpersonating ? Role.DEPT_HEAD : session.user.role;
+  const currentDept = isImpersonating
+    ? (impersonateDeptParam ?? "")
+    : (session.user.department ?? "");
 
   // [QA] try/catch 추가 — 이전에는 전체 함수에 에러 처리 없었음
   try {
@@ -45,7 +52,7 @@ export async function GET(req: NextRequest) {
   // ── DEPT_HEAD: Phase에 따라 조회 범위 분기 ────────────────────────
   // Phase 1: 소속 본부만 (targetType 무관하게 강제 적용)
   // Phase 2: 기존 targetType 로직 유지 (own/other/all)
-  if (session.user.role === Role.DEPT_HEAD && currentPhase === 1) {
+  if (effectiveRole === Role.DEPT_HEAD && currentPhase === 1) {
     userConditions.push({ department: currentDept });
   } else {
     if (targetType === "own") {
@@ -53,10 +60,10 @@ export async function GET(req: NextRequest) {
     } else if (targetType === "other") {
       userConditions.push({ NOT: { department: currentDept } });
       // 타본부장 교차심사 대상: L3→L4, L4→L5 승급자만 (L3, L4)
-      if (session.user.role === Role.DEPT_HEAD) {
+      if (effectiveRole === Role.DEPT_HEAD) {
         userConditions.push({ level: { in: [Level.L3, Level.L4] } });
       }
-    } else if (targetType === "all" && session.user.role === Role.DEPT_HEAD) {
+    } else if (targetType === "all" && effectiveRole === Role.DEPT_HEAD) {
       // Phase 2 본부장 전체: 타본부 L3,L4만 (타본부장 교차심사 대상 = L3→L4, L4→L5 승급자)
       userConditions.push({
         AND: [
@@ -112,7 +119,7 @@ export async function GET(req: NextRequest) {
         departments: metaDepts.map((d) => d.department).filter(Boolean),
         teams: metaTeams.map((t) => t.team).filter(Boolean),
       },
-      currentUser: { id: session.user.id, role: session.user.role, department: currentDept, currentPhase },
+      currentUser: { id: session.user.id, role: effectiveRole, department: currentDept, currentPhase, isImpersonating },
     });
   }
 
@@ -129,7 +136,7 @@ export async function GET(req: NextRequest) {
   // [보안] 백엔드에서 필터링 — 타본부장이 1차에서 추천(recommendation=true)한 후보만 반환
   let workingCandidates = candidates;
   if (
-    session.user.role === Role.DEPT_HEAD &&
+    effectiveRole === Role.DEPT_HEAD &&
     currentPhase === 2 &&
     targetType !== "own"
   ) {
@@ -293,7 +300,7 @@ export async function GET(req: NextRequest) {
   });
 
   // ── 수정 1: 타본부장 조회 시 소속본부장 미추천 직원 제외 (어드민은 전체 표시) ──
-  const resultForScoring = (session.user.role === Role.DEPT_HEAD)
+  const resultForScoring = (effectiveRole === Role.DEPT_HEAD)
     ? result.filter((r) =>
         r.department === currentDept || r.recommendationStatus !== "제외"
       )
@@ -357,9 +364,10 @@ export async function GET(req: NextRequest) {
     },
     currentUser: {
       id: session.user.id,
-      role: session.user.role,
+      role: effectiveRole,
       department: currentDept,
       currentPhase,
+      isImpersonating,
     },
   });
 

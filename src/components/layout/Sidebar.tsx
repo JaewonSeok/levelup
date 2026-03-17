@@ -90,7 +90,7 @@ const NAV_SECTIONS: NavSection[] = [
         href: "/dept-confirmation",
         label: "2026 레벨업 확정",
         icon: CheckCircle,
-        allowedRoles: [Role.DEPT_HEAD],
+        allowedRoles: [Role.DEPT_HEAD, Role.SYSTEM_ADMIN, Role.HR_TEAM],
       },
       {
         href: "/confirmation",

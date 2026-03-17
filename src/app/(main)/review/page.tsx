@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useImpersonate } from "@/context/ImpersonateContext";
 import { linkifyText } from "@/utils/linkify";
 import { Button } from "@/components/ui/button";
 import { EmployeeTooltip } from "@/components/EmployeeTooltip";
@@ -82,6 +83,7 @@ interface CurrentUser {
   role: string;
   department: string;
   currentPhase?: number;
+  isImpersonating?: boolean;
 }
 
 type TargetType = "all" | "own" | "other";
@@ -273,6 +275,8 @@ function ReasonTooltip({ children, reason }: { children: React.ReactNode; reason
 // ── Component ──────────────────────────────────────────────────
 
 export default function ReviewPage() {
+  const { impersonateDept } = useImpersonate();
+
   const [query, setQuery] = useState<Query>({
     year: CURRENT_YEAR,
     department: "",
@@ -365,6 +369,7 @@ export default function ReviewPage() {
           team: query.team,
           targetType: query.targetType,
         });
+        if (impersonateDept) sp.set("impersonate", impersonateDept);
         const res = await fetch(`/api/reviews?${sp}`, { cache: "no-store" });
         if (!res.ok || cancelled) return;
         const data = await res.json();
@@ -382,7 +387,7 @@ export default function ReviewPage() {
     doFetch();
     fetchSubmissionStatus(query.year);
     return () => { cancelled = true; };
-  }, [query, refreshKey, fetchSubmissionStatus]);
+  }, [query, refreshKey, fetchSubmissionStatus, impersonateDept]);
 
   // ── Handlers ─────────────────────────────────────────────────
 
@@ -391,6 +396,7 @@ export default function ReviewPage() {
   const isDeptHead = currentUser?.role === "DEPT_HEAD";
   const isAdmin = currentUser?.role === "SYSTEM_ADMIN";
   const isHROrAdmin = currentUser?.role === "HR_TEAM" || currentUser?.role === "SYSTEM_ADMIN";
+  const isImpersonating = !!(currentUser?.isImpersonating);
   const currentPhase = currentUser?.currentPhase ?? 1;
   const canEditNote = isHROrAdmin;
   // 비고 컬럼: 전체 역할에 표시 (본부장은 읽기 전용)
@@ -968,7 +974,7 @@ export default function ReviewPage() {
         <span className="text-sm text-muted-foreground">총 {displayTotal}명</span>
 
         {/* 1차 최종 제출 버튼 (본부장 + Phase 1) */}
-        {isDeptHead && currentPhase === 1 && !isSubmitted && (
+        {isDeptHead && !isImpersonating && currentPhase === 1 && !isSubmitted && (
           <Button
             size="sm"
             className="h-8 ml-auto bg-blue-600 hover:bg-blue-700"
@@ -979,7 +985,7 @@ export default function ReviewPage() {
           </Button>
         )}
         {/* 2차 최종 제출 버튼 (본부장 + Phase 2) */}
-        {isDeptHead && currentPhase === 2 && !isPhase2Submitted && (
+        {isDeptHead && !isImpersonating && currentPhase === 2 && !isPhase2Submitted && (
           <Button
             size="sm"
             className={`h-8 ml-auto ${canPhase2Submit ? "bg-orange-600 hover:bg-orange-700" : "bg-gray-400 cursor-not-allowed"}`}
@@ -1274,13 +1280,14 @@ export default function ReviewPage() {
           onSaved={handleOpinionSaved}
           onReset={isDeptHead ? () => setRefreshKey((k) => k + 1) : undefined}
           isSubmitted={
-            isDeptHead && (
+            isImpersonating ||
+            (isDeptHead && (
               currentPhase === 1
                 ? isSubmitted // Phase 1: 1차 제출 여부로 잠금
                 : selectedCandidate.department === currentDeptName
                   ? true // Phase 2 + 소속본부 직원: 1차 완료 → 항상 잠금
                   : isPhase2Submitted // Phase 2 + 타본부 직원: 2차 제출 여부로 잠금
-            )
+            ))
           }
           candidateInfo={selectedCandidate}
         />
