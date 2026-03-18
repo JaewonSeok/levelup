@@ -204,9 +204,9 @@ export async function GET(
     const impersonatedHeadIds = new Set(
       deptHeads.filter((d) => d.department === impersonateDeptParam).map((d) => d.id)
     );
-    // 프리뷰 대상 본부장 + 소속본부장(읽기전용) + 인사팀장(추가보고용) 표시
+    // 프리뷰 대상 본부장 + 소속본부장(읽기전용)만 표시 — 인사팀장 행은 보안상 숨김
     filteredReviewers = reviewers.filter(
-      (r) => impersonatedHeadIds.has(r.userId) || r.reviewerRole === "소속본부장" || r.reviewerRole === "인사팀장"
+      (r) => impersonatedHeadIds.has(r.userId) || r.reviewerRole === "소속본부장"
     );
   } else {
     filteredReviewers = reviewers;

@@ -3,7 +3,6 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Role } from "@prisma/client";
-import bcrypt from "bcryptjs";
 
 // PUT /api/accounts/[id] — 본부장 계정 수정 (SYSTEM_ADMIN 전용)
 export async function PUT(
@@ -23,31 +22,14 @@ export async function PUT(
     return NextResponse.json({ error: "해당 계정을 찾을 수 없습니다." }, { status: 404 });
   }
 
-  let body: {
-    name?: string;
-    emailPrefix?: string;
-    department?: string;
-    residentIdLast7?: string;
-  };
+  let body: { name?: string; emailPrefix?: string; department?: string };
   try {
     body = await req.json();
   } catch {
     return NextResponse.json({ error: "요청 파싱 실패" }, { status: 400 });
   }
 
-  if (body.residentIdLast7 && !/^\d{7}$/.test(body.residentIdLast7)) {
-    return NextResponse.json(
-      { error: "주민번호 뒷 7자리는 정확히 7자리 숫자여야 합니다." },
-      { status: 400 }
-    );
-  }
-
-  const updateData: {
-    name?: string;
-    email?: string;
-    department?: string;
-    password?: string;
-  } = {};
+  const updateData: { name?: string; email?: string; department?: string } = {};
 
   if (body.name) updateData.name = body.name;
   if (body.department) updateData.department = body.department;
@@ -61,11 +43,6 @@ export async function PUT(
       }
       updateData.email = newEmail;
     }
-  }
-
-  if (body.residentIdLast7) {
-    // [KISA2021-22] 주민번호는 비밀번호 해시 생성에만 사용하고 DB에 저장하지 않음
-    updateData.password = await bcrypt.hash(body.residentIdLast7, 10);
   }
 
   const account = await prisma.user.update({

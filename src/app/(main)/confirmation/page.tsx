@@ -137,6 +137,19 @@ export default function ConfirmationPage() {
   const [loading, setLoading] = useState(false);
   const [changingId, setChangingId] = useState<string | null>(null);
 
+  // ── 결과 공개 토글 (SYSTEM_ADMIN 전용) ────────────────────
+  const [resultVisible, setResultVisible] = useState(false);
+  const [visibilityLoading, setVisibilityLoading] = useState(false);
+  const [visibilityConfirm, setVisibilityConfirm] = useState(false); // 확인 다이얼로그
+
+  // ── 공개 상태 초기 로드 ────────────────────────────────────
+  useEffect(() => {
+    if (authStatus !== "authenticated" || !isAdmin) return;
+    fetch(`/api/settings/result-visibility?year=${CURRENT_YEAR}`)
+      .then((r) => r.json())
+      .then((d) => setResultVisible(!!d.visible));
+  }, [authStatus, isAdmin]);
+
   // ── Fetch ──────────────────────────────────────────────────
 
   useEffect(() => {
@@ -217,6 +230,27 @@ export default function ConfirmationPage() {
     }
   };
 
+  // ── 결과 공개 토글 핸들러 ─────────────────────────────────
+  const handleVisibilityToggle = async () => {
+    setVisibilityConfirm(false);
+    setVisibilityLoading(true);
+    try {
+      const res = await fetch("/api/settings/result-visibility", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ year: CURRENT_YEAR, visible: !resultVisible }),
+      });
+      if (!res.ok) throw new Error("변경 실패");
+      const data = await res.json();
+      setResultVisible(data.visible);
+      toast.success(data.visible ? "본부장에게 결과가 공개되었습니다." : "결과 공개가 중단되었습니다.");
+    } catch {
+      toast.error("상태 변경 중 오류가 발생했습니다.");
+    } finally {
+      setVisibilityLoading(false);
+    }
+  };
+
   // ── Render ─────────────────────────────────────────────────
 
   if (authStatus === "loading") {
@@ -229,7 +263,47 @@ export default function ConfirmationPage() {
 
   return (
     <div className="p-6">
-      <h1 className="text-xl font-bold mb-4">레벨업 확정</h1>
+      <div className="flex items-center justify-between mb-4">
+        <h1 className="text-xl font-bold">레벨업 확정</h1>
+
+        {/* 결과 공개 토글 (SYSTEM_ADMIN 전용) */}
+        {isAdmin && (
+          <div className="flex items-center gap-3">
+            <span className="text-sm text-muted-foreground">본부장 결과 공개</span>
+            {visibilityConfirm ? (
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-gray-600">
+                  {resultVisible ? "결과 공개를 중단하시겠습니까?" : "본부장에게 결과를 공개하시겠습니까?"}
+                </span>
+                <Button size="sm" className="h-7 text-xs" onClick={handleVisibilityToggle} disabled={visibilityLoading}>
+                  {visibilityLoading ? "..." : "확인"}
+                </Button>
+                <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setVisibilityConfirm(false)} disabled={visibilityLoading}>
+                  취소
+                </Button>
+              </div>
+            ) : (
+              <button
+                onClick={() => setVisibilityConfirm(true)}
+                disabled={visibilityLoading}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${
+                  resultVisible ? "bg-green-500" : "bg-gray-300"
+                }`}
+                aria-label={resultVisible ? "공개 중 (클릭 시 비공개)" : "비공개 (클릭 시 공개)"}
+              >
+                <span
+                  className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
+                    resultVisible ? "translate-x-6" : "translate-x-1"
+                  }`}
+                />
+              </button>
+            )}
+            <span className={`text-xs font-medium ${resultVisible ? "text-green-600" : "text-gray-400"}`}>
+              {resultVisible ? "공개 중" : "비공개"}
+            </span>
+          </div>
+        )}
+      </div>
 
       {/* ── 필터 영역 ──────────────────────────────────────── */}
       <div className="flex flex-wrap items-end gap-3 mb-4 border rounded-md p-4 bg-gray-50">

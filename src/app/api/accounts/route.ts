@@ -3,7 +3,6 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Role } from "@prisma/client";
-import bcrypt from "bcryptjs";
 
 // GET /api/accounts — DEPT_HEAD 목록 조회 (SYSTEM_ADMIN 전용)
 export async function GET() {
@@ -15,7 +14,6 @@ export async function GET() {
     return NextResponse.json({ error: "권한이 없습니다." }, { status: 403 });
   }
 
-  // [KISA2021-22] residentIdLast7(개인식별정보) 응답에서 제외
   const accounts = await prisma.user.findMany({
     where: { role: Role.DEPT_HEAD },
     select: {
@@ -31,7 +29,7 @@ export async function GET() {
   return NextResponse.json({ accounts });
 }
 
-// POST /api/accounts — 본부장 계정 생성 (SYSTEM_ADMIN 전용)
+// POST /api/accounts — 본부장 계정 생성 (SYSTEM_ADMIN 전용, Google 로그인 전용)
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session) {
@@ -41,29 +39,17 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "권한이 없습니다." }, { status: 403 });
   }
 
-  let body: {
-    name: string;
-    emailPrefix: string;
-    department: string;
-    residentIdLast7: string;
-  };
+  let body: { name: string; emailPrefix: string; department: string };
   try {
     body = await req.json();
   } catch {
     return NextResponse.json({ error: "요청 파싱 실패" }, { status: 400 });
   }
 
-  const { name, emailPrefix, department, residentIdLast7 } = body;
-  if (!name || !emailPrefix || !department || !residentIdLast7) {
+  const { name, emailPrefix, department } = body;
+  if (!name || !emailPrefix || !department) {
     return NextResponse.json(
-      { error: "필수 항목이 없습니다. (이름, 이메일, 본부, 주민번호 뒷 7자리)" },
-      { status: 400 }
-    );
-  }
-
-  if (!/^\d{7}$/.test(residentIdLast7)) {
-    return NextResponse.json(
-      { error: "주민번호 뒷 7자리는 정확히 7자리 숫자여야 합니다." },
+      { error: "필수 항목이 없습니다. (이름, 이메일, 본부)" },
       { status: 400 }
     );
   }
@@ -75,14 +61,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "이미 사용 중인 이메일입니다." }, { status: 409 });
   }
 
-  // [KISA2021-22] 주민번호는 비밀번호 해시 생성에만 사용하고 DB에 저장하지 않음
-  const hashedPassword = await bcrypt.hash(residentIdLast7, 10);
-
   const account = await prisma.user.create({
     data: {
       name,
       email,
-      password: hashedPassword,
+      password: null,
       department,
       team: "",
       role: Role.DEPT_HEAD,

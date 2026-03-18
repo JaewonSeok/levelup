@@ -223,12 +223,22 @@ export async function GET(req: NextRequest) {
     else entry.penaltyTotal += Math.abs(bp.points);
   }
 
+  // 프리뷰 모드: impersonated 본부장의 실제 userId 조회 (currentUserOpinion 판단용)
+  let effectiveUserId = session.user.id;
+  if (isImpersonating && impersonateDeptParam) {
+    const impersonatedHead = await prisma.user.findFirst({
+      where: { role: Role.DEPT_HEAD, department: impersonateDeptParam },
+      select: { id: true },
+    });
+    if (impersonatedHead) effectiveUserId = impersonatedHead.id;
+  }
+
   // Build response rows
   const result = workingCandidates.map((candidate) => {
     const review = reviewMap.get(candidate.id);
     const opinions = review?.opinions ?? [];
 
-    const currentUserOpinion = opinions.find((o) => o.reviewerId === session.user.id);
+    const currentUserOpinion = opinions.find((o) => o.reviewerId === effectiveUserId);
 
     // 소속본부장 의견 — "의견" 컬럼 전용 (텍스트 입력 여부 판단)
     const ownDeptHeadOpinion = opinions.find((o) => o.reviewerRole === "소속본부장");

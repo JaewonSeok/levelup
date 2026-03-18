@@ -469,12 +469,12 @@ export function OpinionModal({
                   // DEPT_HEAD: 본인 행만 렌더링 (API도 동일하게 필터링하나 이중 보장)
                   if (isDeptHead && !reviewer.isCurrentUser) return null;
                   // 프리뷰 모드: API 응답의 impersonatedDept 사용 (prop 의존 제거, 가장 확실한 방법)
+                  // 인사팀장 행은 프리뷰 모드에서 보안상 숨김 (API도 동일 필터 적용)
                   const previewDept = data.impersonatedDept?.trim();
                   if (previewDept) {
-                    const isHRReviewer = reviewer.reviewerRole === "인사팀장";
                     const isOwnDeptHead = reviewer.reviewerRole === "소속본부장";
                     const isThisHead = reviewer.reviewerName.trim() === `${previewDept}장`;
-                    if (!isThisHead && !isOwnDeptHead && !isHRReviewer) return null;
+                    if (!isThisHead && !isOwnDeptHead) return null;
                   }
 
                   // L0/L1/L2: 소속본부장 + 인사팀장 외 타본부장 행 숨김 (데이터는 유지, 표시만 제한)

@@ -55,14 +55,12 @@ interface FormState {
   name: string;
   emailPrefix: string;
   department: string;
-  residentIdLast7: string;
 }
 
 const EMPTY_FORM: FormState = {
   name: "",
   emailPrefix: "",
   department: "",
-  residentIdLast7: "",
 };
 
 // ── Component ─────────────────────────────────────────────────────────
@@ -126,7 +124,6 @@ export default function AccountsPage() {
       name: account.name,
       emailPrefix: account.email.replace("@rsupport.com", ""),
       department: account.department,
-      residentIdLast7: "",
     });
     setModalOpen(true);
   }
@@ -137,14 +134,6 @@ export default function AccountsPage() {
 
     if (!form.name || !form.emailPrefix || !form.department) {
       toast.error("이름, 이메일, 본부를 입력해 주세요.");
-      return;
-    }
-    if (!isEdit && !form.residentIdLast7) {
-      toast.error("주민번호 뒷 7자리를 입력해 주세요.");
-      return;
-    }
-    if (form.residentIdLast7 && !/^\d{7}$/.test(form.residentIdLast7)) {
-      toast.error("주민번호 뒷 7자리는 정확히 7자리 숫자여야 합니다.");
       return;
     }
 
@@ -226,7 +215,6 @@ export default function AccountsPage() {
               <TableHead>본부명</TableHead>
               <TableHead>이름</TableHead>
               <TableHead>이메일</TableHead>
-              <TableHead>비밀번호 설정</TableHead>
               <TableHead className="text-center">등록일</TableHead>
               <TableHead className="w-28 text-center">관리</TableHead>
             </TableRow>
@@ -234,13 +222,13 @@ export default function AccountsPage() {
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center py-10 text-muted-foreground">
+                <TableCell colSpan={6} className="text-center py-10 text-muted-foreground">
                   불러오는 중...
                 </TableCell>
               </TableRow>
             ) : accounts.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center py-10 text-muted-foreground">
+                <TableCell colSpan={6} className="text-center py-10 text-muted-foreground">
                   등록된 본부장 계정이 없습니다.
                 </TableCell>
               </TableRow>
@@ -251,9 +239,6 @@ export default function AccountsPage() {
                   <TableCell className="text-sm">{acc.department}</TableCell>
                   <TableCell className="text-sm">{acc.name}</TableCell>
                   <TableCell className="text-sm">{acc.email}</TableCell>
-                  <TableCell className="text-sm tracking-widest text-gray-500">
-                    ●●●●●●●
-                  </TableCell>
                   <TableCell className="text-center text-sm">
                     {new Date(acc.createdAt).toLocaleDateString("ko-KR")}
                   </TableCell>
@@ -338,25 +323,6 @@ export default function AccountsPage() {
               </div>
             </div>
 
-            {/* 주민번호 뒷 7자리 */}
-            <div className="space-y-1.5">
-              <Label>초기 비밀번호 (주민번호 뒷 7자리)</Label>
-              <Input
-                type="password"
-                value={form.residentIdLast7}
-                onChange={(e) => {
-                  const val = e.target.value.replace(/\D/g, "").slice(0, 7);
-                  setForm((f) => ({ ...f, residentIdLast7: val }));
-                }}
-                placeholder="0000000"
-                maxLength={7}
-              />
-              <p className="text-xs text-muted-foreground">
-                {editTarget
-                  ? "입력 시 비밀번호가 새 주민번호 뒷 7자리로 재설정됩니다. 변경하지 않으려면 비워두세요."
-                  : "주민번호 뒷 7자리가 초기 로그인 비밀번호로 설정됩니다. (7자리 숫자)"}
-              </p>
-            </div>
           </div>
 
           <DialogFooter>
