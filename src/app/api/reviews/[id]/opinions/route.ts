@@ -10,7 +10,7 @@ const SAVE_ROLES: Role[] = [Role.DEPT_HEAD, Role.HR_TEAM, Role.SYSTEM_ADMIN];
 // ── GET /api/reviews/[id]/opinions ──────────────────────────────
 // 의견 팝업용: 대상자 요약 + 전체 검토자 목록 + 의견 현황
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: { id: string } }
 ) {
   const session = await getServerSession(authOptions);
@@ -20,6 +20,12 @@ export async function GET(
   if (!REVIEW_ROLES.includes(session.user.role)) {
     return NextResponse.json({ error: "접근 권한이 없습니다." }, { status: 403 });
   }
+
+  // 본부장 화면 보기(프리뷰) 파라미터
+  const url = new URL(req.url);
+  const impersonateDeptParam = url.searchParams.get("impersonate");
+  const isAdminOrHR = session.user.role === Role.SYSTEM_ADMIN || session.user.role === Role.HR_TEAM;
+  const isImpersonating = !!(isAdminOrHR && impersonateDeptParam);
 
   const review = await prisma.review.findUnique({
     where: { id: params.id },
@@ -189,9 +195,16 @@ export async function GET(
 
   // DEPT_HEAD: 본인 행만 반환 (Phase 무관)
   // 타 본부장의 의견은 어떤 Phase에서도 다른 본부장에게 노출하지 않음
+  // 프리뷰(본부장 화면 보기) 모드: 해당 본부장 행만 반환
   let filteredReviewers: typeof reviewers;
   if (session.user.role === Role.DEPT_HEAD) {
     filteredReviewers = reviewers.filter((r) => r.isCurrentUser);
+  } else if (isImpersonating) {
+    // 프리뷰 대상 본부장의 userId 집합 (비활성 포함)
+    const impersonatedHeadIds = new Set(
+      deptHeads.filter((d) => d.department === impersonateDeptParam).map((d) => d.id)
+    );
+    filteredReviewers = reviewers.filter((r) => impersonatedHeadIds.has(r.userId));
   } else {
     filteredReviewers = reviewers;
   }

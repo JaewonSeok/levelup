@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useImpersonate } from "@/context/ImpersonateContext";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -124,6 +125,7 @@ export function OpinionModal({
   isSubmitted = false,
   candidateInfo,
 }: OpinionModalProps) {
+  const { impersonateDept } = useImpersonate();
   const [data, setData] = useState<OpinionData | null>(null);
   const [loading, setLoading] = useState(true);
   const [rowStates, setRowStates] = useState<Record<string, RowState>>({});
@@ -140,7 +142,10 @@ export function OpinionModal({
 
   useEffect(() => {
     setLoading(true);
-    fetch(`/api/reviews/${reviewId}/opinions`, { cache: "no-store" })
+    const opinionsUrl = impersonateDept
+      ? `/api/reviews/${reviewId}/opinions?impersonate=${encodeURIComponent(impersonateDept)}`
+      : `/api/reviews/${reviewId}/opinions`;
+    fetch(opinionsUrl, { cache: "no-store" })
       .then((res) => res.json())
       .then((json: OpinionData) => {
         setData(json);
@@ -165,12 +170,14 @@ export function OpinionModal({
         setRowStates(initial);
       })
       .finally(() => setLoading(false));
-  }, [reviewId]);
+  }, [reviewId, impersonateDept]);
 
   const isAdmin = data?.currentUser.role === "SYSTEM_ADMIN";
   const isHRTeam = data?.currentUser.role === "HR_TEAM";
   // 본부장은 자기 의견 행만 표시 (HR_TEAM / CEO / SYSTEM_ADMIN은 전체 표시)
   const isDeptHead = data?.currentUser.role === "DEPT_HEAD";
+  // 프리뷰 모드: API가 이미 필터링하지만 프론트에서도 이중 방어
+  const isPreviewMode = !!(impersonateDept && (isAdmin || isHRTeam));
   const currentPhase = data?.currentPhase ?? 1;
 
   // 행 편집 가능 여부
@@ -458,6 +465,8 @@ export function OpinionModal({
                 {data.reviewers.map((reviewer) => {
                   // DEPT_HEAD: 본인 행만 렌더링 (API도 동일하게 필터링하나 이중 보장)
                   if (isDeptHead && !reviewer.isCurrentUser) return null;
+                  // 프리뷰 모드: 인사팀장 행 및 API 필터 누락 행 방어
+                  if (isPreviewMode && reviewer.reviewerRole === "인사팀장") return null;
 
                   // L0/L1/L2: 소속본부장 + 인사팀장 외 타본부장 행 숨김 (데이터는 유지, 표시만 제한)
                   const candidateLevel = data.candidate.user.competencyLevel ?? data.candidate.user.level ?? "";
