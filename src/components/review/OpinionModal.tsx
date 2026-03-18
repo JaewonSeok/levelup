@@ -183,8 +183,11 @@ export function OpinionModal({
   // 행 편집 가능 여부
   // submittedSnapshot: 모달이 열렸을 때의 isSubmitted 값 (부모 리렌더링 영향 차단)
   // editUnlocked=true면 제출 후에도 편집 허용 (초기화 버튼으로 해제)
+  // 프리뷰 모드(impersonateDept)에서는 submitted 잠금을 적용하지 않음
+  //   — isSubmitted prop이 isDeptHead && (...) 로 계산되는데, 프리뷰 시
+  //     isDeptHead=true(effectiveRole)가 되어 잘못 잠길 수 있기 때문
   function getEditable(reviewer: Reviewer): boolean {
-    if (submittedSnapshot && !editUnlocked) return false;
+    if (!impersonateDept && submittedSnapshot && !editUnlocked) return false;
     // 인사팀장 행: SYSTEM_ADMIN 또는 HR_TEAM 본인만 편집 가능
     if (reviewer.reviewerRole === "인사팀장") {
       return reviewer.isCurrentUser && (!!isAdmin || !!isHRTeam);
