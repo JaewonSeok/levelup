@@ -1,8 +1,9 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { signIn } from "next-auth/react";
+import { useState } from "react";
 import styles from "./login.module.css";
 
 export default function LoginPage() {
@@ -15,45 +16,15 @@ export default function LoginPage() {
 
 function LoginForm() {
   const searchParams = useSearchParams();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
-  const [error, setError] = useState(
+  const error =
     searchParams.get("error") === "google_not_registered"
       ? "Google 계정이 시스템에 등록되어 있지 않습니다. 인사팀 관리자에게 문의하세요."
-      : ""
-  );
-  const [focusedField, setFocusedField] = useState<string | null>(null);
+      : "";
 
   async function handleGoogleSignIn() {
-    setIsGoogleLoading(true);
-    setError("");
-    await signIn("google", { callbackUrl: "/level-management" });
-    // 리다이렉트되므로 이후 코드는 실행되지 않음
-  }
-
-  async function handleSubmit(e?: React.FormEvent) {
-    e?.preventDefault();
-    if (!email) { setError("이메일을 입력하세요."); return; }
-    if (!password) { setError("비밀번호를 입력하세요."); return; }
-    setError("");
     setIsLoading(true);
-    try {
-      const result = await signIn("credentials", {
-        email,
-        password,
-        redirect: false,
-      });
-      if (result?.error) {
-        setError("이메일 또는 비밀번호가 올바르지 않습니다.");
-        return;
-      }
-      window.location.href = "/level-management";
-    } finally {
-      setIsLoading(false);
-    }
+    await signIn("google", { callbackUrl: "/level-management" });
   }
 
   return (
@@ -149,7 +120,6 @@ function LoginForm() {
             포인트 · 학점 기반 승격 기준 관리부터<br/>
             대표이사 최종 확정까지, 원스톱으로.
           </p>
-
         </div>
 
         {/* Copyright */}
@@ -161,7 +131,7 @@ function LoginForm() {
         </div>
       </div>
 
-      {/* ── 우측 로그인 폼 ─────────────────────────────────── */}
+      {/* ── 우측 로그인 영역 ────────────────────────────────── */}
       <div className={styles.right} style={{
         display: "flex",
         alignItems: "center",
@@ -175,7 +145,7 @@ function LoginForm() {
           animation: "fadeUp 0.6s ease-out 0.2s both",
         }}>
           {/* Logo */}
-          <div style={{ marginBottom: 32 }}>
+          <div style={{ marginBottom: 40 }}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src="/RSUPPORT_logo.png"
@@ -187,8 +157,8 @@ function LoginForm() {
           <h2 style={{ fontSize: 26, fontWeight: 700, color: "#111827", letterSpacing: "-0.02em", margin: 0 }}>
             로그인
           </h2>
-          <p style={{ color: "#9ca3af", fontSize: 14.5, marginTop: 8, marginBottom: 36, fontWeight: 400 }}>
-            계정 정보를 입력하여 시스템에 접속하세요.
+          <p style={{ color: "#9ca3af", fontSize: 14.5, marginTop: 8, marginBottom: 40, fontWeight: 400 }}>
+            회사 Google 계정으로 로그인해주세요.
           </p>
 
           {/* Error banner */}
@@ -198,7 +168,7 @@ function LoginForm() {
               background: "#fef2f2",
               border: "1px solid #fecaca",
               borderRadius: 10,
-              marginBottom: 20,
+              marginBottom: 24,
               display: "flex", alignItems: "center", gap: 10,
               animation: "fadeUp 0.3s ease-out",
             }}>
@@ -211,125 +181,15 @@ function LoginForm() {
             </div>
           )}
 
-          {/* Form */}
-          <form onSubmit={handleSubmit} noValidate>
-            {/* Email */}
-            <div style={{ marginBottom: 18 }}>
-              <label style={{
-                display: "block", fontSize: 13.5, fontWeight: 600,
-                color: "#374151", marginBottom: 8,
-              }}>
-                이메일
-              </label>
-              <div style={{ position: "relative" }}>
-                <div style={{
-                  position: "absolute", left: 15, top: "50%", transform: "translateY(-50%)",
-                  color: focusedField === "email" ? "#2563eb" : "#b0b5be",
-                  transition: "color 0.25s",
-                  display: "flex", pointerEvents: "none",
-                }}>
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                    <rect x="2" y="4" width="20" height="16" rx="2"/>
-                    <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>
-                  </svg>
-                </div>
-                <input
-                  className={`${styles.input}${error && !email ? ` ${styles.inputError}` : ""}`}
-                  type="email"
-                  placeholder="name@company.com"
-                  value={email}
-                  onChange={e => { setEmail(e.target.value); if (error) setError(""); }}
-                  onFocus={() => setFocusedField("email")}
-                  onBlur={() => setFocusedField(null)}
-                  autoComplete="email"
-                />
-              </div>
-            </div>
-
-            {/* Password */}
-            <div style={{ marginBottom: 28 }}>
-              <label style={{
-                display: "block", fontSize: 13.5, fontWeight: 600,
-                color: "#374151", marginBottom: 8,
-              }}>
-                비밀번호
-              </label>
-              <div style={{ position: "relative" }}>
-                <div style={{
-                  position: "absolute", left: 15, top: "50%", transform: "translateY(-50%)",
-                  color: focusedField === "password" ? "#2563eb" : "#b0b5be",
-                  transition: "color 0.25s",
-                  display: "flex", pointerEvents: "none",
-                }}>
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                    <rect width="18" height="11" x="3" y="11" rx="2" ry="2"/>
-                    <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-                  </svg>
-                </div>
-                <input
-                  className={`${styles.input}${error && !password ? ` ${styles.inputError}` : ""}`}
-                  type={showPassword ? "text" : "password"}
-                  placeholder="비밀번호를 입력하세요"
-                  value={password}
-                  onChange={e => { setPassword(e.target.value); if (error) setError(""); }}
-                  onFocus={() => setFocusedField("password")}
-                  onBlur={() => setFocusedField(null)}
-                  autoComplete="current-password"
-                  style={{ paddingRight: 48 }}
-                />
-                <button
-                  type="button"
-                  className={styles.toggle}
-                  onClick={() => setShowPassword(v => !v)}
-                  tabIndex={-1}
-                  aria-label={showPassword ? "비밀번호 숨기기" : "비밀번호 보기"}
-                >
-                  {showPassword ? (
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/>
-                      <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/>
-                      <line x1="1" y1="1" x2="23" y2="23"/>
-                    </svg>
-                  ) : (
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-                      <circle cx="12" cy="12" r="3"/>
-                    </svg>
-                  )}
-                </button>
-              </div>
-            </div>
-
-            {/* Submit */}
-            <button type="submit" className={styles.btn} disabled={isLoading}>
-              {isLoading ? (
-                <span style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10 }}>
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" style={{ animation: "spin 0.8s linear infinite" }}>
-                    <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
-                  </svg>
-                  로그인 중...
-                </span>
-              ) : "로그인"}
-            </button>
-          </form>
-
-          {/* ── 구분선 ── */}
-          <div style={{
-            display: "flex", alignItems: "center", gap: 12, margin: "20px 0",
-          }}>
-            <div style={{ flex: 1, height: 1, background: "#e5e7eb" }} />
-            <span style={{ color: "#b0b5be", fontSize: 13, fontWeight: 500, whiteSpace: "nowrap" }}>또는</span>
-            <div style={{ flex: 1, height: 1, background: "#e5e7eb" }} />
-          </div>
-
-          {/* ── Google 로그인 버튼 ── */}
+          {/* Google 로그인 버튼 */}
           <button
             type="button"
             className={styles.googleBtn}
             onClick={handleGoogleSignIn}
-            disabled={isGoogleLoading || isLoading}
+            disabled={isLoading}
+            style={{ width: "100%" }}
           >
-            {isGoogleLoading ? (
+            {isLoading ? (
               <span style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10 }}>
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" style={{ animation: "spin 0.8s linear infinite" }}>
                   <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
@@ -349,13 +209,6 @@ function LoginForm() {
               </span>
             )}
           </button>
-
-          {/* Forgot password */}
-          <div style={{ textAlign: "center", marginTop: 24 }}>
-            <button type="button" className={styles.forgot}>
-              비밀번호를 잊으셨나요?
-            </button>
-          </div>
 
           {/* Footer */}
           <div style={{
