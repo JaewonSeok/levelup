@@ -236,6 +236,8 @@ export async function GET(
     requiredCredits: criteria?.requiredCredits ?? null,
     reviewers: filteredReviewers,
     currentPhase,
+    // 프리뷰 모드일 때 대상 본부명을 응답에 포함 — 프론트 이중 방어용
+    impersonatedDept: isImpersonating ? impersonateDeptParam : null,
     currentUser: {
       id: session.user.id,
       role: session.user.role,

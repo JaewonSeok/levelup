@@ -45,6 +45,8 @@ interface OpinionData {
   creditCumulative: number;
   reviewers: Reviewer[];
   currentPhase: number;
+  /** 본부장 화면 보기 프리뷰 모드일 때 API가 포함시키는 대상 본부명 */
+  impersonatedDept?: string | null;
   currentUser: {
     id: string;
     role: string;
@@ -146,9 +148,14 @@ export function OpinionModal({
     const opinionsUrl = impersonateDept
       ? `/api/reviews/${reviewId}/opinions?impersonate=${encodeURIComponent(impersonateDept)}`
       : `/api/reviews/${reviewId}/opinions`;
+    console.log("[OpinionModal] impersonateDept prop:", impersonateDept);
+    console.log("[OpinionModal] fetch URL:", opinionsUrl);
     fetch(opinionsUrl, { cache: "no-store" })
       .then((res) => res.json())
       .then((json: OpinionData) => {
+        console.log("[OpinionModal] impersonatedDept from API:", json.impersonatedDept);
+        console.log("[OpinionModal] reviewers count:", json.reviewers.length);
+        console.log("[OpinionModal] reviewers:", json.reviewers.map(r => `${r.reviewerName}(${r.reviewerRole})`));
         setData(json);
         setEditUnlocked(json.review.editUnlocked ?? false);
         const initial: Record<string, RowState> = {};
@@ -464,10 +471,12 @@ export function OpinionModal({
                 {data.reviewers.map((reviewer) => {
                   // DEPT_HEAD: 본인 행만 렌더링 (API도 동일하게 필터링하나 이중 보장)
                   if (isDeptHead && !reviewer.isCurrentUser) return null;
-                  // 프리뷰 모드: 프리뷰 대상 본부장 + 인사팀장만 렌더링
-                  if (impersonateDept) {
-                    const isThisHead = reviewer.reviewerName === `${impersonateDept}장`;
+                  // 프리뷰 모드: API 응답의 impersonatedDept 사용 (prop 의존 제거, 가장 확실한 방법)
+                  const previewDept = data.impersonatedDept?.trim();
+                  if (previewDept) {
                     const isHRReviewer = reviewer.reviewerRole === "인사팀장";
+                    const isThisHead = reviewer.reviewerName.trim() === `${previewDept}장`;
+                    console.log(`[OpinionModal] filter check: "${reviewer.reviewerName}" isThisHead=${isThisHead} isHR=${isHRReviewer} previewDept="${previewDept}장"`);
                     if (!isThisHead && !isHRReviewer) return null;
                   }
 
