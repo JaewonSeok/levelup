@@ -108,10 +108,6 @@ export async function PUT(req: NextRequest) {
     },
   });
 
-  console.log(
-    `[review-phase] ${session.user.email} → Phase ${phase} (year=${year})`
-  );
-
   return NextResponse.json({
     success:      true,
     year:         record.year,

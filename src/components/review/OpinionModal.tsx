@@ -148,14 +148,9 @@ export function OpinionModal({
     const opinionsUrl = impersonateDept
       ? `/api/reviews/${reviewId}/opinions?impersonate=${encodeURIComponent(impersonateDept)}`
       : `/api/reviews/${reviewId}/opinions`;
-    console.log("[OpinionModal] impersonateDept prop:", impersonateDept);
-    console.log("[OpinionModal] fetch URL:", opinionsUrl);
     fetch(opinionsUrl, { cache: "no-store" })
       .then((res) => res.json())
       .then((json: OpinionData) => {
-        console.log("[OpinionModal] impersonatedDept from API:", json.impersonatedDept);
-        console.log("[OpinionModal] reviewers count:", json.reviewers.length);
-        console.log("[OpinionModal] reviewers:", json.reviewers.map(r => `${r.reviewerName}(${r.reviewerRole})`));
         setData(json);
         setEditUnlocked(json.review.editUnlocked ?? false);
         const initial: Record<string, RowState> = {};
@@ -184,7 +179,6 @@ export function OpinionModal({
   const isHRTeam = data?.currentUser.role === "HR_TEAM";
   // 본부장은 자기 의견 행만 표시 (HR_TEAM / CEO / SYSTEM_ADMIN은 전체 표시)
   const isDeptHead = data?.currentUser.role === "DEPT_HEAD";
-  const currentPhase = data?.currentPhase ?? 1;
 
   // 행 편집 가능 여부
   // submittedSnapshot: 모달이 열렸을 때의 isSubmitted 값 (부모 리렌더링 영향 차단)
@@ -476,7 +470,6 @@ export function OpinionModal({
                   if (previewDept) {
                     const isHRReviewer = reviewer.reviewerRole === "인사팀장";
                     const isThisHead = reviewer.reviewerName.trim() === `${previewDept}장`;
-                    console.log(`[OpinionModal] filter check: "${reviewer.reviewerName}" isThisHead=${isThisHead} isHR=${isHRReviewer} previewDept="${previewDept}장"`);
                     if (!isThisHead && !isHRReviewer) return null;
                   }
 
