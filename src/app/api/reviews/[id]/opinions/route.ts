@@ -204,7 +204,10 @@ export async function GET(
     const impersonatedHeadIds = new Set(
       deptHeads.filter((d) => d.department === impersonateDeptParam).map((d) => d.id)
     );
-    filteredReviewers = reviewers.filter((r) => impersonatedHeadIds.has(r.userId));
+    // 프리뷰 대상 본부장 + 인사팀장(추가보고용) 표시
+    filteredReviewers = reviewers.filter(
+      (r) => impersonatedHeadIds.has(r.userId) || r.reviewerRole === "인사팀장"
+    );
   } else {
     filteredReviewers = reviewers;
   }

@@ -1290,6 +1290,7 @@ export default function ReviewPage() {
             ))
           }
           candidateInfo={selectedCandidate}
+          impersonateDept={impersonateDept}
         />
       )}
 
