@@ -198,7 +198,8 @@ export async function GET(
   // 프리뷰(본부장 화면 보기) 모드: 해당 본부장 행만 반환
   let filteredReviewers: typeof reviewers;
   if (session.user.role === Role.DEPT_HEAD) {
-    filteredReviewers = reviewers.filter((r) => r.isCurrentUser);
+    // 본인 행 + 소속본부장 행(읽기전용 참고용) 반환
+    filteredReviewers = reviewers.filter((r) => r.isCurrentUser || r.reviewerRole === "소속본부장");
   } else if (isImpersonating) {
     // 프리뷰 대상 본부장의 userId 집합 (비활성 포함)
     const impersonatedHeadIds = new Set(

@@ -466,8 +466,8 @@ export function OpinionModal({
               </h3>
               <div className="space-y-2">
                 {data.reviewers.map((reviewer) => {
-                  // DEPT_HEAD: 본인 행만 렌더링 (API도 동일하게 필터링하나 이중 보장)
-                  if (isDeptHead && !reviewer.isCurrentUser) return null;
+                  // DEPT_HEAD: 본인 행 + 소속본부장 행(읽기전용) 렌더링
+                  if (isDeptHead && !reviewer.isCurrentUser && reviewer.reviewerRole !== "소속본부장") return null;
                   // 프리뷰 모드: API 응답의 impersonatedDept 사용 (prop 의존 제거, 가장 확실한 방법)
                   // 인사팀장 행은 프리뷰 모드에서 보안상 숨김 (API도 동일 필터 적용)
                   const previewDept = data.impersonatedDept?.trim();
