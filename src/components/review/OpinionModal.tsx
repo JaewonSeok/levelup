@@ -469,8 +469,9 @@ export function OpinionModal({
                   const previewDept = data.impersonatedDept?.trim();
                   if (previewDept) {
                     const isHRReviewer = reviewer.reviewerRole === "인사팀장";
+                    const isOwnDeptHead = reviewer.reviewerRole === "소속본부장";
                     const isThisHead = reviewer.reviewerName.trim() === `${previewDept}장`;
-                    if (!isThisHead && !isHRReviewer) return null;
+                    if (!isThisHead && !isOwnDeptHead && !isHRReviewer) return null;
                   }
 
                   // L0/L1/L2: 소속본부장 + 인사팀장 외 타본부장 행 숨김 (데이터는 유지, 표시만 제한)
@@ -480,7 +481,8 @@ export function OpinionModal({
 
                   const isHR = reviewer.reviewerRole === "인사팀장";
                   const isOwn = reviewer.reviewerRole === "소속본부장";
-                  const editable = getEditable(reviewer);
+                  // 프리뷰 모드에서 소속본부장 행은 항상 읽기전용
+                  const editable = (previewDept && isOwn) ? false : getEditable(reviewer);
                   const rs: RowState = rowStates[reviewer.userId] ?? {
                     text: reviewer.opinionText ?? "",
                     rec:
