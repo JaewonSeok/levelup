@@ -199,6 +199,16 @@ model Opinion {
   @@map("opinions")
 }
 
+/// 앱 전역 키-값 설정 저장소.
+/// 예) result_visible_2026 = "true" / "false" (본부장 결과 공개 여부)
+model AppSetting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+
+  @@map("app_settings")
+}
+
 /// 연도별 심사 단계 관리.
 /// 인사팀이 1차(소속본부) → 2차(타본부) 전환을 제어.
 model ReviewPhase {
