@@ -31,7 +31,7 @@ export async function GET(req: NextRequest) {
 
   // ── 심사대상 Candidate 전체 조회 ─────────────────────────
   const candidates = await prisma.candidate.findMany({
-    where: { year, isReviewTarget: true, user: { isActive: true } },
+    where: { year, isReviewTarget: true, source: { not: "excluded" }, user: { isActive: true } },
     include: {
       user: { select: { level: true, department: true } },
       confirmation: { select: { status: true } },
