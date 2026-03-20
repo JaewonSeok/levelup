@@ -973,16 +973,13 @@ export default function ReviewPage() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="__all__">전체</SelectItem>
-              {["L0", "L1", "L2", "L3", "L4", "L5"].map((lv) => (
+              {["L0", "L1", "L2", "L3", "L4"].map((lv) => (
                 <SelectItem key={lv} value={lv}>{lv}</SelectItem>
               ))}
             </SelectContent>
           </Select>
         </div>
 
-        <Button onClick={handleSearch} disabled={loading} size="sm" className="h-8">
-          검색
-        </Button>
         <span className="text-sm text-muted-foreground">총 {displayTotal}명</span>
 
         {/* 1차 최종 제출 버튼 (본부장 + Phase 1) */}
