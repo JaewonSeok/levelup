@@ -38,12 +38,6 @@ export async function GET(req: NextRequest) {
     },
   });
 
-  // ── 전체 Candidate 중 포인트/학점 충족 현황 ──────────────
-  // (isReviewTarget 여부와 무관하게 해당 연도 전체 대상)
-  const allCandidates = await prisma.candidate.findMany({
-    where: { year },
-    select: { pointMet: true, creditMet: true },
-  });
 
   // ── 집계 ─────────────────────────────────────────────────
   type ConfStatus = "CONFIRMED" | "DEFERRED" | "PENDING";
@@ -115,13 +109,13 @@ export async function GET(req: NextRequest) {
     special: candidates.filter((c) => c.promotionType === "special").length,
   };
 
-  // 포인트/학점 충족 현황 (전체 Candidate 기준)
+  // 포인트/학점 충족 현황 (심사대상 21명 기준)
   const metSummary = {
-    bothMet: allCandidates.filter((c) => c.pointMet && c.creditMet).length,
-    pointOnly: allCandidates.filter((c) => c.pointMet && !c.creditMet).length,
-    creditOnly: allCandidates.filter((c) => !c.pointMet && c.creditMet).length,
-    neitherMet: allCandidates.filter((c) => !c.pointMet && !c.creditMet).length,
-    total: allCandidates.length,
+    bothMet: candidates.filter((c) => c.pointMet && c.creditMet).length,
+    pointOnly: candidates.filter((c) => c.pointMet && !c.creditMet).length,
+    creditOnly: candidates.filter((c) => !c.pointMet && c.creditMet).length,
+    neitherMet: candidates.filter((c) => !c.pointMet && !c.creditMet).length,
+    total: candidates.length,
   };
 
   return NextResponse.json({
