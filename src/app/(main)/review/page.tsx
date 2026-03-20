@@ -20,7 +20,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { CheckCircle2, AlertTriangle, Send, ChevronDown, ChevronUp, Info } from "lucide-react";
+import { CheckCircle2, AlertTriangle, Send, ChevronDown, ChevronUp, ChevronsUpDown, Info } from "lucide-react";
 import { OpinionModal } from "@/components/review/OpinionModal";
 import { toast } from "sonner";
 
@@ -86,13 +86,10 @@ interface CurrentUser {
   isImpersonating?: boolean;
 }
 
-type TargetType = "all" | "own" | "other";
-
 interface Query {
   year: number;
   department: string;
   team: string;
-  targetType: TargetType;
 }
 
 // ── Constants ──────────────────────────────────────────────────
@@ -281,14 +278,15 @@ export default function ReviewPage() {
     year: CURRENT_YEAR,
     department: "",
     team: "",
-    targetType: "all",
   });
   const [draft, setDraft] = useState<Query>({
     year: CURRENT_YEAR,
     department: "",
     team: "",
-    targetType: "all",
   });
+
+  const [levelFilter, setLevelFilter] = useState<string>("");
+  const [levelSortDir, setLevelSortDir] = useState<"asc" | "desc" | null>(null);
 
   const [candidates, setCandidates] = useState<ReviewCandidate[]>([]);
   const [total, setTotal] = useState(0);
@@ -367,7 +365,7 @@ export default function ReviewPage() {
           year: String(query.year),
           department: query.department,
           team: query.team,
-          targetType: query.targetType,
+          targetType: "all",
         });
         if (impersonateDept) sp.set("impersonate", impersonateDept);
         const res = await fetch(`/api/reviews?${sp}`, { cache: "no-store" });
@@ -402,11 +400,10 @@ export default function ReviewPage() {
   // 비고 컬럼: 전체 역할에 표시 (본부장은 읽기 전용)
   const showNoteColumn = true;
 
-  // 본부장: 전체/타본부소속 필터 (API 필터 + 프론트 이중 보장)
+  // 본부장: Phase별 표시 범위 필터 (API 필터 + 프론트 이중 보장)
   const currentDeptName = currentUser?.department ?? "";
   const displayCandidates = isDeptHead
     ? candidates.filter((c) => {
-        if (query.targetType === "own") return true; // "own": API가 이미 소속 본부만 반환
         if (currentPhase === 2) {
           // Phase 2: 타본부장 교차심사 — 본인소속 제외 + L3/L4만 (이중 보장)
           return c.department !== currentDeptName && (c.level === "L3" || c.level === "L4");
@@ -415,16 +412,35 @@ export default function ReviewPage() {
         return true;
       })
     : candidates;
-  // 본부장 "전체" 선택 시 본인 소속 먼저, 타본부 뒤에 정렬
-  const sortedCandidates = isDeptHead && query.targetType === "all"
-    ? [...displayCandidates].sort((a, b) => {
+
+  // 레벨 필터 적용
+  const levelFilteredCandidates = levelFilter
+    ? displayCandidates.filter((c) => (c.level ?? "") === levelFilter)
+    : displayCandidates;
+
+  // 레벨 정렬 + 본부장 "전체" 시 본인 소속 먼저 정렬
+  const levelOrder = (level: string | null) => {
+    const n = parseInt((level ?? "").replace("L", ""), 10);
+    return isNaN(n) ? -1 : n;
+  };
+  const sortedCandidates = (() => {
+    const list = [...levelFilteredCandidates];
+    if (levelSortDir) {
+      list.sort((a, b) => {
+        const diff = levelOrder(a.level) - levelOrder(b.level);
+        return levelSortDir === "asc" ? diff : -diff;
+      });
+    } else if (isDeptHead) {
+      list.sort((a, b) => {
         const aOwn = a.department === currentDeptName ? 0 : 1;
         const bOwn = b.department === currentDeptName ? 0 : 1;
         if (aOwn !== bOwn) return aOwn - bOwn;
         return a.department.localeCompare(b.department, "ko");
-      })
-    : displayCandidates;
-  const displayTotal = isDeptHead ? displayCandidates.length : total;
+      });
+    }
+    return list;
+  })();
+  const displayTotal = isDeptHead ? levelFilteredCandidates.length : (levelFilter ? levelFilteredCandidates.length : total);
 
   // Phase 2 제출 가능 여부: 타본부 L3/L4 후보자 전원에 대해 의견 입력 완료
   const phase2OtherCandidates = isDeptHead && currentPhase === 2
@@ -946,26 +962,22 @@ export default function ReviewPage() {
           </Select>
         </div>
 
-        <div className="flex items-center gap-3">
-          <span className="text-sm font-medium whitespace-nowrap">대상</span>
-          {(
-            [
-              { v: "all", label: "전체" },
-              { v: "own", label: "본인소속" },
-              { v: "other", label: "타본부소속" },
-            ] as { v: TargetType; label: string }[]
-          ).map(({ v, label }) => (
-            <label key={v} className="flex items-center gap-1 cursor-pointer">
-              <input
-                type="radio"
-                name="targetType"
-                value={v}
-                checked={draft.targetType === v}
-                onChange={() => setDraft((prev) => ({ ...prev, targetType: v }))}
-              />
-              <span className="text-sm">{label}</span>
-            </label>
-          ))}
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-medium whitespace-nowrap">레벨</span>
+          <Select
+            value={levelFilter || "__all__"}
+            onValueChange={(v) => setLevelFilter(v === "__all__" ? "" : v)}
+          >
+            <SelectTrigger className="w-28 h-8 text-sm bg-white">
+              <SelectValue placeholder="전체" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__all__">전체</SelectItem>
+              {["L0", "L1", "L2", "L3", "L4", "L5"].map((lv) => (
+                <SelectItem key={lv} value={lv}>{lv}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
 
         <Button onClick={handleSearch} disabled={loading} size="sm" className="h-8">
@@ -1008,7 +1020,25 @@ export default function ReviewPage() {
               <th className="border px-2 py-2 font-medium sticky left-10 bg-gray-100 z-10">본부</th>
               <th className="border px-2 py-2 font-medium">팀</th>
               <th className="border px-2 py-2 font-medium">이름</th>
-              <th className="border px-2 py-2 font-medium">레벨</th>
+              <th
+                className="border px-2 py-2 font-medium cursor-pointer select-none hover:bg-gray-200 transition-colors"
+                onClick={() =>
+                  setLevelSortDir((prev) =>
+                    prev === null ? "asc" : prev === "asc" ? "desc" : null
+                  )
+                }
+              >
+                <span className="inline-flex items-center gap-0.5">
+                  레벨
+                  {levelSortDir === "asc" ? (
+                    <ChevronUp className="w-3.5 h-3.5 text-blue-600" />
+                  ) : levelSortDir === "desc" ? (
+                    <ChevronDown className="w-3.5 h-3.5 text-blue-600" />
+                  ) : (
+                    <ChevronsUpDown className="w-3.5 h-3.5 text-gray-400" />
+                  )}
+                </span>
+              </th>
               <th className="border px-2 py-2 font-medium">연차</th>
               <th className="border px-2 py-2 font-medium">입사일</th>
               <th className="border px-2 py-2 font-medium">포인트</th>
