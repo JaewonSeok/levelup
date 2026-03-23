@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
+import { useImpersonate } from "@/context/ImpersonateContext";
 import { EmployeeTooltip } from "@/components/EmployeeTooltip";
 import { Button } from "@/components/ui/button";
 import {
@@ -114,6 +115,7 @@ export default function ConfirmationPage() {
   const { data: session, status: authStatus } = useSession();
   const router = useRouter();
 
+  const { impersonateDept } = useImpersonate();
   const role = session?.user?.role ?? "";
   const canConfirm = role === "CEO" || role === "SYSTEM_ADMIN";
   const isAdmin = role === "SYSTEM_ADMIN";
@@ -125,6 +127,13 @@ export default function ConfirmationPage() {
       router.replace("/level-management");
     }
   }, [session, authStatus, router]);
+
+  // 본부장 화면 보기 모드: impersonateDept 선택 시 /dept-confirmation으로 자동 이동
+  useEffect(() => {
+    if (impersonateDept) {
+      router.push("/dept-confirmation");
+    }
+  }, [impersonateDept, router]);
 
   const [year, setYear] = useState(CURRENT_YEAR);
   const [department, setDepartment] = useState("");
