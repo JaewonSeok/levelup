@@ -18,6 +18,13 @@ interface Employee {
   creditCumulative: number;
 }
 
+function getNextLevel(level: string | null): string {
+  if (!level) return "-";
+  const match = level.match(/^L(\d+)$/);
+  if (!match) return "-";
+  return `L${parseInt(match[1]) + 1}`;
+}
+
 export default function DeptConfirmationPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
@@ -115,7 +122,7 @@ export default function DeptConfirmationPage() {
                     </td>
                     <td className="px-4 py-3">
                       <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-700">
-                        {emp.competencyLevel ?? "-"}
+                        {getNextLevel(emp.level)}
                       </span>
                     </td>
                     <td className="px-4 py-3 text-gray-700">
