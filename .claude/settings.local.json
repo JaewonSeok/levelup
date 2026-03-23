@@ -87,7 +87,8 @@
       "Bash(cd \"C:\\\\Users\\\\RSUPPORT\\\\Desktop\\\\2026 레벨업\" && mkdir -p public && cp RSUPPORT_logo.png public/RSUPPORT_logo.png && echo \"OK\" && ls public/)",
       "Bash(pip install:*)",
       "Bash(find:*)",
-      "Bash(npx vercel:*)"
+      "Bash(npx vercel:*)",
+      "Bash(node -e \":*)"
     ]
   }
 }

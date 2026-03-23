@@ -87,6 +87,12 @@ const NAV_SECTIONS: NavSection[] = [
         ],
       },
       {
+        href: "/dept-confirmation",
+        label: "레벨업 확정",
+        icon: CheckCircle,
+        allowedRoles: [Role.DEPT_HEAD],
+      },
+      {
         href: "/confirmation",
         label: "레벨업 확정",
         icon: CheckCircle,
