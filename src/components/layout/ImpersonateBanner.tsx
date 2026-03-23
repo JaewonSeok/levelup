@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useSession } from "next-auth/react";
 import { useImpersonate } from "@/context/ImpersonateContext";
 import { Eye, X } from "lucide-react";
 
@@ -16,17 +17,22 @@ interface Props {
 
 export function ImpersonateBanner({ userRole }: Props) {
   const { impersonateDept, setImpersonateDept } = useImpersonate();
+  const { status } = useSession();
   const [deptHeads, setDeptHeads] = useState<DeptHead[]>([]);
 
   const canImpersonate = userRole === "SYSTEM_ADMIN" || userRole === "HR_TEAM";
 
+  // 클라이언트 세션이 authenticated 된 이후에 fetch — 세션 쿠키 준비 보장
   useEffect(() => {
-    if (!canImpersonate) return;
+    if (!canImpersonate || status !== "authenticated") return;
     fetch("/api/dept-heads")
-      .then((r) => r.json())
+      .then((r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      })
       .then((data) => setDeptHeads(data.deptHeads ?? []))
-      .catch(() => {});
-  }, [canImpersonate]);
+      .catch((e) => console.error("[ImpersonateBanner] 본부장 목록 로드 실패:", e));
+  }, [canImpersonate, status]);
 
   if (!canImpersonate) return null;
 
